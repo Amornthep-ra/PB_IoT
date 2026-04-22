@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowSplashScreenBackground">#10162B</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/princebot_launch_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#10162B</item>
+        <item name="android:windowSplashScreenBrandingImage">@null</item>
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+
+    <style name="NormalTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#10162B</item>
+    </style>
+</resources>

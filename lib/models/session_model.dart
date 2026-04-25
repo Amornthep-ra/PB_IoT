@@ -57,8 +57,12 @@ class SessionModel {
         ? json['user'] as Map<String, dynamic>
         : const <String, dynamic>{};
 
+    final token = (json['token'] ?? json['appToken'] ?? user['token'])
+        ?.toString()
+        .trim();
+
     return SessionModel(
-      token: '',
+      token: token == null || token.isEmpty ? '' : token,
       displayName: (user['name'] ?? '').toString(),
       userId: user['id']?.toString(),
       email: user['email']?.toString(),

@@ -6,6 +6,7 @@ import '../features/dashboard/services/dashboard_runtime_controller.dart';
 import '../features/dashboard_builder/widgets/dashboard_home_view.dart';
 import '../features/devices/screens/devices_screen.dart';
 import '../features/notifications/screens/notifications_screen.dart';
+import '../theme/app_theme.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -54,26 +55,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: const Color(0xFFFFFFFF).withValues(alpha: 0.55),
-                ),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFFFFFFFF).withValues(alpha: 0.72),
-                    const Color(0xFFF6FBFF).withValues(alpha: 0.46),
-                  ],
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x140F172A),
-                    blurRadius: 24,
-                    offset: Offset(0, 12),
-                  ),
+              decoration: AppGlassTheme.surfaceDecoration(
+                radius: 24,
+                borderAlpha: 0.55,
+                colors: <Color>[
+                  const Color(0xFFFFFFFF).withValues(alpha: 0.72),
+                  const Color(0xFFF6FBFF).withValues(alpha: 0.46),
                 ],
+                shadows: AppGlassTheme.shadowLg,
               ),
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               child: Row(
@@ -148,11 +137,7 @@ class _BottomNavItem extends StatelessWidget {
               ? Border.all(color: const Color(0xFFFFFFFF).withValues(alpha: 0.75))
               : null,
           gradient: isActive
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: activeColors,
-                )
+              ? AppGlassTheme.surfaceGradient(activeColors)
               : null,
           boxShadow: isActive
               ? const [

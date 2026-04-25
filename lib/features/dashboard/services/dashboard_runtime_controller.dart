@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../../services/auth_service.dart';
@@ -46,6 +45,7 @@ class DashboardRuntimeController extends ChangeNotifier
   bool _isRefreshing = false;
   bool _isAppInForeground = true;
   bool _isInitialized = false;
+  bool _isDisposed = false;
   bool _isRecoveringSession = false;
   String? _errorText;
   String _dashboardTitle =
@@ -71,7 +71,15 @@ class DashboardRuntimeController extends ChangeNotifier
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
+    _isDisposed = true;
     super.dispose();
+  }
+
+  void _notifyIfActive() {
+    if (_isDisposed) {
+      return;
+    }
+    notifyListeners();
   }
 
   @override
@@ -109,14 +117,14 @@ class DashboardRuntimeController extends ChangeNotifier
     }
     await _layoutStorage.saveDashboardTitle(normalizedTitle);
     _dashboardTitle = normalizedTitle;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   Future<void> reloadAlertRules() async {
     _alertRules = List<AlertRuleModel>.unmodifiable(
       await _notificationService.loadRules(),
     );
-    notifyListeners();
+    _notifyIfActive();
   }
 
   Future<void> refreshSnapshotFromServer() async {
@@ -126,8 +134,8 @@ class DashboardRuntimeController extends ChangeNotifier
 
     _isRefreshing = true;
     try {
-      final refreshed = await _tryRefreshSnapshot();
-      if (refreshed) {
+      final refreshError = await _tryRefreshSnapshot();
+      if (refreshError == null) {
         return;
       }
 
@@ -136,8 +144,8 @@ class DashboardRuntimeController extends ChangeNotifier
         return;
       }
 
-      _errorText = 'Unable to refresh dashboard data.';
-      notifyListeners();
+      _errorText = refreshError;
+      _notifyIfActive();
     } finally {
       _isRefreshing = false;
     }
@@ -146,7 +154,7 @@ class DashboardRuntimeController extends ChangeNotifier
   Future<void> updateRuntimeItems(List<DashboardItem> nextItems) async {
     final previousItems = List<DashboardItem>.from(_items);
     _items = List<DashboardItem>.unmodifiable(nextItems);
-    notifyListeners();
+    _notifyIfActive();
     await _runtimeValueStorage.saveFromItems(_items);
     await _evaluateAlertRules(previousItems: previousItems, nextItems: _items);
   }
@@ -156,7 +164,7 @@ class DashboardRuntimeController extends ChangeNotifier
         DashboardBuilderLayoutStorageService.defaultDashboardTitle;
     if (initialLoad) {
       _isLoading = true;
-      notifyListeners();
+      _notifyIfActive();
     }
 
     try {
@@ -176,7 +184,7 @@ class DashboardRuntimeController extends ChangeNotifier
       _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
       _errorText = null;
       _isLoading = false;
-      notifyListeners();
+      _notifyIfActive();
       await _evaluateAlertRules(
         previousItems: const <DashboardItem>[],
         nextItems: hydratedItems,
@@ -199,7 +207,7 @@ class DashboardRuntimeController extends ChangeNotifier
       _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
       _errorText = error.message;
       _isLoading = false;
-      notifyListeners();
+      _notifyIfActive();
       await _evaluateAlertRules(
         previousItems: const <DashboardItem>[],
         nextItems: hydratedItems,
@@ -218,10 +226,10 @@ class DashboardRuntimeController extends ChangeNotifier
       _snapshot = snapshot;
       _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
       _errorText = initialLoad
-          ? 'Unable to load dashboard data right now.'
-          : 'Unable to refresh dashboard data.';
+          ? 'ไม่สามารถโหลดข้อมูล Dashboard ได้ในขณะนี้'
+          : 'ไม่สามารถรีเฟรชข้อมูล Dashboard ได้ในขณะนี้';
       _isLoading = false;
-      notifyListeners();
+      _notifyIfActive();
       await _evaluateAlertRules(
         previousItems: const <DashboardItem>[],
         nextItems: hydratedItems,
@@ -240,7 +248,7 @@ class DashboardRuntimeController extends ChangeNotifier
     );
   }
 
-  Future<bool> _tryRefreshSnapshot() async {
+  Future<String?> _tryRefreshSnapshot() async {
     try {
       final previousItems = List<DashboardItem>.from(_items);
       final snapshot = await _dashboardService.fetchRuntimeSnapshot();
@@ -248,16 +256,16 @@ class DashboardRuntimeController extends ChangeNotifier
       _snapshot = snapshot;
       _items = hydratedItems;
       _errorText = null;
-      notifyListeners();
+      _notifyIfActive();
       await _evaluateAlertRules(
         previousItems: previousItems,
         nextItems: hydratedItems,
       );
-      return true;
-    } on DashboardServiceException {
-      return false;
+      return null;
+    } on DashboardServiceException catch (error) {
+      return error.message;
     } catch (_) {
-      return false;
+      return 'ไม่สามารถรีเฟรชข้อมูล Dashboard ได้ในขณะนี้';
     }
   }
 
@@ -286,8 +294,17 @@ class DashboardRuntimeController extends ChangeNotifier
         return false;
       }
 
+      final mergedSession = refreshedSession.copyWith(
+        token: refreshedSession.token.trim().isNotEmpty
+            ? refreshedSession.token
+            : currentSession?.token,
+        displayName: refreshedSession.displayName.trim().isNotEmpty
+            ? refreshedSession.displayName
+            : currentSession?.displayName,
+      );
+
       var synchronizedSession =
-          await ProfileImageCacheStorage.synchronizeSession(refreshedSession);
+          await ProfileImageCacheStorage.synchronizeSession(mergedSession);
       synchronizedSession = await ProfileImageCacheStorage.refreshFromNetwork(
         synchronizedSession,
       );
@@ -295,7 +312,7 @@ class DashboardRuntimeController extends ChangeNotifier
       SessionState.current = synchronizedSession;
       await SessionSnapshotStorage.save(synchronizedSession);
 
-      return await _tryRefreshSnapshot();
+      return await _tryRefreshSnapshot() == null;
     } on AuthException {
       return false;
     } catch (_) {
@@ -420,7 +437,7 @@ class DashboardRuntimeController extends ChangeNotifier
     }
 
     if (eventsToAppend.isNotEmpty) {
-      notifyListeners();
+      _notifyIfActive();
     }
   }
 

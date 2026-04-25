@@ -59,6 +59,7 @@ class LocalAlertNotificationService {
       return;
     }
 
+    final notificationTitle = _alertEventTitle(event);
     final androidDetails = AndroidNotificationDetails(
       _alertsChannel.id,
       _alertsChannel.name,
@@ -73,11 +74,22 @@ class LocalAlertNotificationService {
     final details = NotificationDetails(android: androidDetails);
     await _plugin.show(
       _notificationIdFromEvent(event.id),
-      event.ruleTitle,
+      notificationTitle,
       event.message,
       details,
       payload: event.id,
     );
+  }
+
+  String _alertEventTitle(AlertEventModel event) {
+    final dataKey = event.payload['dataKey']?.toString().trim() ?? '';
+    if (dataKey.isEmpty) {
+      return event.ruleTitle;
+    }
+    if (event.ruleTitle.toLowerCase().contains('(${dataKey.toLowerCase()})')) {
+      return event.ruleTitle;
+    }
+    return '${event.ruleTitle} ($dataKey)';
   }
 
   int _notificationIdFromEvent(String eventId) {

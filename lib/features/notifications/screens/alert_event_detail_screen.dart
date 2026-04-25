@@ -4,16 +4,18 @@ import '../models/alert_event_model.dart';
 import '../models/alert_rule_model.dart';
 
 class AlertEventDetailScreen extends StatelessWidget {
-  const AlertEventDetailScreen({
-    super.key,
-    required this.event,
-  });
+  const AlertEventDetailScreen({super.key, required this.event});
 
   final AlertEventModel event;
 
   @override
   Widget build(BuildContext context) {
     final palette = _severityPalette(event.severity);
+    final dataKey = _eventDataKey(event);
+    final displayTitle = _alertTitleWithDataKey(
+      title: event.ruleTitle,
+      dataKey: dataKey,
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F5FA),
@@ -57,7 +59,7 @@ class AlertEventDetailScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                event.ruleTitle,
+                                displayTitle,
                                 style: const TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w800,
@@ -87,6 +89,11 @@ class AlertEventDetailScreen extends StatelessWidget {
                           label: event.widgetTitle,
                           color: const Color(0xFF4E9070),
                         ),
+                        if (dataKey != null)
+                          _DetailChip(
+                            label: dataKey,
+                            color: const Color(0xFF4C8BC8),
+                          ),
                         _DetailChip(
                           label: _severityLabel(event.severity),
                           color: palette.color,
@@ -214,10 +221,7 @@ class _DetailCard extends StatelessWidget {
 }
 
 class _DetailChip extends StatelessWidget {
-  const _DetailChip({
-    required this.label,
-    required this.color,
-  });
+  const _DetailChip({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -243,10 +247,7 @@ class _DetailChip extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -287,10 +288,7 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _SeverityPalette {
-  const _SeverityPalette({
-    required this.icon,
-    required this.color,
-  });
+  const _SeverityPalette({required this.icon, required this.color});
 
   final IconData icon;
   final Color color;
@@ -325,6 +323,28 @@ String _severityLabel(AlertRuleSeverity severity) {
     case AlertRuleSeverity.critical:
       return 'Critical';
   }
+}
+
+String _alertTitleWithDataKey({
+  required String title,
+  required String? dataKey,
+}) {
+  final normalizedTitle = title.trim();
+  final normalizedDataKey = dataKey?.trim() ?? '';
+  if (normalizedDataKey.isEmpty) {
+    return normalizedTitle;
+  }
+  if (normalizedTitle.toLowerCase().contains(
+    '(${normalizedDataKey.toLowerCase()})',
+  )) {
+    return normalizedTitle;
+  }
+  return '$normalizedTitle ($normalizedDataKey)';
+}
+
+String? _eventDataKey(AlertEventModel event) {
+  final dataKey = event.payload['dataKey']?.toString().trim() ?? '';
+  return dataKey.isEmpty ? null : dataKey;
 }
 
 String _formatTimestamp(DateTime value) {

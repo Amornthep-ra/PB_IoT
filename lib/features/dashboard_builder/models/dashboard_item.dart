@@ -63,6 +63,9 @@ class DashboardItem {
     this.gaugeBorderWidth,
     this.sliderBorderWidth,
     this.toggleBorderWidth,
+    this.glowColor,
+    this.glowStrength,
+    this.glowBlur,
     this.value = 0,
     this.minValue = 0,
     this.maxValue = 100,
@@ -78,9 +81,9 @@ class DashboardItem {
     this.enabled = false,
   }) : titlePosition = titlePosition ?? DashboardItemTitlePosition.auto,
        bindingMode = bindingMode ?? 'read',
-        dataType = dataType ?? 'number',
-        stepValue = stepValue ?? 1,
-        sendBehavior = sendBehavior ?? 'on_release';
+       dataType = dataType ?? 'number',
+       stepValue = stepValue ?? 1,
+       sendBehavior = sendBehavior ?? 'on_release';
 
   final String id;
   final DashboardItemType type;
@@ -103,6 +106,9 @@ class DashboardItem {
   final double? gaugeBorderWidth;
   final double? sliderBorderWidth;
   final double? toggleBorderWidth;
+  final Color? glowColor;
+  final double? glowStrength;
+  final double? glowBlur;
   final double value;
   final double minValue;
   final double maxValue;
@@ -150,6 +156,12 @@ class DashboardItem {
     bool clearSliderBorderWidth = false,
     double? toggleBorderWidth,
     bool clearToggleBorderWidth = false,
+    Color? glowColor,
+    bool clearGlowColor = false,
+    double? glowStrength,
+    bool clearGlowStrength = false,
+    double? glowBlur,
+    bool clearGlowBlur = false,
     double? value,
     double? minValue,
     double? maxValue,
@@ -210,6 +222,11 @@ class DashboardItem {
       toggleBorderWidth: clearToggleBorderWidth
           ? null
           : (toggleBorderWidth ?? this.toggleBorderWidth),
+      glowColor: clearGlowColor ? null : (glowColor ?? this.glowColor),
+      glowStrength: clearGlowStrength
+          ? null
+          : (glowStrength ?? this.glowStrength),
+      glowBlur: clearGlowBlur ? null : (glowBlur ?? this.glowBlur),
       value: value ?? this.value,
       minValue: minValue ?? this.minValue,
       maxValue: maxValue ?? this.maxValue,

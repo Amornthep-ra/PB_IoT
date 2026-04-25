@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -7,6 +8,136 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../dashboard/widgets/dashboard_runtime_theme.dart';
 import '../models/dashboard_item.dart';
 import '../models/widget_settings_result.dart';
+import '../../../theme/app_theme.dart';
+import 'dashboard_item_renderer.dart';
+
+BoxDecoration _glassSheetDecoration({
+  required double radius,
+  Color? tint,
+  double opacity = 0.88,
+  bool elevated = true,
+}) {
+  final base = (tint ?? DashboardRuntimeTheme.cardColor).withValues(
+    alpha: opacity,
+  );
+  return AppGlassTheme.surfaceDecoration(
+    radius: radius,
+    colors: <Color>[
+      Color.alphaBlend(Colors.white.withValues(alpha: 0.14), base),
+      Color.alphaBlend(Colors.white.withValues(alpha: 0.04), base),
+    ],
+    borderAlpha: elevated ? 0.18 : 0.12,
+    shadows: elevated ? AppGlassTheme.shadowMd : AppGlassTheme.shadowSm,
+  );
+}
+
+Widget _buildGlassSheetShell({
+  required Widget child,
+  required double radius,
+  double blur = 18,
+  Color? tint,
+  double opacity = 0.88,
+  bool elevated = true,
+}) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+      child: DecoratedBox(
+        decoration: _glassSheetDecoration(
+          radius: radius,
+          tint: tint,
+          opacity: opacity,
+          elevated: elevated,
+        ),
+        child: child,
+      ),
+    ),
+  );
+}
+
+BoxDecoration _glassInsetDecoration({required double radius, Color? color}) {
+  final base = (color ?? DashboardRuntimeTheme.surfaceColor).withValues(
+    alpha: 0.82,
+  );
+  return AppGlassTheme.surfaceDecoration(
+    radius: radius,
+    colors: <Color>[
+      Color.alphaBlend(Colors.white.withValues(alpha: 0.08), base),
+      Color.alphaBlend(Colors.transparent, base),
+    ],
+    borderAlpha: 0.1,
+    shadows: AppGlassTheme.shadowSm,
+  );
+}
+
+Widget _buildGlassControlShell({
+  required Widget child,
+  double radius = 14,
+  bool enabled = true,
+}) {
+  return DecoratedBox(
+    decoration: _glassInsetDecoration(
+      radius: radius,
+      color: enabled
+          ? DashboardRuntimeTheme.surfaceColor
+          : DashboardRuntimeTheme.surfaceColor.withValues(alpha: 0.62),
+    ),
+    child: child,
+  );
+}
+
+InputDecoration _glassFormInputDecoration({
+  String? labelText,
+  TextStyle? labelStyle,
+  String? hintText,
+  TextStyle? hintStyle,
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+  FloatingLabelBehavior? floatingLabelBehavior,
+}) {
+  return InputDecoration(
+    labelText: labelText,
+    labelStyle: labelStyle,
+    hintText: hintText,
+    hintStyle:
+        hintStyle ??
+        const TextStyle(
+          color: DashboardRuntimeTheme.mutedTextColor,
+          fontSize: 12,
+        ),
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+    floatingLabelBehavior: floatingLabelBehavior,
+    filled: true,
+    fillColor: Colors.transparent,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    disabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+  );
+}
 
 class WidgetSettingsSheet extends StatefulWidget {
   const WidgetSettingsSheet({
@@ -112,71 +243,72 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   static const double _maxButtonTitleFontSize = 12;
   static const double _minTileTitleFontSize = 8;
   static const double _maxTileTitleFontSize = 18;
-  static const List<_BindingCatalogEntry> _bindingCatalog = <_BindingCatalogEntry>[
-    _BindingCatalogEntry(
-      key: 'V0',
-      name: 'Switch Command',
-      dataType: 'bool',
-      rangeLabel: '0-1',
-      description: '0 = Off, 1 = On',
-      recommendedFor: <DashboardItemType>[
-        DashboardItemType.button,
-        DashboardItemType.toggle,
-      ],
-      kind: _BindingCatalogKind.command,
-      defaultValue: 0,
-      minValue: 0,
-      maxValue: 1,
-    ),
-    _BindingCatalogEntry(
-      key: 'V1',
-      name: 'Switch State',
-      dataType: 'integer',
-      rangeLabel: '0-1',
-      description: '0 = Off, 1 = On',
-      recommendedFor: <DashboardItemType>[
-        DashboardItemType.toggle,
-        DashboardItemType.valueLabel,
-        DashboardItemType.gauge,
-      ],
-      kind: _BindingCatalogKind.state,
-      defaultValue: 0,
-      minValue: 0,
-      maxValue: 1,
-    ),
-    _BindingCatalogEntry(
-      key: 'V2',
-      name: 'Seconds',
-      dataType: 'integer',
-      rangeLabel: '0-1000000',
-      description: 'ค่าระยะเวลาเป็นวินาทีแบบจำนวนเต็ม',
-      recommendedFor: <DashboardItemType>[
-        DashboardItemType.slider,
-        DashboardItemType.valueLabel,
-        DashboardItemType.gauge,
-      ],
-      kind: _BindingCatalogKind.duration,
-      defaultValue: 0,
-      minValue: 0,
-      maxValue: 1000000,
-    ),
-    _BindingCatalogEntry(
-      key: 'V3',
-      name: 'Temperature',
-      dataType: 'number',
-      rangeLabel: '0-100',
-      description: 'ค่าอุณหภูมิ',
-      recommendedFor: <DashboardItemType>[
-        DashboardItemType.gauge,
-        DashboardItemType.valueLabel,
-      ],
-      kind: _BindingCatalogKind.metric,
-      defaultValue: 0,
-      minValue: 0,
-      maxValue: 100,
-      unit: '°C',
-    ),
-  ];
+  static const List<_BindingCatalogEntry> _bindingCatalog =
+      <_BindingCatalogEntry>[
+        _BindingCatalogEntry(
+          key: 'V0',
+          name: 'Switch Command',
+          dataType: 'bool',
+          rangeLabel: '0-1',
+          description: '0 = Off, 1 = On',
+          recommendedFor: <DashboardItemType>[
+            DashboardItemType.button,
+            DashboardItemType.toggle,
+          ],
+          kind: _BindingCatalogKind.command,
+          defaultValue: 0,
+          minValue: 0,
+          maxValue: 1,
+        ),
+        _BindingCatalogEntry(
+          key: 'V1',
+          name: 'Switch State',
+          dataType: 'integer',
+          rangeLabel: '0-1',
+          description: '0 = Off, 1 = On',
+          recommendedFor: <DashboardItemType>[
+            DashboardItemType.toggle,
+            DashboardItemType.valueLabel,
+            DashboardItemType.gauge,
+          ],
+          kind: _BindingCatalogKind.state,
+          defaultValue: 0,
+          minValue: 0,
+          maxValue: 1,
+        ),
+        _BindingCatalogEntry(
+          key: 'V2',
+          name: 'Seconds',
+          dataType: 'integer',
+          rangeLabel: '0-1000000',
+          description: 'ค่าระยะเวลาเป็นวินาทีแบบจำนวนเต็ม',
+          recommendedFor: <DashboardItemType>[
+            DashboardItemType.slider,
+            DashboardItemType.valueLabel,
+            DashboardItemType.gauge,
+          ],
+          kind: _BindingCatalogKind.duration,
+          defaultValue: 0,
+          minValue: 0,
+          maxValue: 1000000,
+        ),
+        _BindingCatalogEntry(
+          key: 'V3',
+          name: 'Temperature',
+          dataType: 'number',
+          rangeLabel: '0-100',
+          description: 'ค่าอุณหภูมิ',
+          recommendedFor: <DashboardItemType>[
+            DashboardItemType.gauge,
+            DashboardItemType.valueLabel,
+          ],
+          kind: _BindingCatalogKind.metric,
+          defaultValue: 0,
+          minValue: 0,
+          maxValue: 100,
+          unit: '°C',
+        ),
+      ];
 
   late final TextEditingController _titleController;
   late final TextEditingController _valueController;
@@ -184,12 +316,15 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   late final TextEditingController _maxValueController;
   late final TextEditingController _stepController;
   late final FocusNode _titleFocusNode;
+  final GlobalKey _bindingFieldKey = GlobalKey();
   Color _accentColor = _defaultAccentColor;
   Color _titleColor = _defaultTitleColor;
   Color _secondaryAccentColor = _defaultButtonOffColor;
   Color _buttonShellColor = DashboardRuntimeTheme.surfaceColor;
   Color _buttonInnerColor = _defaultButtonInnerColor;
   Color _buttonBorderColor = DashboardRuntimeTheme.surfaceBorderColor;
+  Color _glowColor = _defaultAccentColor;
+  bool _glowColorLinkedToAccent = true;
   bool _buttonBorderLinkedToState = false;
   bool _valueLabelBorderLinkedToText = false;
   double _buttonBorderWidth = _defaultButtonBorderWidth;
@@ -197,6 +332,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   double _gaugeBorderWidth = _defaultGaugeBorderWidth;
   double _sliderBorderWidth = _defaultSliderBorderWidth;
   double _toggleBorderWidth = _defaultToggleBorderWidth;
+  double _glowStrength = _defaultGlowStrength;
+  double _glowBlur = _defaultGlowBlur;
   double _titleFontSize = _minTileTitleFontSize;
   bool _buttonEnabled = false;
   String? _selectedUnit;
@@ -209,6 +346,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   List<_CustomBindingCatalogEntry> _customBindingCatalog =
       const <_CustomBindingCatalogEntry>[];
   _WidgetSettingsPage _activePage = _WidgetSettingsPage.setting;
+  bool _showBindingValidationError = false;
 
   static const double _defaultButtonBorderWidth = 1.2;
   static const double _defaultValueLabelBorderWidth = 1.2;
@@ -218,8 +356,300 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   static const double _minValueLabelBorderWidth = 0.0;
   static const double _maxValueLabelBorderWidth = 4.0;
   static const int _valueLabelBorderWidthDivisions = 20;
+  static const double _defaultGlowStrength = 0.12;
+  static const double _defaultSliderGlowStrength = 0.08;
+  static const double _defaultValueLabelGlowStrength = 0.0;
+  static const double _minGlowStrength = 0.0;
+  static const double _maxGlowStrength = 0.35;
+  static const int _glowStrengthDivisions = 35;
+  static const double _defaultGlowBlur = 18.0;
+  static const double _minGlowBlur = 0.0;
+  static const double _maxGlowBlur = 40.0;
+  static const int _glowBlurDivisions = 40;
 
   double get _recommendedTitleFontSize => 10;
+
+  double get _defaultGlowStrengthForCurrentType =>
+      _defaultGlowStrengthForType(widget.item.type);
+
+  Color get _effectiveGlowColor =>
+      _glowColorLinkedToAccent ? _accentColor : _glowColor;
+
+  static double _defaultGlowStrengthForType(DashboardItemType type) {
+    return switch (type) {
+      DashboardItemType.slider => _defaultSliderGlowStrength,
+      DashboardItemType.valueLabel => _defaultValueLabelGlowStrength,
+      DashboardItemType.button ||
+      DashboardItemType.gauge ||
+      DashboardItemType.toggle => _defaultGlowStrength,
+    };
+  }
+
+  String get _widgetSettingsSubtitle {
+    return '';
+  }
+
+  Size get _miniPreviewSize => switch (widget.item.type) {
+    DashboardItemType.button => const Size(72, 72),
+    DashboardItemType.slider => const Size(150, 60),
+    DashboardItemType.gauge => const Size(92, 92),
+    DashboardItemType.toggle => const Size(118, 62),
+    DashboardItemType.valueLabel => const Size(132, 72),
+  };
+
+  GridRect get _miniPreviewRect => switch (widget.item.type) {
+    DashboardItemType.button => const GridRect(x: 0, y: 0, w: 7, h: 7),
+    DashboardItemType.slider => const GridRect(x: 0, y: 0, w: 14, h: 5),
+    DashboardItemType.gauge => const GridRect(x: 0, y: 0, w: 8, h: 8),
+    DashboardItemType.toggle => const GridRect(x: 0, y: 0, w: 11, h: 5),
+    DashboardItemType.valueLabel => const GridRect(x: 0, y: 0, w: 12, h: 6),
+  };
+
+  EdgeInsets get _miniPreviewInsets => switch (widget.item.type) {
+    DashboardItemType.slider => const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 2,
+    ),
+    DashboardItemType.button => const EdgeInsets.symmetric(
+      horizontal: 6,
+      vertical: 6,
+    ),
+    DashboardItemType.toggle => const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 6,
+    ),
+    DashboardItemType.valueLabel => const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 7,
+    ),
+    DashboardItemType.gauge => const EdgeInsets.all(8),
+  };
+
+  double get _miniPreviewRadius => switch (widget.item.type) {
+    DashboardItemType.slider => 16,
+    DashboardItemType.gauge => 24,
+    DashboardItemType.button => 24,
+    _ => 20,
+  };
+
+  Offset get _miniPreviewVisualOffset => switch (widget.item.type) {
+    DashboardItemType.slider => const Offset(0, -3),
+    _ => Offset.zero,
+  };
+
+  BoxDecoration get _miniPreviewCardDecoration {
+    final isHorizontalWidget =
+        widget.item.type == DashboardItemType.slider ||
+        widget.item.type == DashboardItemType.button ||
+        widget.item.type == DashboardItemType.toggle ||
+        widget.item.type == DashboardItemType.valueLabel;
+
+    return AppGlassTheme.surfaceDecoration(
+      radius: _miniPreviewRadius,
+      colors: <Color>[const Color(0xFFF8FFFC), const Color(0xFFE7F3EE)],
+      borderAlpha: isHorizontalWidget ? 0.36 : 0.42,
+      shadows: isHorizontalWidget
+          ? const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x140F172A),
+                blurRadius: 12,
+                offset: Offset(0, 6),
+              ),
+            ]
+          : const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x180F172A),
+                blurRadius: 16,
+                offset: Offset(0, 8),
+              ),
+            ],
+    );
+  }
+
+  double get _previewMinValue {
+    final parsedMin =
+        double.tryParse(_minValueController.text.trim()) ??
+        widget.item.minValue;
+    final parsedMax =
+        double.tryParse(_maxValueController.text.trim()) ??
+        widget.item.maxValue;
+    return parsedMin <= parsedMax ? parsedMin : parsedMax;
+  }
+
+  double get _previewMaxValue {
+    final parsedMin =
+        double.tryParse(_minValueController.text.trim()) ??
+        widget.item.minValue;
+    final parsedMax =
+        double.tryParse(_maxValueController.text.trim()) ??
+        widget.item.maxValue;
+    return parsedMax >= parsedMin ? parsedMax : parsedMin;
+  }
+
+  double get _previewStepValue {
+    return ((double.tryParse(_stepController.text.trim()) ??
+                widget.item.stepValue)
+            .clamp(0.0001, 1000000))
+        .toDouble();
+  }
+
+  double get _previewValue {
+    final nextValue = _coerceByDataType(
+      (_isButtonWidget || _isToggleWidget
+              ? (_buttonEnabled ? 1.0 : 0.0)
+              : (double.tryParse(_valueController.text.trim()) ??
+                        widget.item.value)
+                    .clamp(_previewMinValue, _previewMaxValue))
+          .toDouble(),
+    );
+    return nextValue;
+  }
+
+  double get _previewDisplayValue {
+    final baseValue = _previewValue.clamp(_previewMinValue, _previewMaxValue);
+    final span = _previewMaxValue - _previewMinValue;
+
+    if ((_isSliderWidget || _isGaugeWidget) && span > 0) {
+      final normalized = (baseValue - _previewMinValue) / span;
+      if (normalized <= 0.02) {
+        return (_previewMinValue + (span * 0.62))
+            .clamp(_previewMinValue, _previewMaxValue)
+            .toDouble();
+      }
+    }
+
+    return baseValue.toDouble();
+  }
+
+  DashboardItem get _previewItem {
+    final previewUnit = _hasSelectedBinding ? _selectedUnit : widget.item.unit;
+    final previewDataKey = _selectedBindingKey.trim().isEmpty
+        ? widget.item.dataKey
+        : _selectedBindingKey;
+    final previewDataKeyLabel = _selectedBindingKey.trim().isEmpty
+        ? widget.item.dataKeyLabel
+        : _selectedBindingName;
+
+    return widget.item.copyWith(
+      rect: _miniPreviewRect,
+      title: '',
+      value: _previewDisplayValue,
+      minValue: (_isSliderWidget || _isGaugeWidget || _isValueLabelWidget)
+          ? _previewMinValue
+          : widget.item.minValue,
+      maxValue: (_isSliderWidget || _isGaugeWidget || _isValueLabelWidget)
+          ? _previewMaxValue
+          : widget.item.maxValue,
+      stepValue: _isSliderWidget ? _previewStepValue : widget.item.stepValue,
+      unit: previewUnit,
+      clearUnit: previewUnit == null,
+      dataKey: previewDataKey,
+      clearDataKey: previewDataKey == null || previewDataKey.trim().isEmpty,
+      dataKeyLabel: previewDataKeyLabel,
+      clearDataKeyLabel:
+          previewDataKeyLabel == null || previewDataKeyLabel.trim().isEmpty,
+      bindingMode: _isBindingModeConfigurable
+          ? _selectedBindingMode
+          : _defaultBindingModeForType(widget.item.type),
+      dataType: _selectedDataType,
+      sendBehavior: _isWritableWidget
+          ? _selectedSendBehavior
+          : widget.item.sendBehavior,
+      accentColor: _accentColor,
+      titleColor: _titleColor,
+      titleFontSize: _titleFontSize,
+      titlePosition: _selectedTitlePosition,
+      secondaryAccentColor: (_isButtonWidget || _isToggleWidget)
+          ? _secondaryAccentColor
+          : widget.item.secondaryAccentColor,
+      clearSecondaryAccentColor: false,
+      buttonShellColor:
+          (_isButtonWidget ||
+              _isValueLabelWidget ||
+              _isGaugeWidget ||
+              _isSliderWidget ||
+              _isToggleWidget)
+          ? _buttonShellColor
+          : widget.item.buttonShellColor,
+      clearButtonShellColor: false,
+      buttonInnerColor:
+          (_isButtonWidget ||
+              _isValueLabelWidget ||
+              _isGaugeWidget ||
+              _isSliderWidget ||
+              _isToggleWidget)
+          ? _buttonInnerColor
+          : widget.item.buttonInnerColor,
+      clearButtonInnerColor: false,
+      buttonBorderColor: _isButtonWidget
+          ? _buttonBorderColor
+          : widget.item.buttonBorderColor,
+      clearButtonBorderColor: !_isButtonWidget,
+      buttonBorderWidth: _isButtonWidget
+          ? _buttonBorderWidth
+          : widget.item.buttonBorderWidth,
+      clearButtonBorderWidth: !_isButtonWidget,
+      valueLabelBorderWidth: _isValueLabelWidget
+          ? _valueLabelBorderWidth
+          : widget.item.valueLabelBorderWidth,
+      clearValueLabelBorderWidth: !_isValueLabelWidget,
+      gaugeBorderWidth: _isGaugeWidget
+          ? _gaugeBorderWidth
+          : widget.item.gaugeBorderWidth,
+      clearGaugeBorderWidth: !_isGaugeWidget,
+      sliderBorderWidth: _isSliderWidget
+          ? _sliderBorderWidth
+          : widget.item.sliderBorderWidth,
+      clearSliderBorderWidth: !_isSliderWidget,
+      toggleBorderWidth: _isToggleWidget
+          ? _toggleBorderWidth
+          : widget.item.toggleBorderWidth,
+      clearToggleBorderWidth: !_isToggleWidget,
+      glowColor: _glowColorLinkedToAccent ? null : _glowColor,
+      clearGlowColor: _glowColorLinkedToAccent,
+      glowStrength: _glowStrength,
+      clearGlowStrength: false,
+      glowBlur: _glowBlur,
+      clearGlowBlur: false,
+      enabled: (_isButtonWidget || _isToggleWidget)
+          ? _buttonEnabled
+          : widget.item.enabled,
+    );
+  }
+
+  Widget _buildMiniWidgetPreview() {
+    final previewSize = _miniPreviewSize;
+    final previewInsets = _miniPreviewInsets;
+    final previewBody = SizedBox(
+      width: previewSize.width,
+      height: previewSize.height,
+      child: IgnorePointer(
+        child: DashboardItemRenderer(
+          item: _previewItem,
+          enableInteraction: false,
+        ),
+      ),
+    );
+
+    return Center(
+      child: SizedBox(
+        width: previewSize.width + previewInsets.horizontal,
+        height: previewSize.height + previewInsets.vertical,
+        child: DecoratedBox(
+          decoration: _miniPreviewCardDecoration,
+          child: Padding(
+            padding: previewInsets,
+            child: Center(
+              child: Transform.translate(
+                offset: _miniPreviewVisualOffset,
+                child: previewBody,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Color _effectiveDefaultButtonShellColor({bool? enabled}) {
     return (enabled ?? _buttonEnabled)
@@ -315,6 +745,15 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     _titleColor = widget.item.titleColor ?? _defaultTitleColor;
     _titleFontSize = (widget.item.titleFontSize ?? _recommendedTitleFontSize)
         .clamp(_minTitleFontSize, _maxTitleFontSize);
+    _glowColorLinkedToAccent = widget.item.glowColor == null;
+    _glowColor = widget.item.glowColor ?? widget.item.accentColor;
+    _glowStrength =
+        (widget.item.glowStrength ?? _defaultGlowStrengthForCurrentType)
+            .clamp(_minGlowStrength, _maxGlowStrength)
+            .toDouble();
+    _glowBlur = (widget.item.glowBlur ?? _defaultGlowBlur)
+        .clamp(_minGlowBlur, _maxGlowBlur)
+        .toDouble();
     _secondaryAccentColor =
         widget.item.secondaryAccentColor ?? _defaultButtonOffColor;
     _buttonEnabled = widget.item.enabled;
@@ -350,9 +789,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 _effectiveDefaultButtonBorderColor(
                   enabled: _buttonEnabled,
                 ).toARGB32());
-    _buttonBorderWidth = (widget.item.buttonBorderWidth ??
-            _defaultButtonBorderWidth)
-        .clamp(
+    _buttonBorderWidth =
+        (widget.item.buttonBorderWidth ?? _defaultButtonBorderWidth).clamp(
           _minValueLabelBorderWidth,
           _maxValueLabelBorderWidth,
         );
@@ -361,32 +799,28 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         (widget.item.buttonShellColor == null ||
             widget.item.buttonShellColor!.toARGB32() ==
                 widget.item.accentColor.toARGB32());
-    _valueLabelBorderWidth = (widget.item.valueLabelBorderWidth ??
-            _defaultValueLabelBorderWidth)
-        .clamp(
+    _valueLabelBorderWidth =
+        (widget.item.valueLabelBorderWidth ?? _defaultValueLabelBorderWidth)
+            .clamp(_minValueLabelBorderWidth, _maxValueLabelBorderWidth);
+    _gaugeBorderWidth =
+        (widget.item.gaugeBorderWidth ?? _defaultGaugeBorderWidth).clamp(
           _minValueLabelBorderWidth,
           _maxValueLabelBorderWidth,
         );
-    _gaugeBorderWidth = (widget.item.gaugeBorderWidth ??
-            _defaultGaugeBorderWidth)
-        .clamp(
+    _sliderBorderWidth =
+        (widget.item.sliderBorderWidth ?? _defaultSliderBorderWidth).clamp(
           _minValueLabelBorderWidth,
           _maxValueLabelBorderWidth,
         );
-    _sliderBorderWidth = (widget.item.sliderBorderWidth ??
-            _defaultSliderBorderWidth)
-        .clamp(
-          _minValueLabelBorderWidth,
-          _maxValueLabelBorderWidth,
-        );
-    _toggleBorderWidth = (widget.item.toggleBorderWidth ??
-            _defaultToggleBorderWidth)
-        .clamp(
+    _toggleBorderWidth =
+        (widget.item.toggleBorderWidth ?? _defaultToggleBorderWidth).clamp(
           _minValueLabelBorderWidth,
           _maxValueLabelBorderWidth,
         );
     _selectedBindingKey = _resolveInitialBindingKey();
-    _selectedUnit = _selectedBindingKey.trim().isEmpty ? null : widget.item.unit;
+    _selectedUnit = _selectedBindingKey.trim().isEmpty
+        ? null
+        : widget.item.unit;
     _selectedBindingName = widget.item.dataKeyLabel?.trim();
     final initialCatalogEntry = _catalogEntryFor(_selectedBindingKey);
     if (initialCatalogEntry != null &&
@@ -409,7 +843,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     if (!_isBindingModeConfigurable) {
       _selectedBindingMode = _defaultBindingModeForType(widget.item.type);
     }
-    if (!_bindingModeOptions().any((option) => option.key == _selectedBindingMode)) {
+    if (!_bindingModeOptions().any(
+      (option) => option.key == _selectedBindingMode,
+    )) {
       _selectedBindingMode = _bindingModeOptions().first.key;
     }
     if (!_dataTypeOptions().any((option) => option.key == _selectedDataType)) {
@@ -442,9 +878,11 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   bool get _isToggleWidget => widget.item.type == DashboardItemType.toggle;
   bool get _isValueLabelWidget =>
       widget.item.type == DashboardItemType.valueLabel;
-  bool get _isWritableWidget => _isButtonWidget || _isSliderWidget || _isToggleWidget;
+  bool get _isWritableWidget =>
+      _isButtonWidget || _isSliderWidget || _isToggleWidget;
   bool get _hasSelectedBinding => _selectedBindingKey.trim().isNotEmpty;
   bool get _isBindingModeConfigurable => false;
+  bool get _bindingIsRequired => true;
 
   String _defaultBindingModeForType(DashboardItemType type) {
     return switch (type) {
@@ -458,6 +896,28 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   void _handleFocusChanged() {
     setState(() {});
+  }
+
+  String? get _bindingAssistiveMessage {
+    if (_hasSelectedBinding) {
+      return 'เชื่อมข้อมูลแล้ว พร้อมใช้งานวิดเจ็ตนี้';
+    }
+    if (!_bindingIsRequired) {
+      return null;
+    }
+    if (_showBindingValidationError) {
+      return 'กรุณาเลือก V Pin ก่อนเพื่อให้วิดเจ็ตนี้ทำงานได้';
+    }
+    return 'ยังไม่ได้เลือก V Pin เลือกก่อนเพื่อเชื่อมข้อมูล';
+  }
+
+  Color get _bindingAssistiveColor {
+    if (_showBindingValidationError && !_hasSelectedBinding) {
+      return const Color(0xFFCC5A4E);
+    }
+    return _hasSelectedBinding
+        ? const Color(0xFF4E9070)
+        : DashboardRuntimeTheme.mutedTextColor;
   }
 
   String _displayUnit(String? unit) {
@@ -559,8 +1019,11 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       return '';
     }
     String format(double value) {
-      return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+      return value % 1 == 0
+          ? value.toStringAsFixed(0)
+          : value.toStringAsFixed(2);
     }
+
     return '${format(min)}-${format(max)}';
   }
 
@@ -694,7 +1157,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     );
   }
 
-  Map<String, int> _customBindingUsageCountMap({bool excludeCurrentItem = false}) {
+  Map<String, int> _customBindingUsageCountMap({
+    bool excludeCurrentItem = false,
+  }) {
     final counts = <String, int>{};
     for (final item in widget.allItems) {
       if (excludeCurrentItem && item.id == widget.item.id) {
@@ -713,9 +1178,11 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     String key, {
     bool excludeCurrentItem = false,
   }) {
-    final count = _customBindingUsageCountMap(
-      excludeCurrentItem: excludeCurrentItem,
-    )[key] ?? 0;
+    final count =
+        _customBindingUsageCountMap(
+          excludeCurrentItem: excludeCurrentItem,
+        )[key] ??
+        0;
     if (count <= 0) {
       return 'ยังไม่ได้ใช้งาน';
     }
@@ -725,7 +1192,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     return 'ถูกใช้งานโดย $count วิดเจ็ต';
   }
 
-  Future<List<_CustomBindingCatalogEntry>> _loadStoredCustomBindingCatalog() async {
+  Future<List<_CustomBindingCatalogEntry>>
+  _loadStoredCustomBindingCatalog() async {
     final preferences = await SharedPreferences.getInstance();
     final raw = preferences.getString(_customBindingStorageKey);
     if (raw == null || raw.trim().isEmpty) {
@@ -792,15 +1260,22 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   Future<void> _loadCustomBindingCatalog() async {
     final stored = await _loadStoredCustomBindingCatalog();
-    final merged = _mergeCustomBindingCatalogs(stored, _customBindingsFromItems());
+    final merged = _mergeCustomBindingCatalogs(
+      stored,
+      _customBindingsFromItems(),
+    );
     if (!mounted) {
       return;
     }
     setState(() {
       _customBindingCatalog = merged;
     });
-    final storedJson = jsonEncode(stored.map((entry) => entry.toJson()).toList());
-    final mergedJson = jsonEncode(merged.map((entry) => entry.toJson()).toList());
+    final storedJson = jsonEncode(
+      stored.map((entry) => entry.toJson()).toList(),
+    );
+    final mergedJson = jsonEncode(
+      merged.map((entry) => entry.toJson()).toList(),
+    );
     if (storedJson != mergedJson) {
       await _saveStoredCustomBindingCatalog(merged);
     }
@@ -809,7 +1284,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   Future<void> _upsertCustomBindingCatalogEntry(
     _CustomBindingCatalogEntry entry,
   ) async {
-    final current = List<_CustomBindingCatalogEntry>.from(_customBindingCatalog);
+    final current = List<_CustomBindingCatalogEntry>.from(
+      _customBindingCatalog,
+    );
     final index = current.indexWhere((candidate) => candidate.key == entry.key);
     if (index >= 0) {
       current[index] = entry;
@@ -851,124 +1328,122 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         return Dialog(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-            decoration: DashboardRuntimeTheme.cardDecoration(
-              radius: 28,
-              color: DashboardRuntimeTheme.cardHighlightColor.withValues(
-                alpha: 0.96,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.delete_outline_rounded,
-                      size: 18,
-                      color: DashboardRuntimeTheme.errorTextColor,
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 22,
+            vertical: 24,
+          ),
+          child: _buildGlassSheetShell(
+            radius: 28,
+            blur: 20,
+            tint: DashboardRuntimeTheme.cardHighlightColor,
+            opacity: 0.96,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: DashboardRuntimeTheme.errorTextColor,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Delete Custom Data Key?',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: DashboardRuntimeTheme.headlineColor,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  DecoratedBox(
+                    decoration: _glassInsetDecoration(radius: 18),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
                       child: Text(
-                        'Delete Custom Data Key?',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: DashboardRuntimeTheme.headlineColor,
-                          letterSpacing: -0.3,
+                        'Remove $name ($key) from your custom Data Key list?',
+                        style: const TextStyle(
+                          color: DashboardRuntimeTheme.labelTextColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                DecoratedBox(
-                  decoration: DashboardRuntimeTheme.insetSurfaceDecoration(
-                    radius: 18,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
-                    child: Text(
-                      'Remove $name ($key) from your custom Data Key list?',
-                      style: const TextStyle(
-                        color: DashboardRuntimeTheme.labelTextColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        height: 1.35,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: Color(0xFFC96868),
-                          ),
-                          foregroundColor: const Color(0xFFFFFBFB),
-                          backgroundColor: const Color(0xFFC96868),
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFFEA7A70),
-                              Color(0xFFD95C54),
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFD95C54).withValues(alpha: 0.22),
-                              offset: const Offset(0, 10),
-                              blurRadius: 20,
-                            ),
-                          ],
-                        ),
-                        child: FilledButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            foregroundColor: Colors.white,
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFC96868)),
+                            foregroundColor: const Color(0xFFFFFBFB),
+                            backgroundColor: const Color(0xFFC96868),
                             padding: const EdgeInsets.symmetric(vertical: 15),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(999),
                             ),
+                            elevation: 0,
                           ),
                           child: const Text(
-                            'Delete',
+                            'Cancel',
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFFEA7A70), Color(0xFFD95C54)],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFFD95C54,
+                                ).withValues(alpha: 0.22),
+                                offset: const Offset(0, 10),
+                                blurRadius: 20,
+                              ),
+                            ],
+                          ),
+                          child: FilledButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            child: const Text(
+                              'Delete',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1027,9 +1502,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         MapEntry('write', 'Write only'),
       ];
     }
-    return const <MapEntry<String, String>>[
-      MapEntry('read', 'Read only'),
-    ];
+    return const <MapEntry<String, String>>[MapEntry('read', 'Read only')];
   }
 
   List<MapEntry<String, String>> _dataTypeOptions() {
@@ -1156,12 +1629,173 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(18 * scale, 0, 18 * scale, 14 * scale),
-              child: DecoratedBox(
-                decoration: DashboardRuntimeTheme.cardDecoration(
-                  radius: 22 * scale,
-                  color: DashboardRuntimeTheme.cardColor,
+              padding: EdgeInsets.fromLTRB(
+                18 * scale,
+                0,
+                18 * scale,
+                14 * scale,
+              ),
+              child: _buildGlassSheetShell(
+                radius: 22 * scale,
+                blur: 18,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: 8 * scale),
+                      Container(
+                        width: 38 * scale,
+                        height: 3 * scale,
+                        decoration: BoxDecoration(
+                          color: DashboardRuntimeTheme.surfaceBorderColor,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      SizedBox(height: 10 * scale),
+                      Text(
+                        'Select Data Key (V Pin)',
+                        style: TextStyle(
+                          color: DashboardRuntimeTheme.headlineColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15 * scale,
+                        ),
+                      ),
+                      SizedBox(height: 6 * scale),
+                      Flexible(
+                        child: ListView(
+                          padding: EdgeInsets.fromLTRB(
+                            14 * scale,
+                            4 * scale,
+                            14 * scale,
+                            14 * scale,
+                          ),
+                          shrinkWrap: true,
+                          children: [
+                            _buildBindingPickerActionCard(
+                              scale: scale,
+                              icon: Icons.add_circle_outline_rounded,
+                              accentColor: DashboardRuntimeTheme.buttonEndColor,
+                              title:
+                                  selected.isNotEmpty &&
+                                      !_isCatalogKey(selected)
+                                  ? 'Edit Custom Data Key'
+                                  : 'Add Custom Data Key',
+                              subtitle:
+                                  'Define a key name, data type, range, and unit for this widget binding.',
+                              onTap: () =>
+                                  Navigator.of(context).pop('__custom__'),
+                            ),
+                            SizedBox(height: 14 * scale),
+                            if (customEntries.isNotEmpty) ...[
+                              _buildPickerSectionLabel(
+                                label: 'Custom Keys',
+                                scale: scale,
+                              ),
+                              for (final entry in customEntries) ...[
+                                _buildBindingPickerOptionCard(
+                                  scale: scale,
+                                  icon: Icons.tune_rounded,
+                                  iconColor: DashboardRuntimeTheme
+                                      .surfaceBorderFocusColor,
+                                  title: '${entry.name} (${entry.key})',
+                                  details: <String>[
+                                    _bindingMetaLine(
+                                      dataType: entry.dataType,
+                                      rangeLabel: _customBindingRangeLabel(
+                                        entry,
+                                      ),
+                                      unit: entry.unit,
+                                    ),
+                                    _customBindingUsageLabel(entry.key),
+                                  ],
+                                  isSelected: entry.key == selected,
+                                  onTap: () =>
+                                      Navigator.of(context).pop(entry.key),
+                                  trailing:
+                                      ((_customBindingUsageCountMap()[entry
+                                                  .key] ??
+                                              0) ==
+                                          0)
+                                      ? IconButton(
+                                          tooltip: 'Delete Custom Data Key',
+                                          onPressed: () => Navigator.of(
+                                            context,
+                                          ).pop('__delete__:${entry.key}'),
+                                          icon: Icon(
+                                            Icons.delete_outline_rounded,
+                                            size: 18 * scale,
+                                            color: const Color(0xFFD95C54),
+                                          ),
+                                        )
+                                      : (entry.key == selected
+                                            ? Icon(
+                                                Icons.check_rounded,
+                                                color: const Color(0xFF2E6F57),
+                                                size: 20 * scale,
+                                              )
+                                            : Icon(
+                                                Icons.lock_outline_rounded,
+                                                size: 16 * scale,
+                                                color: DashboardRuntimeTheme
+                                                    .surfaceBorderColor,
+                                              )),
+                                ),
+                                SizedBox(height: 10 * scale),
+                              ],
+                            ],
+                            _buildPickerSectionLabel(
+                              label: 'Starter Keys',
+                              scale: scale,
+                            ),
+                            for (final entry in catalogEntries) ...[
+                              _buildBindingPickerOptionCard(
+                                scale: scale,
+                                icon: _catalogIcon(entry),
+                                iconColor: _isRecommendedCatalogEntry(entry)
+                                    ? DashboardRuntimeTheme
+                                          .surfaceBorderFocusColor
+                                    : DashboardRuntimeTheme.labelTextColor,
+                                title: '${entry.name} (${entry.key})',
+                                details: <String>[
+                                  _bindingMetaLine(
+                                    dataType: entry.dataType,
+                                    rangeLabel: entry.rangeLabel,
+                                    unit: entry.unit,
+                                  ),
+                                  if (entry.description.trim().isNotEmpty)
+                                    entry.description.trim(),
+                                  if (_catalogUsageNote(entry) != null)
+                                    _catalogUsageNote(entry)!,
+                                ],
+                                isSelected: entry.key == selected,
+                                onTap: () =>
+                                    Navigator.of(context).pop(entry.key),
+                              ),
+                              SizedBox(height: 10 * scale),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+            ),
+          ),
+        );
+        /*
+        return Material(
+          color: Colors.transparent,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(18 * scale, 0, 18 * scale, 14 * scale),
+              child: _buildGlassSheetShell(
+                radius: 22 * scale,
+                blur: 18,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.sizeOf(context).height * 0.72,
@@ -1380,6 +2014,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
             ),
           ),
         );
+        */
       },
     );
   }
@@ -1387,13 +2022,16 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   Future<_CustomBindingConfig?> _openCustomBindingDialog() async {
     final lockedMap = _lockedCustomBindingMapForEditor();
     final currentCustomEntry = _customBindingEntryFor(_selectedBindingKey);
-    var selectedVPin = _normalizeVPinKey(_selectedBindingKey) ??
+    var selectedVPin =
+        _normalizeVPinKey(_selectedBindingKey) ??
         currentCustomEntry?.key ??
         'V4';
-    if (_isReservedBindingKey(selectedVPin) || lockedMap.containsKey(selectedVPin)) {
+    if (_isReservedBindingKey(selectedVPin) ||
+        lockedMap.containsKey(selectedVPin)) {
       for (var i = 4; i <= 255; i += 1) {
         final candidate = 'V$i';
-        if (!_isReservedBindingKey(candidate) && !lockedMap.containsKey(candidate)) {
+        if (!_isReservedBindingKey(candidate) &&
+            !lockedMap.containsKey(candidate)) {
           selectedVPin = candidate;
           break;
         }
@@ -1405,7 +2043,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           initialVPin: selectedVPin,
           lockedMap: lockedMap,
           initialType: currentCustomEntry?.dataType ?? _selectedDataType,
-          initialName: currentCustomEntry?.name ??
+          initialName:
+              currentCustomEntry?.name ??
               ((!_isCatalogKey(_selectedBindingKey) &&
                       (_selectedBindingName?.trim().isNotEmpty ?? false))
                   ? _selectedBindingName!.trim()
@@ -1419,7 +2058,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           initialMaxValue: currentCustomEntry?.maxValue != null
               ? _formatBindingNumber(currentCustomEntry!.maxValue!)
               : _maxValueController.text.trim(),
-          initialUnit: currentCustomEntry?.unit ?? (_hasSelectedBinding ? (_selectedUnit ?? '') : ''),
+          initialUnit:
+              currentCustomEntry?.unit ??
+              (_hasSelectedBinding ? (_selectedUnit ?? '') : ''),
           isEditing: currentCustomEntry != null,
           usageCount: currentCustomEntry == null
               ? 0
@@ -1435,11 +2076,230 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     return (width / 390).clamp(0.86, 1.08);
   }
 
+  Widget _buildPickerSectionLabel({
+    required String label,
+    required double scale,
+  }) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16 * scale,
+        6 * scale,
+        16 * scale,
+        8 * scale,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: DashboardRuntimeTheme.labelTextColor,
+          fontSize: 11 * scale,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBindingPickerActionCard({
+    required double scale,
+    required IconData icon,
+    required Color accentColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return DecoratedBox(
+      decoration: AppGlassTheme.accentDecoration(
+        radius: 18 * scale,
+        colors: <Color>[
+          Color.lerp(accentColor, Colors.white, 0.35) ?? accentColor,
+          Color.lerp(accentColor, Colors.black, 0.10) ?? accentColor,
+        ],
+        borderColor: Colors.white.withValues(alpha: 0.65),
+        glowColor: accentColor,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18 * scale),
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 14 * scale,
+              vertical: 13 * scale,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36 * scale,
+                  height: 36 * scale,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(14 * scale),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.32),
+                    ),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 18 * scale),
+                ),
+                SizedBox(width: 12 * scale),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13 * scale,
+                        ),
+                      ),
+                      SizedBox(height: 2 * scale),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.86),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11 * scale,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white.withValues(alpha: 0.9),
+                  size: 22 * scale,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBindingPickerOptionCard({
+    required double scale,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required List<String> details,
+    required bool isSelected,
+    required VoidCallback onTap,
+    Widget? trailing,
+  }) {
+    final decoration = isSelected
+        ? AppGlassTheme.accentDecoration(
+            radius: 18 * scale,
+            colors: const <Color>[Color(0xFFBFE4D4), Color(0xFF9FD1BB)],
+            borderColor: const Color(0xFF85B89F),
+            glowColor: const Color(0xFFA9D3C7),
+          )
+        : _glassInsetDecoration(radius: 18 * scale);
+
+    final titleColor = isSelected
+        ? const Color(0xFF123329)
+        : DashboardRuntimeTheme.fieldTextColor;
+    final detailColor = isSelected
+        ? const Color(0xFF325246)
+        : DashboardRuntimeTheme.labelTextColor;
+
+    return DecoratedBox(
+      decoration: decoration,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18 * scale),
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 14 * scale,
+              vertical: 12 * scale,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 34 * scale,
+                  height: 34 * scale,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.48)
+                        : Colors.white.withValues(alpha: 0.30),
+                    borderRadius: BorderRadius.circular(14 * scale),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.55)
+                          : DashboardRuntimeTheme.surfaceBorderColor.withValues(
+                              alpha: 0.45,
+                            ),
+                    ),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 18 * scale),
+                ),
+                SizedBox(width: 12 * scale),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: titleColor,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                          fontSize: 13 * scale,
+                        ),
+                      ),
+                      for (final detail in details.where(
+                        (text) => text.trim().isNotEmpty,
+                      )) ...[
+                        SizedBox(height: 2 * scale),
+                        Text(
+                          detail,
+                          style: TextStyle(
+                            color: detailColor,
+                            fontSize: 11 * scale,
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SizedBox(width: 8 * scale),
+                trailing ??
+                    (isSelected
+                        ? Icon(
+                            Icons.check_rounded,
+                            color: const Color(0xFF2E6F57),
+                            size: 20 * scale,
+                          )
+                        : Icon(
+                            Icons.chevron_right_rounded,
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            size: 20 * scale,
+                          )),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _applyCatalogBinding(_BindingCatalogEntry entry) {
     _selectedBindingKey = entry.key;
     _selectedBindingName = entry.name;
+    _showBindingValidationError = false;
     _selectedDataType = _normalizeDataType(entry.dataType);
-    _selectedUnit = entry.unit?.trim().isNotEmpty == true ? entry.unit!.trim() : null;
+    _selectedUnit = entry.unit?.trim().isNotEmpty == true
+        ? entry.unit!.trim()
+        : null;
     if (entry.defaultValue != null) {
       _valueController.text = entry.defaultValue!.toStringAsFixed(
         entry.dataType == 'integer' || entry.dataType == 'bool' ? 0 : 2,
@@ -1460,6 +2320,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   void _applyCustomBinding(_CustomBindingConfig customResult) {
     _selectedBindingKey = customResult.dataKey.toUpperCase();
     _selectedBindingName = customResult.dataKeyLabel.trim();
+    _showBindingValidationError = false;
     _selectedDataType = _normalizeDataType(customResult.dataType);
     if (customResult.unit.trim().isEmpty ||
         customResult.unit.trim().toLowerCase() == 'none') {
@@ -1493,6 +2354,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   void _applyStoredCustomBinding(_CustomBindingCatalogEntry entry) {
     _selectedBindingKey = entry.key;
     _selectedBindingName = entry.name;
+    _showBindingValidationError = false;
     _selectedDataType = _normalizeDataType(entry.dataType);
     _selectedUnit = entry.unit.trim().isEmpty ? null : entry.unit.trim();
     if (entry.defaultValue != null) {
@@ -1515,7 +2377,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       return;
     }
     if (selectedBinding.startsWith('__delete__:')) {
-      final key = selectedBinding.replaceFirst('__delete__:', '').trim().toUpperCase();
+      final key = selectedBinding
+          .replaceFirst('__delete__:', '')
+          .trim()
+          .toUpperCase();
       final entry = _customBindingEntryFor(key);
       if (entry == null) {
         return;
@@ -1605,11 +2470,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 horizontalPadding,
                 bottomPadding,
               ),
-                child: DecoratedBox(
-                  decoration: DashboardRuntimeTheme.cardDecoration(
-                    radius: radius,
-                    color: DashboardRuntimeTheme.cardColor,
-                  ),
+              child: _buildGlassSheetShell(
+                radius: radius,
+                blur: 18,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.sizeOf(context).height * 0.62,
@@ -1652,14 +2515,16 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                   vertical: 2 * scale,
                                 ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16 * scale),
+                                  borderRadius: BorderRadius.circular(
+                                    16 * scale,
+                                  ),
                                 ),
                                 tileColor: option.key == selectedValue
-                                    ? DashboardRuntimeTheme.buttonGlowColor.withValues(
-                                        alpha: 0.18,
-                                      )
+                                    ? DashboardRuntimeTheme.buttonGlowColor
+                                          .withValues(alpha: 0.18)
                                     : Colors.transparent,
-                                onTap: () => Navigator.of(context).pop(option.key),
+                                onTap: () =>
+                                    Navigator.of(context).pop(option.key),
                                 title: Text(
                                   option.value,
                                   style: TextStyle(
@@ -1675,8 +2540,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                 trailing: option.key == selectedValue
                                     ? const Icon(
                                         Icons.check_rounded,
-                                        color:
-                                            DashboardRuntimeTheme.surfaceBorderFocusColor,
+                                        color: DashboardRuntimeTheme
+                                            .surfaceBorderFocusColor,
                                       )
                                     : null,
                               ),
@@ -1701,24 +2566,60 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     });
   }
 
-  void _save() {
+  void _save() async {
+    if (_bindingIsRequired && !_hasSelectedBinding) {
+      if (_activePage != _WidgetSettingsPage.setting) {
+        setState(() {
+          _activePage = _WidgetSettingsPage.setting;
+          _showBindingValidationError = true;
+        });
+      } else {
+        setState(() {
+          _showBindingValidationError = true;
+        });
+      }
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) {
+        return;
+      }
+      final fieldContext = _bindingFieldKey.currentContext;
+      if (fieldContext != null && fieldContext.mounted) {
+        await Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeInOutCubic,
+          alignment: 0.18,
+        );
+      }
+      return;
+    }
+
     final parsedMin =
-        double.tryParse(_minValueController.text.trim()) ?? widget.item.minValue;
+        double.tryParse(_minValueController.text.trim()) ??
+        widget.item.minValue;
     final parsedMax =
-        double.tryParse(_maxValueController.text.trim()) ?? widget.item.maxValue;
+        double.tryParse(_maxValueController.text.trim()) ??
+        widget.item.maxValue;
     final minValue = parsedMin <= parsedMax ? parsedMin : parsedMax;
     final maxValue = parsedMax >= parsedMin ? parsedMax : parsedMin;
-    final stepValue = ((double.tryParse(_stepController.text.trim()) ??
-                widget.item.stepValue)
-            .clamp(0.0001, 1000000))
-        .toDouble();
-    final nextValue = _coerceByDataType((_isButtonWidget
-        ? (_buttonEnabled ? 1.0 : 0.0)
-        : (double.tryParse(_valueController.text.trim()) ?? widget.item.value)
-              .clamp(minValue, maxValue))
-        .toDouble());
+    final stepValue =
+        ((double.tryParse(_stepController.text.trim()) ?? widget.item.stepValue)
+                .clamp(0.0001, 1000000))
+            .toDouble();
+    final nextValue = _coerceByDataType(
+      (_isButtonWidget
+              ? (_buttonEnabled ? 1.0 : 0.0)
+              : (double.tryParse(_valueController.text.trim()) ??
+                        widget.item.value)
+                    .clamp(minValue, maxValue))
+          .toDouble(),
+    );
     final shouldClearButtonShellColor =
-        (_isButtonWidget || _isValueLabelWidget || _isGaugeWidget || _isSliderWidget || _isToggleWidget) &&
+        (_isButtonWidget ||
+            _isValueLabelWidget ||
+            _isGaugeWidget ||
+            _isSliderWidget ||
+            _isToggleWidget) &&
         _buttonShellColor.toARGB32() ==
             (_isValueLabelWidget
                 ? _effectiveDefaultValueLabelShellColor().toARGB32()
@@ -1730,7 +2631,11 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 ? _effectiveDefaultToggleBorderColor().toARGB32()
                 : _effectiveDefaultButtonShellColor().toARGB32());
     final shouldClearButtonInnerColor =
-        (_isButtonWidget || _isValueLabelWidget || _isGaugeWidget || _isSliderWidget || _isToggleWidget) &&
+        (_isButtonWidget ||
+            _isValueLabelWidget ||
+            _isGaugeWidget ||
+            _isSliderWidget ||
+            _isToggleWidget) &&
         _buttonInnerColor.toARGB32() ==
             (_isValueLabelWidget
                 ? _effectiveDefaultValueLabelBackgroundColor().toARGB32()
@@ -1739,8 +2644,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 : _isSliderWidget
                 ? _effectiveDefaultSliderBackgroundColor().toARGB32()
                 : _isToggleWidget
-                 ? _effectiveDefaultToggleBackgroundColor().toARGB32()
-                 : _effectiveDefaultButtonInnerColor().toARGB32());
+                ? _effectiveDefaultToggleBackgroundColor().toARGB32()
+                : _effectiveDefaultButtonInnerColor().toARGB32());
     final shouldClearButtonBorderColor =
         !_isButtonWidget ||
         _buttonBorderColor.toARGB32() ==
@@ -1760,6 +2665,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     final shouldClearToggleBorderWidth =
         !_isToggleWidget ||
         (_toggleBorderWidth - _defaultToggleBorderWidth).abs() < 0.001;
+    final shouldClearGlowColor = _glowColorLinkedToAccent;
+    final shouldClearGlowStrength =
+        (_glowStrength - _defaultGlowStrengthForCurrentType).abs() < 0.001;
+    final shouldClearGlowBlur = (_glowBlur - _defaultGlowBlur).abs() < 0.001;
 
     Navigator.of(context).pop(
       WidgetSettingsResult(
@@ -1778,17 +2687,20 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
               ? null
               : _selectedBindingName,
           clearDataKeyLabel:
-              _selectedBindingKey.trim().isEmpty || _selectedBindingName == null,
+              _selectedBindingKey.trim().isEmpty ||
+              _selectedBindingName == null,
           bindingMode: _isBindingModeConfigurable
               ? _selectedBindingMode
               : _defaultBindingModeForType(widget.item.type),
           dataType: _selectedDataType,
-          minValue: (_isSliderWidget ||
+          minValue:
+              (_isSliderWidget ||
                   widget.item.type == DashboardItemType.gauge ||
                   widget.item.type == DashboardItemType.valueLabel)
               ? minValue
               : widget.item.minValue,
-          maxValue: (_isSliderWidget ||
+          maxValue:
+              (_isSliderWidget ||
                   widget.item.type == DashboardItemType.gauge ||
                   widget.item.type == DashboardItemType.valueLabel)
               ? maxValue
@@ -1801,24 +2713,41 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           titleColor: _titleColor,
           titleFontSize: _titleFontSize,
           titlePosition: _selectedTitlePosition,
-          secondaryAccentColor:
-              (_isButtonWidget || _isToggleWidget) ? _secondaryAccentColor : null,
+          secondaryAccentColor: (_isButtonWidget || _isToggleWidget)
+              ? _secondaryAccentColor
+              : null,
           clearSecondaryAccentColor: !(_isButtonWidget || _isToggleWidget),
           buttonShellColor:
-              (_isButtonWidget || _isValueLabelWidget || _isGaugeWidget || _isSliderWidget || _isToggleWidget) &&
-                      !shouldClearButtonShellColor
+              (_isButtonWidget ||
+                      _isValueLabelWidget ||
+                      _isGaugeWidget ||
+                      _isSliderWidget ||
+                      _isToggleWidget) &&
+                  !shouldClearButtonShellColor
               ? _buttonShellColor
               : null,
           clearButtonShellColor:
-              (!(_isButtonWidget || _isValueLabelWidget || _isGaugeWidget || _isSliderWidget || _isToggleWidget)) ||
+              (!(_isButtonWidget ||
+                  _isValueLabelWidget ||
+                  _isGaugeWidget ||
+                  _isSliderWidget ||
+                  _isToggleWidget)) ||
               shouldClearButtonShellColor,
           buttonInnerColor:
-              (_isButtonWidget || _isValueLabelWidget || _isGaugeWidget || _isSliderWidget || _isToggleWidget) &&
-                      !shouldClearButtonInnerColor
+              (_isButtonWidget ||
+                      _isValueLabelWidget ||
+                      _isGaugeWidget ||
+                      _isSliderWidget ||
+                      _isToggleWidget) &&
+                  !shouldClearButtonInnerColor
               ? _buttonInnerColor
               : null,
           clearButtonInnerColor:
-              (!(_isButtonWidget || _isValueLabelWidget || _isGaugeWidget || _isSliderWidget || _isToggleWidget)) ||
+              (!(_isButtonWidget ||
+                  _isValueLabelWidget ||
+                  _isGaugeWidget ||
+                  _isSliderWidget ||
+                  _isToggleWidget)) ||
               shouldClearButtonInnerColor,
           buttonBorderColor: _isButtonWidget && !shouldClearButtonBorderColor
               ? _buttonBorderColor
@@ -1833,21 +2762,24 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
               ? _valueLabelBorderWidth
               : null,
           clearValueLabelBorderWidth: shouldClearValueLabelBorderWidth,
-          gaugeBorderWidth:
-              _isGaugeWidget && !shouldClearGaugeBorderWidth
+          gaugeBorderWidth: _isGaugeWidget && !shouldClearGaugeBorderWidth
               ? _gaugeBorderWidth
               : null,
           clearGaugeBorderWidth: shouldClearGaugeBorderWidth,
-          sliderBorderWidth:
-              _isSliderWidget && !shouldClearSliderBorderWidth
+          sliderBorderWidth: _isSliderWidget && !shouldClearSliderBorderWidth
               ? _sliderBorderWidth
               : null,
           clearSliderBorderWidth: shouldClearSliderBorderWidth,
-          toggleBorderWidth:
-              _isToggleWidget && !shouldClearToggleBorderWidth
+          toggleBorderWidth: _isToggleWidget && !shouldClearToggleBorderWidth
               ? _toggleBorderWidth
               : null,
           clearToggleBorderWidth: shouldClearToggleBorderWidth,
+          glowColor: !shouldClearGlowColor ? _glowColor : null,
+          clearGlowColor: shouldClearGlowColor,
+          glowStrength: !shouldClearGlowStrength ? _glowStrength : null,
+          clearGlowStrength: shouldClearGlowStrength,
+          glowBlur: !shouldClearGlowBlur ? _glowBlur : null,
+          clearGlowBlur: shouldClearGlowBlur,
           enabled: _isButtonWidget ? _buttonEnabled : widget.item.enabled,
         ),
       ),
@@ -1855,7 +2787,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   }
 
   String _hexFromColor(Color color) {
-    return color.toARGB32()
+    return color
+        .toARGB32()
         .toRadixString(16)
         .padLeft(8, '0')
         .substring(2)
@@ -1908,14 +2841,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 18,
                 MediaQuery.of(context).viewInsets.bottom + 18,
               ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: DecoratedBox(
-                    decoration: DashboardRuntimeTheme.cardDecoration(
-                      radius: 24,
-                      color: DashboardRuntimeTheme.cardColor,
-                    ),
-                    child: Padding(
+              child: Material(
+                color: Colors.transparent,
+                child: _buildGlassSheetShell(
+                  radius: 24,
+                  blur: 18,
+                  child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -2081,9 +3012,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       borderRadius: BorderRadius.circular(14),
       splashColor: accent.withValues(alpha: 0.08),
       child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: DashboardRuntimeTheme.insetSurfaceDecoration(radius: 14),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: DashboardRuntimeTheme.insetSurfaceDecoration(radius: 14),
         child: Row(
           children: [
             Container(
@@ -2142,9 +3073,11 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   Widget _buildFieldShell({required Widget child, bool focused = false}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      decoration: DashboardRuntimeTheme.insetSurfaceDecoration(
+      decoration: _glassInsetDecoration(
         radius: 16,
-        emphasize: focused,
+        color: focused
+            ? DashboardRuntimeTheme.cardHighlightColor.withValues(alpha: 0.82)
+            : DashboardRuntimeTheme.surfaceColor,
       ),
       child: child,
     );
@@ -2190,24 +3123,31 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
     Widget buildButton({
       required VoidCallback onPressed,
-      required Color backgroundColor,
+      required BoxDecoration decoration,
       required String label,
       Color foregroundColor = Colors.white,
     }) {
-      return ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          foregroundColor: foregroundColor,
-          minimumSize: Size.fromHeight(buttonHeight),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+      return DecoratedBox(
+        decoration: decoration,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: foregroundColor,
+            minimumSize: Size.fromHeight(buttonHeight),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
           ),
-          elevation: 0,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: buttonFontSize),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: buttonFontSize,
+            ),
+          ),
         ),
       );
     }
@@ -2219,20 +3159,11 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         horizontalPadding,
         media.padding.bottom > 0 ? 12 : 14,
       ),
-      decoration: BoxDecoration(
-        color: DashboardRuntimeTheme.backgroundColor.withValues(alpha: 0.94),
-        border: Border(
-          top: BorderSide(
-            color: DashboardRuntimeTheme.surfaceBorderColor.withValues(alpha: 0.8),
-          ),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14677E92),
-            blurRadius: 18,
-            offset: Offset(0, -6),
-          ),
-        ],
+      decoration: _glassSheetDecoration(
+        radius: 24,
+        tint: DashboardRuntimeTheme.cardColor,
+        opacity: 0.92,
+        elevated: false,
       ),
       child: isNarrow
           ? Column(
@@ -2242,7 +3173,15 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   width: double.infinity,
                   child: buildButton(
                     onPressed: _save,
-                    backgroundColor: DashboardRuntimeTheme.buttonStartColor,
+                    decoration: AppGlassTheme.accentDecoration(
+                      radius: 16,
+                      colors: const <Color>[
+                        Color(0xFF7EBFAF),
+                        Color(0xFF5E9E8B),
+                      ],
+                      borderColor: const Color(0xFF6AA796),
+                      glowColor: const Color(0xFFA9D3C7),
+                    ),
                     label: 'Save',
                   ),
                 ),
@@ -2253,7 +3192,15 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     onPressed: () => Navigator.of(
                       context,
                     ).pop(const WidgetSettingsResult(remove: true)),
-                    backgroundColor: const Color(0xFFC96868),
+                    decoration: AppGlassTheme.accentDecoration(
+                      radius: 16,
+                      colors: const <Color>[
+                        Color(0xFFEA7A70),
+                        Color(0xFFD95C54),
+                      ],
+                      borderColor: const Color(0xFFC96868),
+                      glowColor: const Color(0xFFE08A82),
+                    ),
                     foregroundColor: const Color(0xFFFFFBFB),
                     label: 'Remove',
                   ),
@@ -2267,7 +3214,15 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     onPressed: () => Navigator.of(
                       context,
                     ).pop(const WidgetSettingsResult(remove: true)),
-                    backgroundColor: const Color(0xFFC96868),
+                    decoration: AppGlassTheme.accentDecoration(
+                      radius: 16,
+                      colors: const <Color>[
+                        Color(0xFFEA7A70),
+                        Color(0xFFD95C54),
+                      ],
+                      borderColor: const Color(0xFFC96868),
+                      glowColor: const Color(0xFFE08A82),
+                    ),
                     foregroundColor: const Color(0xFFFFFBFB),
                     label: 'Remove',
                   ),
@@ -2276,7 +3231,15 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 Expanded(
                   child: buildButton(
                     onPressed: _save,
-                    backgroundColor: DashboardRuntimeTheme.buttonStartColor,
+                    decoration: AppGlassTheme.accentDecoration(
+                      radius: 16,
+                      colors: const <Color>[
+                        Color(0xFF7EBFAF),
+                        Color(0xFF5E9E8B),
+                      ],
+                      borderColor: const Color(0xFF6AA796),
+                      glowColor: const Color(0xFFA9D3C7),
+                    ),
                     label: 'Save',
                   ),
                 ),
@@ -2320,27 +3283,14 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
             duration: const Duration(milliseconds: 160),
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: isActive ? activeGradient : null,
-              color: isActive ? null : DashboardRuntimeTheme.surfaceColor,
-              border: Border.all(
-                color: isActive
-                    ? activeBorderColor
-                    : DashboardRuntimeTheme.surfaceBorderColor,
-              ),
-              boxShadow: isActive
-                  ? [
-                      BoxShadow(
-                        color: activeGlowColor.withValues(
-                          alpha: 0.18,
-                        ),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ]
-                  : null,
-            ),
+            decoration: isActive
+                ? AppGlassTheme.accentDecoration(
+                    radius: 12,
+                    colors: activeGradient.colors,
+                    borderColor: activeBorderColor,
+                    glowColor: activeGlowColor,
+                  )
+                : _glassInsetDecoration(radius: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -2375,17 +3325,1082 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         children: [
           buildTab(
             page: _WidgetSettingsPage.setting,
-            label: 'Widget Setting',
+            label: 'Content',
             icon: Icons.settings_outlined,
           ),
           const SizedBox(width: 6),
           buildTab(
             page: _WidgetSettingsPage.design,
-            label: 'Widget Design',
+            label: 'Design',
             icon: Icons.palette_outlined,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildColorStyleSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SettingsLabel('Color Style'),
+        const SizedBox(height: 10),
+        if (_isButtonWidget)
+          Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'ON State',
+                      badge: 'ON',
+                      label: 'ON color',
+                      color: _accentColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom ON Color',
+                        initialColor: _accentColor,
+                        onColorPicked: (color) {
+                          _accentColor = color;
+                          if (_buttonBorderLinkedToState) {
+                            _buttonBorderColor =
+                                _effectiveDefaultButtonBorderColor();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'OFF State',
+                      badge: 'OFF',
+                      label: 'OFF color',
+                      color: _secondaryAccentColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom OFF Color',
+                        initialColor: _secondaryAccentColor,
+                        onColorPicked: (color) {
+                          _secondaryAccentColor = color;
+                          if (_buttonBorderLinkedToState) {
+                            _buttonBorderColor =
+                                _effectiveDefaultButtonBorderColor();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Outer Surface',
+                      badge: 'BG',
+                      label: 'Outer background',
+                      color: _buttonShellColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Shell Background',
+                        initialColor: _buttonShellColor,
+                        onColorPicked: (color) => _buttonShellColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Inner Surface',
+                      badge: 'CORE',
+                      label: 'Inner background',
+                      color: _buttonInnerColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Inner Background',
+                        initialColor: _buttonInnerColor,
+                        onColorPicked: (color) => _buttonInnerColor = color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Border',
+                      badge: 'LINE',
+                      label: 'Border color',
+                      color: _buttonBorderColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Button Border',
+                        initialColor: _buttonBorderColor,
+                        onColorPicked: (color) {
+                          _buttonBorderColor = color;
+                          _buttonBorderLinkedToState =
+                              color.toARGB32() ==
+                              _effectiveDefaultButtonBorderColor().toARGB32();
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(child: SizedBox.shrink()),
+                ],
+              ),
+            ],
+          )
+        else if (_isSliderWidget)
+          Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Slider',
+                      badge: 'MAIN',
+                      label: 'Slider color',
+                      color: _accentColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Slider Color',
+                        initialColor: _accentColor,
+                        onColorPicked: (color) => _accentColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Background',
+                      badge: 'BG',
+                      label: 'Background color',
+                      color: _buttonInnerColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Slider Background',
+                        initialColor: _buttonInnerColor,
+                        onColorPicked: (color) => _buttonInnerColor = color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Border',
+                      badge: 'LINE',
+                      label: 'Border color',
+                      color: _buttonShellColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Slider Border',
+                        initialColor: _buttonShellColor,
+                        onColorPicked: (color) => _buttonShellColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(child: SizedBox.shrink()),
+                ],
+              ),
+            ],
+          )
+        else if (_isToggleWidget)
+          Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'ON',
+                      badge: 'ON',
+                      label: 'On color',
+                      color: _accentColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Toggle ON Color',
+                        initialColor: _accentColor,
+                        onColorPicked: (color) => _accentColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'OFF',
+                      badge: 'OFF',
+                      label: 'Off color',
+                      color: _secondaryAccentColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Toggle OFF Color',
+                        initialColor: _secondaryAccentColor,
+                        onColorPicked: (color) => _secondaryAccentColor = color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Background',
+                      badge: 'BG',
+                      label: 'Background color',
+                      color: _buttonInnerColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Toggle Background',
+                        initialColor: _buttonInnerColor,
+                        onColorPicked: (color) => _buttonInnerColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Border',
+                      badge: 'LINE',
+                      label: 'Border color',
+                      color: _buttonShellColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Toggle Border',
+                        initialColor: _buttonShellColor,
+                        onColorPicked: (color) => _buttonShellColor = color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Border',
+                      badge: 'LINE',
+                      label: 'Border color',
+                      color: _buttonBorderColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Button Border',
+                        initialColor: _buttonBorderColor,
+                        onColorPicked: (color) => _buttonBorderColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(child: SizedBox.shrink()),
+                ],
+              ),
+            ],
+          )
+        else if (_isValueLabelWidget)
+          Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Value Text',
+                      badge: 'TEXT',
+                      label: 'Text color',
+                      color: _accentColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Value Text Color',
+                        initialColor: _accentColor,
+                        onColorPicked: (color) {
+                          _accentColor = color;
+                          if (_valueLabelBorderLinkedToText) {
+                            _buttonShellColor = color;
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Background',
+                      badge: 'BG',
+                      label: 'Background color',
+                      color: _buttonInnerColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Value Label Background',
+                        initialColor: _buttonInnerColor,
+                        onColorPicked: (color) => _buttonInnerColor = color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Border',
+                      badge: 'LINE',
+                      label: 'Border color',
+                      color: _buttonShellColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Value Label Border',
+                        initialColor: _buttonShellColor,
+                        onColorPicked: (color) {
+                          _buttonShellColor = color;
+                          _valueLabelBorderLinkedToText =
+                              color.toARGB32() == _accentColor.toARGB32();
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(child: SizedBox.shrink()),
+                ],
+              ),
+            ],
+          )
+        else if (_isGaugeWidget)
+          Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Gauge',
+                      badge: 'ARC',
+                      label: 'Gauge/value color',
+                      color: _accentColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Gauge Color',
+                        initialColor: _accentColor,
+                        onColorPicked: (color) => _accentColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Background',
+                      badge: 'BG',
+                      label: 'Background color',
+                      color: _buttonInnerColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Gauge Background',
+                        initialColor: _buttonInnerColor,
+                        onColorPicked: (color) => _buttonInnerColor = color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildColorTile(
+                      title: 'Border',
+                      badge: 'LINE',
+                      label: 'Border color',
+                      color: _buttonShellColor,
+                      onTap: () => _openColorPicker(
+                        title: 'Custom Gauge Border',
+                        initialColor: _buttonShellColor,
+                        onColorPicked: (color) => _buttonShellColor = color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(child: SizedBox.shrink()),
+                ],
+              ),
+            ],
+          )
+        else
+          _buildColorTile(
+            title: 'Accent',
+            badge: 'MAIN',
+            label: 'Accent color',
+            color: _accentColor,
+            onTap: () => _openColorPicker(
+              title: 'Custom Accent Color',
+              initialColor: _accentColor,
+              onColorPicked: (color) => _accentColor = color,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBorderWidthSection() {
+    if (_isButtonWidget) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SettingsLabel('Border Width'),
+          const SizedBox(height: 10),
+          _buildFieldShell(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const SizedBox(width: 2),
+                      const Spacer(),
+                      Text(
+                        '${_buttonBorderWidth.toStringAsFixed(1)}px',
+                        style: TextStyle(
+                          color:
+                              Color.lerp(
+                                _buttonBorderColor,
+                                Colors.white,
+                                0.16,
+                              ) ??
+                              _buttonBorderColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      overlayShape: SliderComponentShape.noOverlay,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
+                      inactiveTrackColor:
+                          DashboardRuntimeTheme.surfaceBorderColor,
+                      activeTrackColor: _buttonBorderColor,
+                      thumbColor: _buttonBorderColor,
+                    ),
+                    child: Slider(
+                      value: _buttonBorderWidth,
+                      min: _minValueLabelBorderWidth,
+                      max: _maxValueLabelBorderWidth,
+                      divisions: _valueLabelBorderWidthDivisions,
+                      onChanged: (value) {
+                        setState(() {
+                          _buttonBorderWidth = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, top: 2, right: 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          '0px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          '4px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_isSliderWidget) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SettingsLabel('Border Width'),
+          const SizedBox(height: 10),
+          _buildFieldShell(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const SizedBox(width: 2),
+                      const Spacer(),
+                      Text(
+                        '${_sliderBorderWidth.toStringAsFixed(1)}px',
+                        style: TextStyle(
+                          color:
+                              Color.lerp(
+                                _buttonShellColor,
+                                Colors.white,
+                                0.16,
+                              ) ??
+                              _buttonShellColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      overlayShape: SliderComponentShape.noOverlay,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
+                      inactiveTrackColor:
+                          DashboardRuntimeTheme.surfaceBorderColor,
+                      activeTrackColor: _buttonShellColor,
+                      thumbColor: _buttonShellColor,
+                    ),
+                    child: Slider(
+                      value: _sliderBorderWidth,
+                      min: _minValueLabelBorderWidth,
+                      max: _maxValueLabelBorderWidth,
+                      divisions: _valueLabelBorderWidthDivisions,
+                      onChanged: (value) {
+                        setState(() {
+                          _sliderBorderWidth = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, top: 2, right: 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          '0px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          '4px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_isToggleWidget) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SettingsLabel('Border Width'),
+          const SizedBox(height: 10),
+          _buildFieldShell(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const SizedBox(width: 2),
+                      const Spacer(),
+                      Text(
+                        '${_toggleBorderWidth.toStringAsFixed(1)}px',
+                        style: TextStyle(
+                          color:
+                              Color.lerp(
+                                _buttonShellColor,
+                                Colors.white,
+                                0.16,
+                              ) ??
+                              _buttonShellColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      overlayShape: SliderComponentShape.noOverlay,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
+                      inactiveTrackColor:
+                          DashboardRuntimeTheme.surfaceBorderColor,
+                      activeTrackColor: _buttonShellColor,
+                      thumbColor: _buttonShellColor,
+                    ),
+                    child: Slider(
+                      value: _toggleBorderWidth,
+                      min: _minValueLabelBorderWidth,
+                      max: _maxValueLabelBorderWidth,
+                      divisions: _valueLabelBorderWidthDivisions,
+                      onChanged: (value) {
+                        setState(() {
+                          _toggleBorderWidth = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, top: 2, right: 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          '0px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          '4px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_isValueLabelWidget) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SettingsLabel('Border Width'),
+          const SizedBox(height: 10),
+          _buildFieldShell(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const SizedBox(width: 2),
+                      const Spacer(),
+                      Text(
+                        '${_valueLabelBorderWidth.toStringAsFixed(1)}px',
+                        style: TextStyle(
+                          color:
+                              Color.lerp(
+                                _buttonShellColor,
+                                Colors.white,
+                                0.16,
+                              ) ??
+                              _buttonShellColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      overlayShape: SliderComponentShape.noOverlay,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
+                      inactiveTrackColor:
+                          DashboardRuntimeTheme.surfaceBorderColor,
+                      activeTrackColor: _buttonShellColor,
+                      thumbColor: _buttonShellColor,
+                    ),
+                    child: Slider(
+                      value: _valueLabelBorderWidth,
+                      min: _minValueLabelBorderWidth,
+                      max: _maxValueLabelBorderWidth,
+                      divisions: _valueLabelBorderWidthDivisions,
+                      onChanged: (value) {
+                        setState(() {
+                          _valueLabelBorderWidth = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, top: 2, right: 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          '0px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          '4px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_isGaugeWidget) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SettingsLabel('Border Width'),
+          const SizedBox(height: 10),
+          _buildFieldShell(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const SizedBox(width: 2),
+                      const Spacer(),
+                      Text(
+                        '${_gaugeBorderWidth.toStringAsFixed(1)}px',
+                        style: TextStyle(
+                          color:
+                              Color.lerp(_accentColor, Colors.white, 0.16) ??
+                              _accentColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      overlayShape: SliderComponentShape.noOverlay,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
+                      inactiveTrackColor:
+                          DashboardRuntimeTheme.surfaceBorderColor,
+                      activeTrackColor: _accentColor,
+                      thumbColor: _accentColor,
+                    ),
+                    child: Slider(
+                      value: _gaugeBorderWidth,
+                      min: _minValueLabelBorderWidth,
+                      max: _maxValueLabelBorderWidth,
+                      divisions: _valueLabelBorderWidthDivisions,
+                      onChanged: (value) {
+                        setState(() {
+                          _gaugeBorderWidth = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, top: 2, right: 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          '0px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          '4px',
+                          style: TextStyle(
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildGlowSection() {
+    final glowColor = _effectiveGlowColor;
+    final strengthPercent = ((_glowStrength / _maxGlowStrength) * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SettingsLabel('Glow'),
+        const SizedBox(height: 10),
+        _buildFieldShell(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildColorTile(
+                        title: 'Glow Color',
+                        badge: _glowColorLinkedToAccent ? 'AUTO' : 'GLOW',
+                        label: _glowColorLinkedToAccent
+                            ? 'Auto from main color'
+                            : 'Custom glow',
+                        color: glowColor,
+                        onTap: () => _openColorPicker(
+                          title: 'Custom Glow Color',
+                          initialColor: glowColor,
+                          onColorPicked: (color) {
+                            _glowColorLinkedToAccent = false;
+                            _glowColor = color;
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Mode',
+                            style: TextStyle(
+                              color: DashboardRuntimeTheme.labelTextColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _glowColorLinkedToAccent = true;
+                              });
+                            },
+                            icon: Icon(
+                              _glowColorLinkedToAccent
+                                  ? Icons.check_circle_rounded
+                                  : Icons.auto_awesome_rounded,
+                              size: 16,
+                            ),
+                            label: Text(
+                              _glowColorLinkedToAccent ? 'Auto' : 'Use Auto',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: glowColor,
+                              side: BorderSide(
+                                color: glowColor.withValues(alpha: 0.44),
+                              ),
+                              minimumSize: const Size.fromHeight(46),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _buildGlowSlider(
+                  label: 'Strength',
+                  valueLabel: '$strengthPercent%',
+                  value: _glowStrength,
+                  min: _minGlowStrength,
+                  max: _maxGlowStrength,
+                  divisions: _glowStrengthDivisions,
+                  minLabel: '0%',
+                  maxLabel: '100%',
+                  activeColor: glowColor,
+                  onChanged: (value) {
+                    setState(() {
+                      _glowStrength = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildGlowSlider(
+                  label: 'Softness',
+                  valueLabel: '${_glowBlur.toStringAsFixed(0)}px',
+                  value: _glowBlur,
+                  min: _minGlowBlur,
+                  max: _maxGlowBlur,
+                  divisions: _glowBlurDivisions,
+                  minLabel: '0px',
+                  maxLabel: '40px',
+                  activeColor: glowColor,
+                  onChanged: (value) {
+                    setState(() {
+                      _glowBlur = value;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGlowSlider({
+    required String label,
+    required String valueLabel,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required String minLabel,
+    required String maxLabel,
+    required Color activeColor,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: DashboardRuntimeTheme.labelTextColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              valueLabel,
+              style: TextStyle(
+                color:
+                    Color.lerp(activeColor, Colors.white, 0.16) ?? activeColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 3,
+            overlayShape: SliderComponentShape.noOverlay,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+            inactiveTrackColor: DashboardRuntimeTheme.surfaceBorderColor,
+            activeTrackColor: activeColor,
+            thumbColor: activeColor,
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 8, top: 2, right: 8),
+          child: Row(
+            children: [
+              Text(
+                minLabel,
+                style: const TextStyle(
+                  color: DashboardRuntimeTheme.mutedTextColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                maxLabel,
+                style: const TextStyle(
+                  color: DashboardRuntimeTheme.mutedTextColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -2410,24 +4425,31 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
-              decoration: _fieldDecoration(
-                hint: 'ตั้งชื่อวิดเจ็ตของคุณ',
-                prefixIcon: Icons.title_rounded,
-              ).copyWith(
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 38,
-                  minHeight: 18,
-                ),
-              ),
+              decoration:
+                  _fieldDecoration(
+                    hint: 'ตั้งชื่อวิดเจ็ตของคุณ',
+                    prefixIcon: Icons.title_rounded,
+                  ).copyWith(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 38,
+                      minHeight: 18,
+                    ),
+                  ),
             ),
           ),
         ],
         if (includeStyle) ...[
+          const SizedBox(height: 12),
+          _buildColorStyleSection(),
+          const SizedBox(height: 12),
+          _buildBorderWidthSection(),
+          const SizedBox(height: 12),
+          _buildGlowSection(),
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -2483,13 +4505,13 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       return content;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: DashboardRuntimeTheme.cardDecoration(
+    return DecoratedBox(
+      decoration: _glassSheetDecoration(
         radius: 18,
-        color: DashboardRuntimeTheme.cardColor.withValues(alpha: 0.72),
+        opacity: 0.74,
+        elevated: false,
       ),
-      child: content,
+      child: Padding(padding: const EdgeInsets.all(12), child: content),
     );
   }
 
@@ -2593,7 +4615,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
             if (i > 0) const SizedBox(width: 5),
             Expanded(
               child: GestureDetector(
-                onTap: () => setState(() => _selectedSendBehavior = options[i].key),
+                onTap: () =>
+                    setState(() => _selectedSendBehavior = options[i].key),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(vertical: 8),
@@ -2619,7 +4642,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     return BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
                       gradient: isSelected ? activeGradient : null,
-                      color: isSelected ? null : DashboardRuntimeTheme.surfaceColor,
+                      color: isSelected
+                          ? null
+                          : DashboardRuntimeTheme.surfaceColor,
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
@@ -2656,31 +4681,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     required String hint,
     required IconData prefixIcon,
   }) {
-    return InputDecoration(
+    return _glassFormInputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(
-        color: DashboardRuntimeTheme.mutedTextColor,
-        fontSize: 14,
-      ),
       prefixIcon: Icon(
         prefixIcon,
         size: 16,
         color: DashboardRuntimeTheme.labelTextColor,
-      ),
-      filled: true,
-      fillColor: Colors.transparent,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
       ),
     );
   }
@@ -2711,7 +4717,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
             gradient: const LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFFF8FBFF), DashboardRuntimeTheme.backgroundColor],
+              colors: [
+                Color(0xFFF8FBFF),
+                DashboardRuntimeTheme.backgroundColor,
+              ],
             ),
             boxShadow: isFullscreen
                 ? const <BoxShadow>[]
@@ -2750,42 +4759,29 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                   width: 40,
                                   height: 4,
                                   decoration: BoxDecoration(
-                                    color: DashboardRuntimeTheme.surfaceBorderColor,
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                 ),
                               ),
                             Align(
                               alignment: Alignment.centerRight,
-                                child: GestureDetector(
-                                  onTap: () => Navigator.of(context).pop(),
-                                  child: Container(
-                                    width: 30,
-                                    height: 30,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: DashboardRuntimeTheme.cardColor
-                                        .withValues(alpha: 0.94),
-                                    border: Border.all(
-                                      color: DashboardRuntimeTheme.surfaceBorderColor,
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: DashboardRuntimeTheme.shadowLightColor,
-                                        offset: Offset(-3, -3),
-                                        blurRadius: 6,
-                                      ),
-                                      BoxShadow(
-                                        color: DashboardRuntimeTheme.shadowDarkColor,
-                                        offset: Offset(4, 5),
-                                        blurRadius: 9,
-                                      ),
-                                    ],
+                              child: _buildGlassControlShell(
+                                radius: 999,
+                                child: IconButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  tooltip: 'Close',
+                                  iconSize: 18,
+                                  splashRadius: 18,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 36,
+                                    height: 36,
                                   ),
-                                  child: const Icon(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(
                                     Icons.close_rounded,
                                     color: DashboardRuntimeTheme.mutedTextColor,
-                                    size: 18,
                                   ),
                                 ),
                               ),
@@ -2793,16 +4789,55 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        const Center(
-                          child: Text(
-                            'Settings',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: DashboardRuntimeTheme.headlineColor,
-                              letterSpacing: -0.2,
-                            ),
+                        Center(
+                          child: Column(
+                            children: [
+                              _buildMiniWidgetPreview(),
+                              const SizedBox(height: 12),
+                              DecoratedBox(
+                                decoration: _glassInsetDecoration(radius: 999),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  child: Text(
+                                    _widgetTypeLabel(widget.item.type),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color:
+                                          DashboardRuntimeTheme.labelTextColor,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              const Text(
+                                'Widget Settings',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: DashboardRuntimeTheme.headlineColor,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              if (_widgetSettingsSubtitle.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  _widgetSettingsSubtitle,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    height: 1.35,
+                                    color: DashboardRuntimeTheme.mutedTextColor,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -2816,61 +4851,99 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                           const SizedBox(height: 14),
                           const _SettingsLabel('Data Key (V Pin)'),
                           const SizedBox(height: 8),
-                          _buildFieldShell(
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: _openBindingPicker,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.hub_outlined,
-                                      size: 15,
-                                      color: DashboardRuntimeTheme.labelTextColor,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
+                          KeyedSubtree(
+                            key: _bindingFieldKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildFieldShell(
+                                  focused:
+                                      _showBindingValidationError &&
+                                      !_hasSelectedBinding,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: _openBindingPicker,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12,
+                                      ),
+                                      child: Row(
                                         children: [
-                                          Text(
-                                            _bindingLabelFor(_selectedBindingKey),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: DashboardRuntimeTheme.fieldTextColor,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
+                                          Icon(
+                                            Icons.hub_outlined,
+                                            size: 15,
+                                            color:
+                                                _showBindingValidationError &&
+                                                    !_hasSelectedBinding
+                                                ? const Color(0xFFCC5A4E)
+                                                : DashboardRuntimeTheme
+                                                      .labelTextColor,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  _bindingLabelFor(
+                                                    _selectedBindingKey,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: DashboardRuntimeTheme
+                                                        .fieldTextColor,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  _bindingSubtitleFor(
+                                                    _selectedBindingKey,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: DashboardRuntimeTheme
+                                                        .labelTextColor,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            _bindingSubtitleFor(_selectedBindingKey),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: DashboardRuntimeTheme.labelTextColor,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
-                                            ),
+                                          const SizedBox(width: 8),
+                                          const Icon(
+                                            Icons.keyboard_arrow_down_rounded,
+                                            size: 20,
+                                            color: DashboardRuntimeTheme
+                                                .mutedTextColor,
                                           ),
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      size: 20,
-                                      color: DashboardRuntimeTheme.mutedTextColor,
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                                if (_bindingAssistiveMessage != null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _bindingAssistiveMessage!,
+                                    style: TextStyle(
+                                      color: _bindingAssistiveColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -2890,7 +4963,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                     child: TextField(
                                       controller: _minValueController,
                                       style: const TextStyle(
-                                        color: DashboardRuntimeTheme.fieldTextColor,
+                                        color: DashboardRuntimeTheme
+                                            .fieldTextColor,
                                         fontSize: 15,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -2911,7 +4985,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                     child: TextField(
                                       controller: _maxValueController,
                                       style: const TextStyle(
-                                        color: DashboardRuntimeTheme.fieldTextColor,
+                                        color: DashboardRuntimeTheme
+                                            .fieldTextColor,
                                         fontSize: 15,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -2939,9 +5014,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                   fontSize: 15,
                                   fontWeight: FontWeight.w500,
                                 ),
-                                keyboardType: const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 decoration: _fieldDecoration(
                                   hint: 'Step value',
                                   prefixIcon: Icons.straighten_rounded,
@@ -2970,7 +5046,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                     child: Text(
                                       _displayUnit(_selectedUnit),
                                       style: const TextStyle(
-                                        color: DashboardRuntimeTheme.mutedTextColor,
+                                        color: DashboardRuntimeTheme
+                                            .mutedTextColor,
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -2979,7 +5056,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                   const Icon(
                                     Icons.lock_outline_rounded,
                                     size: 16,
-                                    color: DashboardRuntimeTheme.surfaceBorderColor,
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
                                   ),
                                 ],
                               ),
@@ -3014,7 +5092,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                     const Icon(
                                       Icons.open_with_rounded,
                                       size: 15,
-                                      color: DashboardRuntimeTheme.labelTextColor,
+                                      color:
+                                          DashboardRuntimeTheme.labelTextColor,
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
@@ -3024,7 +5103,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                           _selectedTitlePosition,
                                         ),
                                         style: const TextStyle(
-                                          color: DashboardRuntimeTheme.fieldTextColor,
+                                          color: DashboardRuntimeTheme
+                                              .fieldTextColor,
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -3033,921 +5113,14 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                     const Icon(
                                       Icons.keyboard_arrow_down_rounded,
                                       size: 20,
-                                      color: DashboardRuntimeTheme.mutedTextColor,
+                                      color:
+                                          DashboardRuntimeTheme.mutedTextColor,
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          if (_isButtonWidget) ...[
-                            const _SettingsLabel('Border Width'),
-                            const SizedBox(height: 10),
-                            _buildFieldShell(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                  vertical: 6,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        const SizedBox(width: 2),
-                                        const Spacer(),
-                                        Text(
-                                          '${_buttonBorderWidth.toStringAsFixed(1)}px',
-                                          style: TextStyle(
-                                            color: Color.lerp(
-                                                  _buttonBorderColor,
-                                                  Colors.white,
-                                                  0.16,
-                                                ) ??
-                                                _buttonBorderColor,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 3,
-                                        overlayShape:
-                                            SliderComponentShape.noOverlay,
-                                        thumbShape:
-                                            const RoundSliderThumbShape(
-                                              enabledThumbRadius: 7,
-                                            ),
-                                        inactiveTrackColor:
-                                            DashboardRuntimeTheme
-                                                .surfaceBorderColor,
-                                        activeTrackColor: _buttonBorderColor,
-                                        thumbColor: _buttonBorderColor,
-                                      ),
-                                      child: Slider(
-                                        value: _buttonBorderWidth,
-                                        min: _minValueLabelBorderWidth,
-                                        max: _maxValueLabelBorderWidth,
-                                        divisions:
-                                            _valueLabelBorderWidthDivisions,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _buttonBorderWidth = value;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                    const Padding(
-                                      padding: EdgeInsets.only(
-                                        left: 8,
-                                        top: 2,
-                                        right: 8,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Text(
-                                            '0px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Spacer(),
-                                          Text(
-                                            '4px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          if (_isSliderWidget) ...[
-                            const _SettingsLabel('Border Width'),
-                            const SizedBox(height: 10),
-                            _buildFieldShell(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                  vertical: 6,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        const SizedBox(width: 2),
-                                        const Spacer(),
-                                        Text(
-                                          '${_sliderBorderWidth.toStringAsFixed(1)}px',
-                                          style: TextStyle(
-                                            color: Color.lerp(
-                                                  _buttonShellColor,
-                                                  Colors.white,
-                                                  0.16,
-                                                ) ??
-                                                _buttonShellColor,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 3,
-                                        overlayShape:
-                                            SliderComponentShape.noOverlay,
-                                        thumbShape:
-                                            const RoundSliderThumbShape(
-                                              enabledThumbRadius: 7,
-                                            ),
-                                        inactiveTrackColor:
-                                            DashboardRuntimeTheme
-                                                .surfaceBorderColor,
-                                        activeTrackColor: _buttonShellColor,
-                                        thumbColor: _buttonShellColor,
-                                      ),
-                                      child: Slider(
-                                        value: _sliderBorderWidth,
-                                        min: _minValueLabelBorderWidth,
-                                        max: _maxValueLabelBorderWidth,
-                                        divisions:
-                                            _valueLabelBorderWidthDivisions,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _sliderBorderWidth = value;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                    const Padding(
-                                      padding: EdgeInsets.only(
-                                        left: 8,
-                                        top: 2,
-                                        right: 8,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Text(
-                                            '0px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Spacer(),
-                                          Text(
-                                            '4px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          if (_isToggleWidget) ...[
-                            const _SettingsLabel('Border Width'),
-                            const SizedBox(height: 10),
-                            _buildFieldShell(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                  vertical: 6,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        const SizedBox(width: 2),
-                                        const Spacer(),
-                                        Text(
-                                          '${_toggleBorderWidth.toStringAsFixed(1)}px',
-                                          style: TextStyle(
-                                            color: Color.lerp(
-                                                  _buttonShellColor,
-                                                  Colors.white,
-                                                  0.16,
-                                                ) ??
-                                                _buttonShellColor,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 3,
-                                        overlayShape:
-                                            SliderComponentShape.noOverlay,
-                                        thumbShape:
-                                            const RoundSliderThumbShape(
-                                              enabledThumbRadius: 7,
-                                            ),
-                                        inactiveTrackColor:
-                                            DashboardRuntimeTheme
-                                                .surfaceBorderColor,
-                                        activeTrackColor: _buttonShellColor,
-                                        thumbColor: _buttonShellColor,
-                                      ),
-                                      child: Slider(
-                                        value: _toggleBorderWidth,
-                                        min: _minValueLabelBorderWidth,
-                                        max: _maxValueLabelBorderWidth,
-                                        divisions:
-                                            _valueLabelBorderWidthDivisions,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _toggleBorderWidth = value;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                    const Padding(
-                                      padding: EdgeInsets.only(
-                                        left: 8,
-                                        top: 2,
-                                        right: 8,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Text(
-                                            '0px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Spacer(),
-                                          Text(
-                                            '4px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          if (_isValueLabelWidget) ...[
-                            const _SettingsLabel('Border Width'),
-                            const SizedBox(height: 10),
-                            _buildFieldShell(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                  vertical: 6,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        const SizedBox(width: 2),
-                                        const Spacer(),
-                                        Text(
-                                          '${_valueLabelBorderWidth.toStringAsFixed(1)}px',
-                                          style: TextStyle(
-                                            color: Color.lerp(
-                                                  _buttonShellColor,
-                                                  Colors.white,
-                                                  0.16,
-                                                ) ??
-                                                _buttonShellColor,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 3,
-                                        overlayShape:
-                                            SliderComponentShape.noOverlay,
-                                        thumbShape:
-                                            const RoundSliderThumbShape(
-                                              enabledThumbRadius: 7,
-                                            ),
-                                        inactiveTrackColor:
-                                            DashboardRuntimeTheme
-                                                .surfaceBorderColor,
-                                        activeTrackColor: _buttonShellColor,
-                                        thumbColor: _buttonShellColor,
-                                      ),
-                                      child: Slider(
-                                        value: _valueLabelBorderWidth,
-                                        min: _minValueLabelBorderWidth,
-                                        max: _maxValueLabelBorderWidth,
-                                        divisions:
-                                            _valueLabelBorderWidthDivisions,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _valueLabelBorderWidth = value;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                    const Padding(
-                                      padding: EdgeInsets.only(
-                                        left: 8,
-                                        top: 2,
-                                        right: 8,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Text(
-                                            '0px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Spacer(),
-                                          Text(
-                                            '4px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          if (_isGaugeWidget) ...[
-                            const _SettingsLabel('Border Width'),
-                            const SizedBox(height: 10),
-                            _buildFieldShell(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                  vertical: 6,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        const SizedBox(width: 2),
-                                        const Spacer(),
-                                        Text(
-                                          '${_gaugeBorderWidth.toStringAsFixed(1)}px',
-                                          style: TextStyle(
-                                            color: Color.lerp(
-                                                  _accentColor,
-                                                  Colors.white,
-                                                  0.16,
-                                                ) ??
-                                                _accentColor,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 3,
-                                        overlayShape:
-                                            SliderComponentShape.noOverlay,
-                                        thumbShape:
-                                            const RoundSliderThumbShape(
-                                              enabledThumbRadius: 7,
-                                            ),
-                                        inactiveTrackColor:
-                                            DashboardRuntimeTheme
-                                                .surfaceBorderColor,
-                                        activeTrackColor: _accentColor,
-                                        thumbColor: _accentColor,
-                                      ),
-                                      child: Slider(
-                                        value: _gaugeBorderWidth,
-                                        min: _minValueLabelBorderWidth,
-                                        max: _maxValueLabelBorderWidth,
-                                        divisions:
-                                            _valueLabelBorderWidthDivisions,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _gaugeBorderWidth = value;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                    const Padding(
-                                      padding: EdgeInsets.only(
-                                        left: 8,
-                                        top: 2,
-                                        right: 8,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Text(
-                                            '0px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Spacer(),
-                                          Text(
-                                            '4px',
-                                            style: TextStyle(
-                                              color: DashboardRuntimeTheme
-                                                  .mutedTextColor,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          const _SettingsLabel('Color Style'),
-                          const SizedBox(height: 10),
-                          if (_isButtonWidget)
-                            Column(
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'ON State',
-                                        badge: 'ON',
-                                        label: 'ON color',
-                                        color: _accentColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom ON Color',
-                                          initialColor: _accentColor,
-                                          onColorPicked: (color) {
-                                            _accentColor = color;
-                                            if (_buttonBorderLinkedToState) {
-                                              _buttonBorderColor =
-                                                  _effectiveDefaultButtonBorderColor();
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'OFF State',
-                                        badge: 'OFF',
-                                        label: 'OFF color',
-                                        color: _secondaryAccentColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom OFF Color',
-                                          initialColor: _secondaryAccentColor,
-                                          onColorPicked: (color) {
-                                            _secondaryAccentColor = color;
-                                            if (_buttonBorderLinkedToState) {
-                                              _buttonBorderColor =
-                                                  _effectiveDefaultButtonBorderColor();
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Outer Surface',
-                                        badge: 'BG',
-                                        label: 'Outer background',
-                                        color: _buttonShellColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Shell Background',
-                                          initialColor: _buttonShellColor,
-                                          onColorPicked: (color) =>
-                                              _buttonShellColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Inner Surface',
-                                        badge: 'CORE',
-                                        label: 'Inner background',
-                                        color: _buttonInnerColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Inner Background',
-                                          initialColor: _buttonInnerColor,
-                                          onColorPicked: (color) =>
-                                              _buttonInnerColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Border',
-                                        badge: 'LINE',
-                                        label: 'Border color',
-                                        color: _buttonBorderColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Button Border',
-                                          initialColor: _buttonBorderColor,
-                                          onColorPicked: (color) {
-                                            _buttonBorderColor = color;
-                                            _buttonBorderLinkedToState =
-                                                color.toARGB32() ==
-                                                _effectiveDefaultButtonBorderColor()
-                                                    .toARGB32();
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(child: SizedBox.shrink()),
-                                  ],
-                                ),
-                              ],
-                            )
-                          else if (_isSliderWidget)
-                            Column(
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Slider',
-                                        badge: 'MAIN',
-                                        label: 'Slider color',
-                                        color: _accentColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Slider Color',
-                                          initialColor: _accentColor,
-                                          onColorPicked: (color) =>
-                                              _accentColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Background',
-                                        badge: 'BG',
-                                        label: 'Background color',
-                                        color: _buttonInnerColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Slider Background',
-                                          initialColor: _buttonInnerColor,
-                                          onColorPicked: (color) =>
-                                              _buttonInnerColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Border',
-                                        badge: 'LINE',
-                                        label: 'Border color',
-                                        color: _buttonShellColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Slider Border',
-                                          initialColor: _buttonShellColor,
-                                          onColorPicked: (color) =>
-                                              _buttonShellColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(child: SizedBox.shrink()),
-                                  ],
-                                ),
-                              ],
-                            )
-                          else if (_isToggleWidget)
-                            Column(
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'ON',
-                                        badge: 'ON',
-                                        label: 'On color',
-                                        color: _accentColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Toggle ON Color',
-                                          initialColor: _accentColor,
-                                          onColorPicked: (color) =>
-                                              _accentColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'OFF',
-                                        badge: 'OFF',
-                                        label: 'Off color',
-                                        color: _secondaryAccentColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Toggle OFF Color',
-                                          initialColor: _secondaryAccentColor,
-                                          onColorPicked: (color) =>
-                                              _secondaryAccentColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Background',
-                                        badge: 'BG',
-                                        label: 'Background color',
-                                        color: _buttonInnerColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Toggle Background',
-                                          initialColor: _buttonInnerColor,
-                                          onColorPicked: (color) =>
-                                              _buttonInnerColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Border',
-                                        badge: 'LINE',
-                                        label: 'Border color',
-                                        color: _buttonShellColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Toggle Border',
-                                          initialColor: _buttonShellColor,
-                                          onColorPicked: (color) =>
-                                              _buttonShellColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Border',
-                                        badge: 'LINE',
-                                        label: 'Border color',
-                                        color: _buttonBorderColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Button Border',
-                                          initialColor: _buttonBorderColor,
-                                          onColorPicked: (color) =>
-                                              _buttonBorderColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(child: SizedBox.shrink()),
-                                  ],
-                                ),
-                              ],
-                            )
-                          else if (_isValueLabelWidget)
-                            Column(
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Value Text',
-                                        badge: 'TEXT',
-                                        label: 'Text color',
-                                        color: _accentColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Value Text Color',
-                                          initialColor: _accentColor,
-                                          onColorPicked: (color) {
-                                            _accentColor = color;
-                                            if (_valueLabelBorderLinkedToText) {
-                                              _buttonShellColor = color;
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Background',
-                                        badge: 'BG',
-                                        label: 'Background color',
-                                        color: _buttonInnerColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Value Label Background',
-                                          initialColor: _buttonInnerColor,
-                                          onColorPicked: (color) =>
-                                              _buttonInnerColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Border',
-                                        badge: 'LINE',
-                                        label: 'Border color',
-                                        color: _buttonShellColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Value Label Border',
-                                          initialColor: _buttonShellColor,
-                                          onColorPicked: (color) {
-                                            _buttonShellColor = color;
-                                            _valueLabelBorderLinkedToText =
-                                                color.toARGB32() ==
-                                                _accentColor.toARGB32();
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(child: SizedBox.shrink()),
-                                  ],
-                                ),
-                              ],
-                            )
-                          else if (_isGaugeWidget)
-                            Column(
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Gauge',
-                                        badge: 'ARC',
-                                        label: 'Gauge/value color',
-                                        color: _accentColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Gauge Color',
-                                          initialColor: _accentColor,
-                                          onColorPicked: (color) =>
-                                              _accentColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Background',
-                                        badge: 'BG',
-                                        label: 'Background color',
-                                        color: _buttonInnerColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Gauge Background',
-                                          initialColor: _buttonInnerColor,
-                                          onColorPicked: (color) =>
-                                              _buttonInnerColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildColorTile(
-                                        title: 'Border',
-                                        badge: 'LINE',
-                                        label: 'Border color',
-                                        color: _buttonShellColor,
-                                        onTap: () => _openColorPicker(
-                                          title: 'Custom Gauge Border',
-                                          initialColor: _buttonShellColor,
-                                          onColorPicked: (color) =>
-                                              _buttonShellColor = color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(child: SizedBox.shrink()),
-                                  ],
-                                ),
-                              ],
-                            )
-                          else
-                            _buildColorTile(
-                              title: 'Accent',
-                              badge: 'MAIN',
-                              label: 'Accent color',
-                              color: _accentColor,
-                              onTap: () => _openColorPicker(
-                                title: 'Custom Accent Color',
-                                initialColor: _accentColor,
-                                onColorPicked: (color) => _accentColor = color,
-                              ),
-                            ),
                         ],
                         const SizedBox(height: 10),
                       ],
@@ -4020,10 +5193,18 @@ class _CustomBindingPage extends StatefulWidget {
 class _CustomBindingPageState extends State<_CustomBindingPage> {
   static const Set<String> _starterVPins = <String>{'V0', 'V1', 'V2', 'V3'};
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final GlobalKey _nameFieldKey = GlobalKey();
+  final GlobalKey _defaultFieldKey = GlobalKey();
+  final GlobalKey _minFieldKey = GlobalKey();
+  final GlobalKey _maxFieldKey = GlobalKey();
   late final TextEditingController _nameController;
   late final TextEditingController _defaultController;
   late final TextEditingController _minController;
   late final TextEditingController _maxController;
+  final FocusNode _nameFocusNode = FocusNode();
+  final FocusNode _defaultFocusNode = FocusNode();
+  final FocusNode _minFocusNode = FocusNode();
+  final FocusNode _maxFocusNode = FocusNode();
   late String _selectedVPin;
   late String _selectedType;
   String _selectedUnit = 'None';
@@ -4034,10 +5215,14 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     _selectedVPin = widget.initialVPin;
     _selectedType = widget.initialType;
     _nameController = TextEditingController(text: widget.initialName);
-    _defaultController = TextEditingController(text: widget.initialDefaultValue);
+    _defaultController = TextEditingController(
+      text: widget.initialDefaultValue,
+    );
     _minController = TextEditingController(text: widget.initialMinValue);
     _maxController = TextEditingController(text: widget.initialMaxValue);
-    _selectedUnit = widget.initialUnit.trim().isEmpty ? 'None' : widget.initialUnit.trim();
+    _selectedUnit = widget.initialUnit.trim().isEmpty
+        ? 'None'
+        : widget.initialUnit.trim();
   }
 
   @override
@@ -4046,19 +5231,38 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     _defaultController.dispose();
     _minController.dispose();
     _maxController.dispose();
+    _nameFocusNode.dispose();
+    _defaultFocusNode.dispose();
+    _minFocusNode.dispose();
+    _maxFocusNode.dispose();
     super.dispose();
   }
 
   List<String> _unitOptionsForType() {
     final options = switch (_selectedType) {
       'bool' || 'string' => <String>['None'],
-      _ => <String>['None', '%', '°C', 'ppm', 'L', 'kWh', 'kW', 'm/s', 'pH', 'cm', 'mm'],
+      _ => <String>[
+        'None',
+        '%',
+        '°C',
+        'ppm',
+        'L',
+        'kWh',
+        'kW',
+        'm/s',
+        'pH',
+        'cm',
+        'mm',
+      ],
     };
 
-    return options.contains(_selectedUnit) ? options : <String>[...options, _selectedUnit];
+    return options.contains(_selectedUnit)
+        ? options
+        : <String>[...options, _selectedUnit];
   }
 
-  bool get _isUnitSelectable => _selectedType != 'bool' && _selectedType != 'string';
+  bool get _isUnitSelectable =>
+      _selectedType != 'bool' && _selectedType != 'string';
   String get _usageLabel {
     if (widget.usageCount <= 0) {
       return 'ยังไม่ได้ใช้งาน';
@@ -4106,10 +5310,54 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
   }
 
   String? _validateMinMaxValue(String? value, String label) {
-    if ((value ?? '').trim().isEmpty || double.tryParse((value ?? '').trim()) == null) {
+    if ((value ?? '').trim().isEmpty ||
+        double.tryParse((value ?? '').trim()) == null) {
       return 'Please enter numeric $label value.';
     }
     return null;
+  }
+
+  Future<void> _scrollToFirstInvalidField() async {
+    if (_nameController.text.trim().isEmpty) {
+      await _scrollToField(_nameFieldKey, focusNode: _nameFocusNode);
+      return;
+    }
+
+    if (_validateDefaultValue(_defaultController.text) != null) {
+      await _scrollToField(_defaultFieldKey, focusNode: _defaultFocusNode);
+      return;
+    }
+
+    if (_selectedType != 'bool' && _selectedType != 'string') {
+      if (_validateMinMaxValue(_minController.text, 'min') != null) {
+        await _scrollToField(_minFieldKey, focusNode: _minFocusNode);
+        return;
+      }
+      if (_validateMinMaxValue(_maxController.text, 'max') != null) {
+        await _scrollToField(_maxFieldKey, focusNode: _maxFocusNode);
+      }
+    }
+  }
+
+  Future<void> _scrollToField(
+    GlobalKey fieldKey, {
+    FocusNode? focusNode,
+  }) async {
+    final context = fieldKey.currentContext;
+    if (context == null) {
+      return;
+    }
+
+    await Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeInOutCubic,
+      alignment: 0.18,
+    );
+
+    if (focusNode != null && mounted) {
+      focusNode.requestFocus();
+    }
   }
 
   double _pickerScale(BuildContext context) {
@@ -4129,12 +5377,15 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(18 * scale, 0, 18 * scale, 14 * scale),
-              child: DecoratedBox(
-                decoration: DashboardRuntimeTheme.cardDecoration(
-                  radius: 22 * scale,
-                  color: DashboardRuntimeTheme.cardColor,
-                ),
+              padding: EdgeInsets.fromLTRB(
+                18 * scale,
+                0,
+                18 * scale,
+                14 * scale,
+              ),
+              child: _buildGlassSheetShell(
+                radius: 22 * scale,
+                blur: 18,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.sizeOf(context).height * 0.72,
@@ -4182,8 +5433,10 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                                     color: _isLockedVPin(vpin)
                                         ? DashboardRuntimeTheme.mutedTextColor
                                         : (_selectedVPin == vpin
-                                              ? DashboardRuntimeTheme.headlineColor
-                                              : DashboardRuntimeTheme.fieldTextColor),
+                                              ? DashboardRuntimeTheme
+                                                    .headlineColor
+                                              : DashboardRuntimeTheme
+                                                    .fieldTextColor),
                                     fontWeight: _selectedVPin == vpin
                                         ? FontWeight.w700
                                         : FontWeight.w500,
@@ -4194,13 +5447,14 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                                     ? const Icon(
                                         Icons.lock_rounded,
                                         size: 16,
-                                        color: DashboardRuntimeTheme.mutedTextColor,
+                                        color: DashboardRuntimeTheme
+                                            .mutedTextColor,
                                       )
                                     : (_selectedVPin == vpin
                                           ? const Icon(
                                               Icons.check_rounded,
-                                              color:
-                                                  DashboardRuntimeTheme.surfaceBorderFocusColor,
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderFocusColor,
                                             )
                                           : null),
                               ),
@@ -4237,7 +5491,12 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(18 * scale, 0, 18 * scale, 14 * scale),
+              padding: EdgeInsets.fromLTRB(
+                18 * scale,
+                0,
+                18 * scale,
+                14 * scale,
+              ),
               child: DecoratedBox(
                 decoration: DashboardRuntimeTheme.cardDecoration(
                   radius: 22 * scale,
@@ -4280,7 +5539,8 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                                 visualDensity: scale < 0.95
                                     ? const VisualDensity(vertical: -1)
                                     : VisualDensity.standard,
-                                onTap: () => Navigator.of(context).pop(entry.key),
+                                onTap: () =>
+                                    Navigator.of(context).pop(entry.key),
                                 title: Text(
                                   entry.value,
                                   style: TextStyle(
@@ -4296,8 +5556,8 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                                 trailing: entry.key == _selectedType
                                     ? const Icon(
                                         Icons.check_rounded,
-                                        color:
-                                            DashboardRuntimeTheme.surfaceBorderFocusColor,
+                                        color: DashboardRuntimeTheme
+                                            .surfaceBorderFocusColor,
                                       )
                                     : null,
                               ),
@@ -4342,7 +5602,12 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(18 * scale, 0, 18 * scale, 14 * scale),
+              padding: EdgeInsets.fromLTRB(
+                18 * scale,
+                0,
+                18 * scale,
+                14 * scale,
+              ),
               child: DecoratedBox(
                 decoration: DashboardRuntimeTheme.cardDecoration(
                   radius: 22 * scale,
@@ -4401,8 +5666,8 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                                 trailing: unit == _selectedUnit
                                     ? const Icon(
                                         Icons.check_rounded,
-                                        color:
-                                            DashboardRuntimeTheme.surfaceBorderFocusColor,
+                                        color: DashboardRuntimeTheme
+                                            .surfaceBorderFocusColor,
                                       )
                                     : null,
                               ),
@@ -4428,8 +5693,9 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     });
   }
 
-  void _submit() {
+  void _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
+      await _scrollToFirstInvalidField();
       return;
     }
 
@@ -4473,9 +5739,12 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
   @override
   Widget build(BuildContext context) {
     final allVPins = <String>[for (var i = 0; i <= 255; i += 1) 'V$i'];
-    final selectableVPins = allVPins.where((vpin) => !_isLockedVPin(vpin)).toList();
+    final selectableVPins = allVPins
+        .where((vpin) => !_isLockedVPin(vpin))
+        .toList();
 
-    if (!selectableVPins.contains(_selectedVPin) && selectableVPins.isNotEmpty) {
+    if (!selectableVPins.contains(_selectedVPin) &&
+        selectableVPins.isNotEmpty) {
       _selectedVPin = selectableVPins.first;
     }
 
@@ -4496,7 +5765,9 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        iconTheme: const IconThemeData(color: DashboardRuntimeTheme.headlineColor),
+        iconTheme: const IconThemeData(
+          color: DashboardRuntimeTheme.headlineColor,
+        ),
       ),
       body: SafeArea(
         top: false,
@@ -4505,368 +5776,464 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
-                decoration: DashboardRuntimeTheme.cardDecoration(
-                  radius: 26,
-                  color: DashboardRuntimeTheme.cardColor.withValues(alpha: 0.72),
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                if (widget.isEditing) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: DashboardRuntimeTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: DashboardRuntimeTheme.surfaceBorderColor,
-                      ),
-                    ),
-                    child: Row(
+              child: _buildGlassSheetShell(
+                radius: 26,
+                blur: 20,
+                opacity: 0.78,
+                elevated: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(
-                          Icons.info_outline_rounded,
-                          size: 18,
-                          color: DashboardRuntimeTheme.labelTextColor,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _usageLabel,
-                            style: const TextStyle(
-                              color: DashboardRuntimeTheme.fieldTextColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                        if (widget.isEditing) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: _glassInsetDecoration(radius: 14),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 18,
+                                  color: DashboardRuntimeTheme.labelTextColor,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _usageLabel,
+                                    style: const TextStyle(
+                                      color:
+                                          DashboardRuntimeTheme.fieldTextColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        _buildGlassControlShell(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: _openCustomVPinPicker,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Data Key (คีย์ข้อมูล)',
+                                labelStyle: strongerLabelStyle,
+                                filled: true,
+                                fillColor: DashboardRuntimeTheme.surfaceColor,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
+                                  ),
+                                ),
+                                disabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderFocusColor,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _selectedVPin,
+                                      style: const TextStyle(
+                                        color: DashboardRuntimeTheme
+                                            .fieldTextColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 20,
+                                    color: DashboardRuntimeTheme.mutedTextColor,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _openCustomVPinPicker,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Data Key (คีย์ข้อมูล)',
-                      labelStyle: strongerLabelStyle,
-                      filled: true,
-                      fillColor: DashboardRuntimeTheme.surfaceColor,
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                        ),
-                      ),
-                      disabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderFocusColor,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _selectedVPin,
-                            style: const TextStyle(
-                              color: DashboardRuntimeTheme.fieldTextColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                        const SizedBox(height: 12),
+                        _buildGlassControlShell(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: _openCustomTypePicker,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Type (ประเภทข้อมูล)',
+                                labelStyle: strongerLabelStyle,
+                                filled: true,
+                                fillColor: DashboardRuntimeTheme.surfaceColor,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderFocusColor,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      widget.dataTypeOptions
+                                          .firstWhere(
+                                            (entry) =>
+                                                entry.key == _selectedType,
+                                            orElse: () => MapEntry(
+                                              _selectedType,
+                                              _selectedType,
+                                            ),
+                                          )
+                                          .value,
+                                      style: const TextStyle(
+                                        color: DashboardRuntimeTheme
+                                            .fieldTextColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 20,
+                                    color: DashboardRuntimeTheme.mutedTextColor,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                        const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 20,
-                          color: DashboardRuntimeTheme.mutedTextColor,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _openCustomTypePicker,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Type (ประเภทข้อมูล)',
-                      labelStyle: strongerLabelStyle,
-                      filled: true,
-                      fillColor: DashboardRuntimeTheme.surfaceColor,
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderFocusColor,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            widget.dataTypeOptions.firstWhere(
-                              (entry) => entry.key == _selectedType,
-                              orElse: () => MapEntry(_selectedType, _selectedType),
-                            ).value,
-                            style: const TextStyle(
-                              color: DashboardRuntimeTheme.fieldTextColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: _nameFieldKey,
+                          child: _buildGlassControlShell(
+                            child: TextFormField(
+                              controller: _nameController,
+                              focusNode: _nameFocusNode,
+                              style: const TextStyle(
+                                color: DashboardRuntimeTheme.fieldTextColor,
+                                fontSize: 14,
+                              ),
+                              decoration: const InputDecoration(
+                                labelText: 'Name (ตั้งชื่อของคีย์ข้อมูล)',
+                                hintText: 'ยกตัวอย่างเช่น knob_value',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
+                                labelStyle: strongerLabelStyle,
+                                hintStyle: TextStyle(
+                                  color: DashboardRuntimeTheme.mutedTextColor,
+                                ),
+                                filled: true,
+                                fillColor: DashboardRuntimeTheme.surfaceColor,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderFocusColor,
+                                  ),
+                                ),
+                              ),
+                              validator: (value) {
+                                final raw = (value ?? '').trim();
+                                if (raw.isEmpty) {
+                                  return 'โปรดตั้งชื่อคีย์ข้อมูลก่อนใช้งาน';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                         ),
-                        const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 20,
-                          color: DashboardRuntimeTheme.mutedTextColor,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _nameController,
-                  style: const TextStyle(
-                    color: DashboardRuntimeTheme.fieldTextColor,
-                    fontSize: 14,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Name (ตั้งชื่อของคีย์ข้อมูล)',
-                    hintText: 'ยกตัวอย่างเช่น knob_value',
-                    floatingLabelBehavior: FloatingLabelBehavior.always,
-                    labelStyle: strongerLabelStyle,
-                    hintStyle: TextStyle(
-                      color: DashboardRuntimeTheme.mutedTextColor,
-                    ),
-                    filled: true,
-                    fillColor: DashboardRuntimeTheme.surfaceColor,
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: DashboardRuntimeTheme.surfaceBorderColor,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: DashboardRuntimeTheme.surfaceBorderFocusColor,
-                      ),
-                    ),
-                  ),
-                  validator: (value) {
-                    final raw = (value ?? '').trim();
-                    if (raw.isEmpty) {
-                      return 'โปรดตั้งชื่อคีย์ข้อมูลก่อนใช้งาน';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _defaultController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: false,
-                  ),
-                  style: const TextStyle(
-                    color: DashboardRuntimeTheme.fieldTextColor,
-                    fontSize: 14,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Default Value (ค่าเริ่มต้น)',
-                    labelStyle: strongerLabelStyle,
-                    filled: true,
-                    fillColor: DashboardRuntimeTheme.surfaceColor,
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: DashboardRuntimeTheme.surfaceBorderColor,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: DashboardRuntimeTheme.surfaceBorderFocusColor,
-                      ),
-                    ),
-                  ),
-                  validator: _validateDefaultValue,
-                ),
-                if (_selectedType != 'bool' && _selectedType != 'string') ...[
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _minController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: false,
-                    ),
-                    style: const TextStyle(
-                      color: DashboardRuntimeTheme.fieldTextColor,
-                      fontSize: 14,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Min Value (ค่าต่ำสุด)',
-                      labelStyle: strongerLabelStyle,
-                      filled: true,
-                      fillColor: DashboardRuntimeTheme.surfaceColor,
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderFocusColor,
-                        ),
-                      ),
-                    ),
-                    validator: (value) => _validateMinMaxValue(value, 'min'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _maxController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: false,
-                    ),
-                    style: const TextStyle(
-                      color: DashboardRuntimeTheme.fieldTextColor,
-                      fontSize: 14,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Max Value (ค่าสูงสุด)',
-                      labelStyle: strongerLabelStyle,
-                      filled: true,
-                      fillColor: DashboardRuntimeTheme.surfaceColor,
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderFocusColor,
-                        ),
-                      ),
-                    ),
-                    validator: (value) => _validateMinMaxValue(value, 'max'),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _isUnitSelectable ? _openCustomUnitPicker : null,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Unit (ระบุหรือไม่ก็ได้)',
-                      labelStyle: strongerLabelStyle,
-                      hintText: 'e.g. %, C, ppm',
-                      hintStyle: TextStyle(
-                        color: DashboardRuntimeTheme.mutedTextColor,
-                      ),
-                      filled: true,
-                      fillColor: DashboardRuntimeTheme.surfaceColor,
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderFocusColor,
-                        ),
-                      ),
-                      disabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                        ),
-                      ),
-                    ),
-                    isEmpty: _selectedUnit.trim().isEmpty,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _selectedUnit,
-                            style: TextStyle(
-                              color: _isUnitSelectable
-                                  ? DashboardRuntimeTheme.fieldTextColor
-                                  : DashboardRuntimeTheme.mutedTextColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: _defaultFieldKey,
+                          child: _buildGlassControlShell(
+                            child: TextFormField(
+                              controller: _defaultController,
+                              focusNode: _defaultFocusNode,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                    signed: false,
+                                  ),
+                              style: const TextStyle(
+                                color: DashboardRuntimeTheme.fieldTextColor,
+                                fontSize: 14,
+                              ),
+                              decoration: const InputDecoration(
+                                labelText: 'Default Value (ค่าเริ่มต้น)',
+                                labelStyle: strongerLabelStyle,
+                                filled: true,
+                                fillColor: DashboardRuntimeTheme.surfaceColor,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderFocusColor,
+                                  ),
+                                ),
+                              ),
+                              validator: _validateDefaultValue,
                             ),
                           ),
                         ),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 20,
-                          color: _isUnitSelectable
-                              ? DashboardRuntimeTheme.mutedTextColor
-                              : DashboardRuntimeTheme.surfaceBorderColor,
+                        if (_selectedType != 'bool' &&
+                            _selectedType != 'string') ...[
+                          const SizedBox(height: 12),
+                          KeyedSubtree(
+                            key: _minFieldKey,
+                            child: _buildGlassControlShell(
+                              child: TextFormField(
+                                controller: _minController,
+                                focusNode: _minFocusNode,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                      signed: false,
+                                    ),
+                                style: const TextStyle(
+                                  color: DashboardRuntimeTheme.fieldTextColor,
+                                  fontSize: 14,
+                                ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Min Value (ค่าต่ำสุด)',
+                                  labelStyle: strongerLabelStyle,
+                                  filled: true,
+                                  fillColor: DashboardRuntimeTheme.surfaceColor,
+                                  enabledBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: DashboardRuntimeTheme
+                                          .surfaceBorderColor,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: DashboardRuntimeTheme
+                                          .surfaceBorderFocusColor,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) =>
+                                    _validateMinMaxValue(value, 'min'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          KeyedSubtree(
+                            key: _maxFieldKey,
+                            child: _buildGlassControlShell(
+                              child: TextFormField(
+                                controller: _maxController,
+                                focusNode: _maxFocusNode,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                      signed: false,
+                                    ),
+                                style: const TextStyle(
+                                  color: DashboardRuntimeTheme.fieldTextColor,
+                                  fontSize: 14,
+                                ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Max Value (ค่าสูงสุด)',
+                                  labelStyle: strongerLabelStyle,
+                                  filled: true,
+                                  fillColor: DashboardRuntimeTheme.surfaceColor,
+                                  enabledBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: DashboardRuntimeTheme
+                                          .surfaceBorderColor,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: DashboardRuntimeTheme
+                                          .surfaceBorderFocusColor,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) =>
+                                    _validateMinMaxValue(value, 'max'),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        _buildGlassControlShell(
+                          enabled: _isUnitSelectable,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: _isUnitSelectable
+                                ? _openCustomUnitPicker
+                                : null,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Unit (ระบุหรือไม่ก็ได้)',
+                                labelStyle: strongerLabelStyle,
+                                hintText: 'e.g. %, C, ppm',
+                                hintStyle: TextStyle(
+                                  color: DashboardRuntimeTheme.mutedTextColor,
+                                ),
+                                filled: true,
+                                fillColor: DashboardRuntimeTheme.surfaceColor,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderFocusColor,
+                                  ),
+                                ),
+                                disabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: DashboardRuntimeTheme
+                                        .surfaceBorderColor,
+                                  ),
+                                ),
+                              ),
+                              isEmpty: _selectedUnit.trim().isEmpty,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _selectedUnit,
+                                      style: TextStyle(
+                                        color: _isUnitSelectable
+                                            ? DashboardRuntimeTheme
+                                                  .fieldTextColor
+                                            : DashboardRuntimeTheme
+                                                  .mutedTextColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 20,
+                                    color: _isUnitSelectable
+                                        ? DashboardRuntimeTheme.mutedTextColor
+                                        : DashboardRuntimeTheme
+                                              .surfaceBorderColor,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DecoratedBox(
+                                decoration: AppGlassTheme.accentDecoration(
+                                  radius: 999,
+                                  colors: const <Color>[
+                                    Color(0xFFEA7A70),
+                                    Color(0xFFD95C54),
+                                  ],
+                                  borderColor: const Color(0xFFC96868),
+                                  glowColor: const Color(0xFFE08A82),
+                                ),
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide.none,
+                                    foregroundColor: const Color(0xFFFFFBFB),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 15,
+                                    ),
+                                    backgroundColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: const Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DecoratedBox(
+                                decoration: AppGlassTheme.accentDecoration(
+                                  radius: 999,
+                                  colors: const <Color>[
+                                    Color(0xFF7EBFAF),
+                                    Color(0xFF5E9E8B),
+                                  ],
+                                  borderColor: const Color(0xFF6AA796),
+                                  glowColor: const Color(0xFFA9D3C7),
+                                ),
+                                child: FilledButton(
+                                  onPressed: _submit,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 15,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    widget.isEditing ? 'Save' : 'Add',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: Color(0xFFC96868),
-                          ),
-                          foregroundColor: const Color(0xFFFFFBFB),
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          backgroundColor: const Color(0xFFC96868),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: _submit,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: DashboardRuntimeTheme.buttonStartColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          widget.isEditing ? 'Save' : 'Add',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                    ],
                   ),
                 ),
               ),

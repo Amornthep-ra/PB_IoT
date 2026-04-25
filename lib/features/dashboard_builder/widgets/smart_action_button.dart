@@ -120,6 +120,9 @@ class SmartActionButton extends StatefulWidget {
     this.innerBaseColor,
     this.shellBorderColor,
     this.shellBorderWidth,
+    this.glowColor,
+    this.glowStrength,
+    this.glowBlur,
   });
 
   final bool isActive;
@@ -134,6 +137,9 @@ class SmartActionButton extends StatefulWidget {
   final Color? innerBaseColor;
   final Color? shellBorderColor;
   final double? shellBorderWidth;
+  final Color? glowColor;
+  final double? glowStrength;
+  final double? glowBlur;
 
   @override
   State<SmartActionButton> createState() => _SmartActionButtonState();
@@ -177,9 +183,6 @@ class _SmartActionButtonState extends State<SmartActionButton> {
   }
 
   void _handleTap() {
-    setState(() {
-      _isActive = !_isActive;
-    });
     widget.onTap();
   }
 
@@ -187,9 +190,6 @@ class _SmartActionButtonState extends State<SmartActionButton> {
     if (!widget.isMomentary) {
       return;
     }
-    setState(() {
-      _isActive = true;
-    });
     widget.onPressStart?.call();
   }
 
@@ -197,9 +197,6 @@ class _SmartActionButtonState extends State<SmartActionButton> {
     if (!widget.isMomentary) {
       return;
     }
-    setState(() {
-      _isActive = false;
-    });
     widget.onPressEnd?.call();
   }
 
@@ -228,21 +225,39 @@ class _SmartActionButtonState extends State<SmartActionButton> {
             : controlHeight;
         final controlCornerRadius = controlShortSide / 2;
         final shellCornerRadius =
-          controlCornerRadius + layout.innerInset + layout.shellPadding;
+            controlCornerRadius + layout.innerInset + layout.shellPadding;
         final canRenderControl = controlWidth >= 12 && controlHeight >= 12;
         final onColor = widget.activeColor;
         final offColor = widget.inactiveColor;
         final currentAccent = _isActive ? onColor : offColor;
-        final surfaceColor = widget.shellBaseColor ?? (_isActive
-          ? DashboardRuntimeTheme.cardColor
-          : DashboardRuntimeTheme.surfaceColor);
+        final surfaceColor =
+            widget.shellBaseColor ??
+            (_isActive
+                ? DashboardRuntimeTheme.cardColor
+                : DashboardRuntimeTheme.surfaceColor);
         final controlSurfaceColor =
             widget.innerBaseColor ?? DashboardRuntimeTheme.cardHighlightColor;
+        final resolvedGlowColor = widget.glowColor ?? currentAccent;
+        final resolvedGlowStrength = (widget.glowStrength ?? 0.12)
+            .clamp(0.0, 0.35)
+            .toDouble();
+        final resolvedGlowBlur = (widget.glowBlur ?? 18.0)
+            .clamp(0.0, 40.0)
+            .toDouble();
+        final hasGlow = resolvedGlowStrength > 0 && resolvedGlowBlur > 0;
+        final compactGlowBoost = layout.sizeClass == _ButtonSizeClass.compact
+            ? 1.2
+            : 1.0;
+        final shellGlowAlpha = (resolvedGlowStrength * compactGlowBoost)
+            .clamp(0.0, 0.42)
+            .toDouble();
+        final innerGlowAlpha = (resolvedGlowStrength * 0.72 * compactGlowBoost)
+            .clamp(0.0, 0.30)
+            .toDouble();
         final borderColor = _isActive
-          ? onColor.withValues(alpha: 0.26)
-          : offColor.withValues(alpha: 0.22);
-        final resolvedShellBorderColor =
-            widget.shellBorderColor ?? borderColor;
+            ? onColor.withValues(alpha: 0.26)
+            : offColor.withValues(alpha: 0.22);
+        final resolvedShellBorderColor = widget.shellBorderColor ?? borderColor;
         final resolvedShellBorderWidth =
             widget.shellBorderWidth ?? layout.borderWidth;
         final statusText = _isActive ? 'ON' : 'OFF';
@@ -275,17 +290,18 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                     width: layout.controlBorderWidth,
                   ),
                   boxShadow: [
-                    BoxShadow(
-                      color: (_isActive ? onColor : offColor).withValues(
-                        alpha: 0.18,
+                    if (hasGlow)
+                      BoxShadow(
+                        color: resolvedGlowColor.withValues(
+                          alpha: innerGlowAlpha,
+                        ),
+                        blurRadius: math.max(16.0, resolvedGlowBlur * 0.62),
+                        spreadRadius: 1,
                       ),
-                      blurRadius: 16,
-                      spreadRadius: 1,
-                    ),
                     const BoxShadow(
                       color: DashboardRuntimeTheme.shadowLightColor,
-                      blurRadius: 6,
-                      offset: Offset(-2, -2),
+                      blurRadius: 5,
+                      offset: Offset.zero,
                     ),
                   ],
                 ),
@@ -353,30 +369,38 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                         )
                         .toDouble();
                     final pillHorizontalPadding = (currentWidth * 0.08)
-                      .clamp(10.0, 18.0)
-                      .toDouble();
+                        .clamp(10.0, 18.0)
+                        .toDouble();
                     final pillVerticalPadding = (safeContentHeight * 0.06)
-                      .clamp(4.0, 7.0)
-                      .toDouble();
+                        .clamp(4.0, 7.0)
+                        .toDouble();
                     final estimatedPillHeight =
-                      statusFontSize + (pillVerticalPadding * 2) + 2;
+                        statusFontSize + (pillVerticalPadding * 2) + 2;
                     final maxBadgeHeightWithStatus = math.max(
                       0.0,
-                      safeContentHeight - provisionalStatusGap - estimatedPillHeight,
+                      safeContentHeight -
+                          provisionalStatusGap -
+                          estimatedPillHeight,
                     );
                     final minWidthForStatus =
-                        layout.sizeClass == _ButtonSizeClass.compact ? 86.0 : 74.0;
+                        layout.sizeClass == _ButtonSizeClass.compact
+                        ? 86.0
+                        : 74.0;
                     final minHeightForStatus =
-                        layout.sizeClass == _ButtonSizeClass.compact ? 68.0 : 52.0;
+                        layout.sizeClass == _ButtonSizeClass.compact
+                        ? 68.0
+                        : 52.0;
                     final canFitStatusText =
-                      currentWidth >= minWidthForStatus &&
-                      currentHeight >= minHeightForStatus &&
-                      statusFontSize > 0 &&
-                      iconSizeWithStatus >= layout.iconMinSize * 0.8 &&
-                      maxBadgeHeightWithStatus >= 24;
+                        currentWidth >= minWidthForStatus &&
+                        currentHeight >= minHeightForStatus &&
+                        statusFontSize > 0 &&
+                        iconSizeWithStatus >= layout.iconMinSize * 0.8 &&
+                        maxBadgeHeightWithStatus >= 24;
                     final showStatusText = canFitStatusText;
                     final statusGap = showStatusText
-                        ? (provisionalStatusGap * 0.08).clamp(0.0, 1.0).toDouble()
+                        ? (provisionalStatusGap * 0.08)
+                              .clamp(0.0, 1.0)
+                              .toDouble()
                         : 0.0;
                     final iconSize = showStatusText
                         ? iconSizeWithStatus
@@ -433,11 +457,18 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                                               (iconSize * 0.62) + statusGap,
                                             ),
                                             child: Transform.translate(
-                                              offset: Offset(0, -pillVerticalPadding * 0.08),
+                                              offset: Offset(
+                                                0,
+                                                -pillVerticalPadding * 0.08,
+                                              ),
                                               child: Padding(
                                                 padding: EdgeInsets.symmetric(
-                                                  horizontal: pillHorizontalPadding * 0.25,
-                                                  vertical: pillVerticalPadding * 0.02,
+                                                  horizontal:
+                                                      pillHorizontalPadding *
+                                                      0.25,
+                                                  vertical:
+                                                      pillVerticalPadding *
+                                                      0.02,
                                                 ),
                                                 child: Text(
                                                   statusText,
@@ -447,8 +478,8 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                                                   style: TextStyle(
                                                     fontSize: statusFontSize,
                                                     fontWeight: FontWeight.w800,
-                                                    letterSpacing:
-                                                        layout.statusLetterSpacing,
+                                                    letterSpacing: layout
+                                                        .statusLetterSpacing,
                                                     color: currentAccent,
                                                   ),
                                                 ),
@@ -484,17 +515,17 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                     ) ??
                     surfaceColor,
               ],
-             ),
-             borderRadius: BorderRadius.circular(shellCornerRadius),
-             border: Border.all(
-               color: resolvedShellBorderColor,
-               width: resolvedShellBorderWidth,
-             ),
-             boxShadow: [
+            ),
+            borderRadius: BorderRadius.circular(shellCornerRadius),
+            border: Border.all(
+              color: resolvedShellBorderColor,
+              width: resolvedShellBorderWidth,
+            ),
+            boxShadow: [
               BoxShadow(
                 color: DashboardRuntimeTheme.shadowLightColor,
                 blurRadius: layout.baseShadowBlur * 0.45,
-                offset: const Offset(-4, -4),
+                offset: Offset.zero,
               ),
               BoxShadow(
                 color: DashboardRuntimeTheme.shadowDarkColor,
@@ -507,6 +538,20 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                   blurRadius: width * 0.12,
                   spreadRadius: width * 0.01,
                 ),
+              if (hasGlow) ...[
+                BoxShadow(
+                  color: resolvedGlowColor.withValues(alpha: shellGlowAlpha),
+                  blurRadius: resolvedGlowBlur,
+                  spreadRadius: math.max(0.0, width * 0.015),
+                ),
+                BoxShadow(
+                  color: resolvedGlowColor.withValues(
+                    alpha: (shellGlowAlpha * 0.42).clamp(0.0, 0.22).toDouble(),
+                  ),
+                  blurRadius: resolvedGlowBlur * 1.35,
+                  spreadRadius: -1,
+                ),
+              ],
             ],
           ),
           child: Stack(
@@ -534,10 +579,7 @@ class _SmartActionButtonState extends State<SmartActionButton> {
               ),
               Padding(
                 padding: EdgeInsets.all(layout.shellPadding),
-                child: Align(
-                  alignment: Alignment.center,
-                  child: controlWidget,
-                ),
+                child: Align(alignment: Alignment.center, child: controlWidget),
               ),
             ],
           ),

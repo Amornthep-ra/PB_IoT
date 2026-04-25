@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/auth_service.dart';
@@ -9,6 +12,7 @@ import '../services/session_cookie_storage.dart';
 import '../services/session_snapshot_storage.dart';
 import '../services/session_state.dart';
 import '../theme/app_responsive.dart';
+import '../theme/app_theme.dart';
 import '../features/dashboard/services/dashboard_runtime_value_storage.dart';
 
 class AccountSessionScreen extends StatefulWidget {
@@ -24,26 +28,195 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
 
   bool _isLoggingOut = false;
   bool _isUpdatingProfilePhoto = false;
+  bool _isTokenVisible = false;
   XFile? _localProfilePhoto;
   String? _profileImageSyncUrl;
+  Timer? _tokenVisibilityTimer;
 
   static const _backgroundColor = Color(0xFFF2F5FA);
-  static const _cardColor = Color(0xFFEFF3F8);
-  static const _surfaceColor = Color(0xFFF8FAFD);
   static const _headlineColor = Color(0xFF15212B);
   static const _labelTextColor = Color(0xFF4B5A69);
   static const _mutedTextColor = Color(0xFF667587);
-  static const _shadowDarkColor = Color(0x1D9CA9B5);
-  static const _shadowLightColor = Color(0xF9FFFFFF);
   static const _dangerStartColor = Color(0xFFF06A62);
   static const _dangerEndColor = Color(0xFFD84840);
   static const _dangerGlowColor = Color(0xFFF0A09B);
 
+  Widget _buildGlassHeader() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: AppGlassTheme.surfaceDecoration(
+            radius: 28,
+            borderAlpha: 0.58,
+            colors: <Color>[
+              const Color(0xFFFFFFFF).withValues(alpha: 0.82),
+              const Color(0xFFF7FBFF).withValues(alpha: 0.46),
+            ],
+            shadows: AppGlassTheme.shadowMd,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DecoratedBox(
+                decoration: AppGlassTheme.surfaceDecoration(
+                  radius: 10,
+                  borderAlpha: 0.38,
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.64),
+                    const Color(0xFFDCEBFF).withValues(alpha: 0.24),
+                  ],
+                  shadows: AppGlassTheme.shadowSm,
+                ),
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: IconButton(
+                    onPressed: () => Navigator.maybePop(context),
+                    splashRadius: 14,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 28,
+                      height: 28,
+                    ),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Back',
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 12,
+                      color: Color(0xFF4F5F6E),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Settings',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                        color: _headlineColor,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'ดูรายละเอียดบัญชี สถานะเซสชันได้ที่นี่',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.3,
+                        color: _mutedTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _syncProfileImageState();
-    _refreshSessionFromServer();
+    _initializeSessionState();
+  }
+
+  @override
+  void dispose() {
+    _tokenVisibilityTimer?.cancel();
+    super.dispose();
+  }
+
+  void _toggleTokenVisibility() {
+    _tokenVisibilityTimer?.cancel();
+    setState(() {
+      _isTokenVisible = !_isTokenVisible;
+    });
+
+    if (!_isTokenVisible) {
+      return;
+    }
+
+    _tokenVisibilityTimer = Timer(const Duration(seconds: 15), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isTokenVisible = false;
+      });
+    });
+  }
+
+  Future<void> _copyToken(String token) async {
+    final trimmedToken = token.trim();
+    if (trimmedToken.isEmpty) {
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: trimmedToken));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('คัดลอก Token แล้ว')));
+  }
+
+  String _maskedToken(String token) {
+    final trimmedToken = token.trim();
+    if (trimmedToken.isEmpty) {
+      return 'Not available';
+    }
+    if (trimmedToken.length <= 2) {
+      return '••••';
+    }
+    if (trimmedToken.length <= 8) {
+      return '••••${trimmedToken.substring(trimmedToken.length - 2)}';
+    }
+    return '${trimmedToken.substring(0, 4)}••••••••'
+        '${trimmedToken.substring(trimmedToken.length - 4)}';
+  }
+
+  Future<void> _initializeSessionState() async {
+    await _restoreMissingSessionTokenFromRememberedLogin();
+    if (!mounted) {
+      return;
+    }
+    await _syncProfileImageState();
+    if (!mounted) {
+      return;
+    }
+    await _refreshSessionFromServer();
+  }
+
+  Future<void> _restoreMissingSessionTokenFromRememberedLogin() async {
+    final currentSession = SessionState.current;
+    if (currentSession == null || currentSession.token.trim().isNotEmpty) {
+      return;
+    }
+
+    final remembered = await SessionCookieStorage.loadRememberedLogin();
+    final rememberedToken = remembered?.token.trim();
+    if (rememberedToken == null || rememberedToken.isEmpty) {
+      return;
+    }
+
+    final updatedSession = currentSession.copyWith(token: rememberedToken);
+    SessionState.current = updatedSession;
+    await SessionSnapshotStorage.save(updatedSession);
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _onEditProfilePhotoPressed() async {
@@ -263,13 +436,26 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
 
   Future<void> _refreshSessionFromServer() async {
     try {
+      final currentSession = SessionState.current;
       final refreshedSession = await _authService.fetchCurrentSession();
       if (refreshedSession == null) {
         return;
       }
 
+      final preservedToken = refreshedSession.token.trim().isNotEmpty
+          ? refreshedSession.token
+          : currentSession?.token;
+      final preservedDisplayName =
+          refreshedSession.displayName.trim().isNotEmpty
+          ? refreshedSession.displayName
+          : currentSession?.displayName;
+      final mergedSession = refreshedSession.copyWith(
+        token: preservedToken,
+        displayName: preservedDisplayName,
+      );
+
       var synchronizedSession =
-          await ProfileImageCacheStorage.synchronizeSession(refreshedSession);
+          await ProfileImageCacheStorage.synchronizeSession(mergedSession);
       synchronizedSession = await ProfileImageCacheStorage.refreshFromNetwork(
         synchronizedSession,
       );
@@ -314,6 +500,10 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
+  void _onSwitchProjectPressed() {
+    Navigator.pushNamedAndRemoveUntil(context, '/projects', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = SessionState.current;
@@ -326,11 +516,15 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
         : displayName;
     final sessionToken = session?.token.trim();
     final fallbackToken = session?.mqttDeviceId?.trim();
-    final tokenText = sessionToken != null && sessionToken.isNotEmpty
+    final rawToken = sessionToken != null && sessionToken.isNotEmpty
         ? sessionToken
         : (fallbackToken != null && fallbackToken.isNotEmpty
               ? fallbackToken
-              : 'Not available');
+              : '');
+    final hasToken = rawToken.isNotEmpty;
+    final tokenText = hasToken
+        ? (_isTokenVisible ? rawToken : _maskedToken(rawToken))
+        : 'Not available';
     final authType = session?.authType?.trim();
     final authTypeText = authType == null || authType.isEmpty
         ? 'Unknown'
@@ -360,128 +554,126 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                   bottomSafeInset: bottomSafeInset,
                 );
 
-                return Padding(
+                return ListView(
                   padding: EdgeInsets.fromLTRB(
                     metrics.screenPadding,
                     metrics.topSpacing,
                     metrics.screenPadding,
                     metrics.bottomSafeGap,
                   ),
-                  child: SizedBox(
-                    height:
-                        constraints.maxHeight -
-                        metrics.topSpacing -
-                        metrics.bottomSafeGap,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildGlassHeader(),
+                    SizedBox(height: metrics.headerGap),
+                    Center(
+                      child: _HeroProfileCard(
+                        metrics: metrics,
+                        localProfilePhoto: _localProfilePhoto,
+                        cachedProfileImagePath: cachedProfileImagePath,
+                        profileImageUrl: profileImageUrl,
+                        isUpdating: _isUpdatingProfilePhoto,
+                        onEditTap: _onEditProfilePhotoPressed,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      userName,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.4,
+                        color: _headlineColor,
+                      ),
+                    ),
+                    SizedBox(height: metrics.sectionGap),
+                    _SectionCard(
+                      metrics: metrics,
+                      title: 'Session Details',
                       children: [
-                        Row(
-                          children: [
-                            _TopBarButton(
-                              icon: Icons.arrow_back_ios_new_rounded,
-                              onTap: () => Navigator.maybePop(context),
-                            ),
-                            const Expanded(
-                              child: Text(
-                                'Account & Session',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.3,
-                                  color: _headlineColor,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 42),
-                          ],
-                        ),
-                        SizedBox(height: metrics.headerGap),
-                        Center(
-                          child: _HeroProfileCard(
-                            metrics: metrics,
-                            localProfilePhoto: _localProfilePhoto,
-                            cachedProfileImagePath: cachedProfileImagePath,
-                            profileImageUrl: profileImageUrl,
-                            isUpdating: _isUpdatingProfilePhoto,
-                            onEditTap: _onEditProfilePhotoPressed,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          userName,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.4,
-                            color: _headlineColor,
-                          ),
-                        ),
-                        SizedBox(height: metrics.sectionGap),
-                        _SectionCard(
+                        _InfoRow(
                           metrics: metrics,
-                          title: 'Session Details',
-                          children: [
-                            _InfoRow(
-                              metrics: metrics,
-                              icon: Icons.key_outlined,
-                              label: 'Auth Type',
-                              value: authTypeText,
-                            ),
-                            const _DividerRow(),
-                            _InfoRow(
-                              metrics: metrics,
-                              icon: Icons.memory_rounded,
-                              label: 'Token',
-                              value: tokenText,
-                            ),
-                            const _DividerRow(),
-                            _InfoRow(
-                              metrics: metrics,
-                              icon: Icons.check_circle_outline_rounded,
-                              label: 'Session Status',
-                              value: sessionStatusText,
-                              valueColor: sessionStatusColor,
-                            ),
-                          ],
+                          icon: Icons.key_outlined,
+                          label: 'Auth Type',
+                          value: authTypeText,
                         ),
-                        SizedBox(height: metrics.sectionGap),
-                        _SectionCard(
+                        const _DividerRow(),
+                        _InfoRow(
                           metrics: metrics,
-                          title: 'Preferences',
-                          children: [
-                            _MenuRow(
-                              metrics: metrics,
-                              icon: Icons.settings_outlined,
-                              label: 'App Settings',
-                              onTap: () {
-                                // TODO: Navigate to app settings.
-                              },
-                            ),
-                            const _DividerRow(),
-                            _MenuRow(
-                              metrics: metrics,
-                              icon: Icons.help_outline_rounded,
-                              label: 'Help & Support',
-                              onTap: () {
-                                // TODO: Navigate to help and support.
-                              },
-                            ),
-                          ],
+                          icon: Icons.memory_rounded,
+                          label: 'Token',
+                          value: tokenText,
+                          valueMonospace: hasToken,
+                          trailing: hasToken
+                              ? _TokenActions(
+                                  isVisible: _isTokenVisible,
+                                  onToggleVisibility: _toggleTokenVisibility,
+                                  onCopy: () => _copyToken(rawToken),
+                                )
+                              : null,
                         ),
-                        SizedBox(height: metrics.logoutTopGap),
-                        _DangerActionButton(
-                          height: metrics.primaryButtonHeight,
-                          isLoading: _isLoggingOut,
-                          label: 'Logout',
-                          onPressed: _isLoggingOut ? null : _onLogoutPressed,
+                        const _DividerRow(),
+                        _InfoRow(
+                          metrics: metrics,
+                          icon: Icons.check_circle_outline_rounded,
+                          label: 'Session Status',
+                          value: sessionStatusText,
+                          valueColor: sessionStatusColor,
                         ),
                       ],
                     ),
-                  ),
+                    SizedBox(height: metrics.sectionGap),
+                    _SectionCard(
+                      metrics: metrics,
+                      title: 'Preferences',
+                      children: [
+                        _MenuRow(
+                          metrics: metrics,
+                          icon: Icons.settings_outlined,
+                          label: 'General Settings',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'General settings will be available here soon.',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const _DividerRow(),
+                        _MenuRow(
+                          metrics: metrics,
+                          icon: Icons.folder_open_rounded,
+                          label: 'Switch Project',
+                          onTap: _onSwitchProjectPressed,
+                        ),
+                        const _DividerRow(),
+                        _MenuRow(
+                          metrics: metrics,
+                          icon: Icons.help_outline_rounded,
+                          label: 'Help & Support',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Help & support is not available yet.',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: metrics.logoutTopGap),
+                    _DangerActionButton(
+                      height: metrics.primaryButtonHeight,
+                      isLoading: _isLoggingOut,
+                      label: 'Logout',
+                      onPressed: _isLoggingOut ? null : _onLogoutPressed,
+                    ),
+                  ],
                 );
               },
             ),
@@ -512,9 +704,13 @@ class _AccountBackground extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFF8FAFD), Color(0xFFE8EEF5)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xFFF7FBFF),
+            Color(0xFFF1F5FA),
+            Color(0xFFEEF3F8),
+          ],
         ),
       ),
       child: Stack(
@@ -586,44 +782,6 @@ class _GlowOrb extends StatelessWidget {
   }
 }
 
-class _TopBarButton extends StatelessWidget {
-  const _TopBarButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: _AccountSessionScreenState._cardColor,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(
-            color: _AccountSessionScreenState._shadowLightColor,
-            offset: Offset(-4, -4),
-            blurRadius: 8,
-          ),
-          BoxShadow(
-            color: _AccountSessionScreenState._shadowDarkColor,
-            offset: Offset(6, 8),
-            blurRadius: 12,
-          ),
-        ],
-      ),
-      child: IconButton(
-        onPressed: onTap,
-        splashRadius: 18,
-        iconSize: 18,
-        color: const Color(0xFF4F5F6E),
-        icon: Icon(icon),
-      ),
-    );
-  }
-}
-
 class _HeroProfileCard extends StatelessWidget {
   const _HeroProfileCard({
     required this.metrics,
@@ -649,106 +807,110 @@ class _HeroProfileCard extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Container(
-            width: metrics.heroAvatarSize,
-            height: metrics.heroAvatarSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _AccountSessionScreenState._surfaceColor,
-              boxShadow: const [
-                BoxShadow(
-                  color: _AccountSessionScreenState._shadowLightColor,
-                  offset: Offset(-4, -4),
-                  blurRadius: 8,
+          ClipOval(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Container(
+                width: metrics.heroAvatarSize,
+                height: metrics.heroAvatarSize,
+                decoration: AppGlassTheme.surfaceDecoration(
+                  radius: metrics.heroAvatarSize / 2,
+                  borderAlpha: 0.54,
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.76),
+                    const Color(0xFFE8F5FF).withValues(alpha: 0.28),
+                  ],
+                  shadows: AppGlassTheme.shadowMd,
                 ),
-                BoxShadow(
-                  color: _AccountSessionScreenState._shadowDarkColor,
-                  offset: Offset(5, 6),
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (localProfilePhoto != null)
-                  Image.file(
-                    File(localProfilePhoto!.path),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _ProfileAvatarFallback(metrics: metrics);
-                    },
-                  )
-                else if (cachedProfileImagePath != null)
-                  Image.file(
-                    File(cachedProfileImagePath!),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return profileImageUrl != null
-                          ? Image.network(
-                              profileImageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return _ProfileAvatarFallback(metrics: metrics);
-                              },
-                            )
-                          : _ProfileAvatarFallback(metrics: metrics);
-                    },
-                  )
-                else if (profileImageUrl != null)
-                  Image.network(
-                    profileImageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _ProfileAvatarFallback(metrics: metrics);
-                    },
-                  )
-                else
-                  _ProfileAvatarFallback(metrics: metrics),
-                if (isUpdating)
-                  Container(
-                    color: Colors.black.withValues(alpha: 0.20),
-                    alignment: Alignment.center,
-                    child: const SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.6,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (localProfilePhoto != null)
+                      Image.file(
+                        File(localProfilePhoto!.path),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return _ProfileAvatarFallback(metrics: metrics);
+                        },
+                      )
+                    else if (cachedProfileImagePath != null)
+                      Image.file(
+                        File(cachedProfileImagePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return profileImageUrl != null
+                              ? Image.network(
+                                  profileImageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return _ProfileAvatarFallback(
+                                      metrics: metrics,
+                                    );
+                                  },
+                                )
+                              : _ProfileAvatarFallback(metrics: metrics);
+                        },
+                      )
+                    else if (profileImageUrl != null)
+                      Image.network(
+                        profileImageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return _ProfileAvatarFallback(metrics: metrics);
+                        },
+                      )
+                    else
+                      _ProfileAvatarFallback(metrics: metrics),
+                    if (isUpdating)
+                      Container(
+                        color: Colors.black.withValues(alpha: 0.20),
+                        alignment: Alignment.center,
+                        child: const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.6,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
           Positioned(
             right: -2,
             bottom: -2,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onEditTap,
-                borderRadius: BorderRadius.circular(18),
-                child: Ink(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF6BB38A), Color(0xFF4E8D6B)],
+            child: ClipOval(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onEditTap,
+                    borderRadius: BorderRadius.circular(18),
+                    child: Ink(
+                      width: 36,
+                      height: 36,
+                      decoration: AppGlassTheme.accentDecoration(
+                        radius: 18,
+                        colors: const <Color>[
+                          Color(0xFF6BB38A),
+                          Color(0xFF4E8D6B),
+                        ],
+                        borderColor: Colors.white.withValues(alpha: 0.92),
+                        glowColor: const Color(0xFF6BB38A),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
                     ),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      width: 2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt_rounded,
-                    size: 18,
-                    color: Colors.white,
                   ),
                 ),
               ),
@@ -789,69 +951,70 @@ class _ProfilePhotoSourceSheet extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _AccountSessionScreenState._cardColor,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: _AccountSessionScreenState._shadowLightColor,
-                offset: Offset(-6, -6),
-                blurRadius: 10,
-              ),
-              BoxShadow(
-                color: _AccountSessionScreenState._shadowDarkColor,
-                offset: Offset(6, 8),
-                blurRadius: 14,
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Change profile photo',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: _AccountSessionScreenState._headlineColor,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Choose where to get your new profile image.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: _AccountSessionScreenState._mutedTextColor,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _SourceActionTile(
-                  icon: Icons.photo_camera_outlined,
-                  label: 'Take photo',
-                  onTap: () => onActionSelected(_ProfilePhotoAction.camera),
-                ),
-                const SizedBox(height: 8),
-                _SourceActionTile(
-                  icon: Icons.photo_library_outlined,
-                  label: 'Choose from gallery',
-                  onTap: () => onActionSelected(_ProfilePhotoAction.gallery),
-                ),
-                if (hasProfilePhoto) ...[
-                  const SizedBox(height: 8),
-                  _SourceActionTile(
-                    icon: Icons.delete_outline_rounded,
-                    label: 'Remove photo',
-                    iconColor: const Color(0xFFB24A46),
-                    onTap: () => onActionSelected(_ProfilePhotoAction.remove),
-                  ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              decoration: AppGlassTheme.surfaceDecoration(
+                radius: 24,
+                borderAlpha: 0.5,
+                colors: <Color>[
+                  const Color(0xFFFFFFFF).withValues(alpha: 0.78),
+                  const Color(0xFFF5FBFF).withValues(alpha: 0.38),
                 ],
-                const SizedBox(height: 6),
-              ],
+                shadows: AppGlassTheme.shadowMd,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Change profile photo',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _AccountSessionScreenState._headlineColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Choose where to get your new profile image.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _AccountSessionScreenState._mutedTextColor,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _SourceActionTile(
+                      icon: Icons.photo_camera_outlined,
+                      label: 'Take photo',
+                      onTap: () => onActionSelected(_ProfilePhotoAction.camera),
+                    ),
+                    const SizedBox(height: 8),
+                    _SourceActionTile(
+                      icon: Icons.photo_library_outlined,
+                      label: 'Choose from gallery',
+                      onTap: () =>
+                          onActionSelected(_ProfilePhotoAction.gallery),
+                    ),
+                    if (hasProfilePhoto) ...[
+                      const SizedBox(height: 8),
+                      _SourceActionTile(
+                        icon: Icons.delete_outline_rounded,
+                        label: 'Remove photo',
+                        iconColor: const Color(0xFFB24A46),
+                        onTap: () =>
+                            onActionSelected(_ProfilePhotoAction.remove),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -880,21 +1043,36 @@ class _SourceActionTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: Ink(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: _AccountSessionScreenState._surfaceColor,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.82)),
+        decoration: AppGlassTheme.surfaceDecoration(
+          radius: 18,
+          borderAlpha: 0.34,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.46),
+            iconColor.withValues(alpha: 0.08),
+          ],
+          shadows: const <BoxShadow>[],
         ),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: AppGlassTheme.surfaceDecoration(
+                    radius: 14,
+                    borderAlpha: 0.32,
+                    colors: <Color>[
+                      Colors.white.withValues(alpha: 0.56),
+                      iconColor.withValues(alpha: 0.1),
+                    ],
+                    shadows: const <BoxShadow>[],
+                  ),
+                  child: Icon(icon, color: iconColor),
+                ),
               ),
-              child: Icon(icon, color: iconColor),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -932,39 +1110,52 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: metrics.sectionCardPadding,
-      decoration: BoxDecoration(
-        color: _AccountSessionScreenState._cardColor,
-        borderRadius: BorderRadius.circular(metrics.sectionCardRadius),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
-        boxShadow: const [
-          BoxShadow(
-            color: _AccountSessionScreenState._shadowLightColor,
-            offset: Offset(-6, -6),
-            blurRadius: 10,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(metrics.sectionCardRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: metrics.sectionCardPadding,
+          decoration: AppGlassTheme.surfaceDecoration(
+            radius: metrics.sectionCardRadius,
+            borderAlpha: 0.5,
+            colors: <Color>[
+              const Color(0xFFFFFFFF).withValues(alpha: 0.76),
+              const Color(0xFFF5FBFF).withValues(alpha: 0.38),
+            ],
+            shadows: AppGlassTheme.shadowSm,
           ),
-          BoxShadow(
-            color: _AccountSessionScreenState._shadowDarkColor,
-            offset: Offset(6, 8),
-            blurRadius: 14,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: AppGlassTheme.surfaceDecoration(
+                  radius: 999,
+                  borderAlpha: 0.3,
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.46),
+                    const Color(0xFFEAF3FF).withValues(alpha: 0.2),
+                  ],
+                  shadows: const <BoxShadow>[],
+                ),
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: _AccountSessionScreenState._labelTextColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ...children,
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: _AccountSessionScreenState._labelTextColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ...children,
-        ],
+        ),
       ),
     );
   }
@@ -977,6 +1168,8 @@ class _InfoRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor = const Color(0xFF6B7280),
+    this.valueMonospace = false,
+    this.trailing,
   });
 
   final AppResponsiveMetrics metrics;
@@ -984,34 +1177,47 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
   final Color valueColor;
+  final bool valueMonospace;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: metrics.infoRowVerticalPadding),
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: metrics.infoRowVerticalPadding + 2,
+      ),
+      decoration: AppGlassTheme.surfaceDecoration(
+        radius: 18,
+        borderAlpha: 0.28,
+        colors: <Color>[
+          Colors.white.withValues(alpha: 0.42),
+          const Color(0xFFF3F9FF).withValues(alpha: 0.22),
+        ],
+        shadows: const <BoxShadow>[],
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: metrics.iconTileSize,
-            height: metrics.iconTileSize,
-            decoration: BoxDecoration(
-              color: _AccountSessionScreenState._surfaceColor,
-              borderRadius: BorderRadius.circular(metrics.iconTileRadius),
-              boxShadow: const [
-                BoxShadow(
-                  color: _AccountSessionScreenState._shadowLightColor,
-                  offset: Offset(-2, -2),
-                  blurRadius: 4,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(metrics.iconTileRadius),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                width: metrics.iconTileSize,
+                height: metrics.iconTileSize,
+                decoration: AppGlassTheme.surfaceDecoration(
+                  radius: metrics.iconTileRadius,
+                  borderAlpha: 0.32,
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.54),
+                    const Color(0xFFEAF3FF).withValues(alpha: 0.18),
+                  ],
+                  shadows: const <BoxShadow>[],
                 ),
-                BoxShadow(
-                  color: _AccountSessionScreenState._shadowDarkColor,
-                  offset: Offset(3, 4),
-                  blurRadius: 6,
-                ),
-              ],
+                child: Icon(icon, size: 18, color: const Color(0xFF667A8C)),
+              ),
             ),
-            child: Icon(icon, size: 18, color: const Color(0xFF667A8C)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1036,13 +1242,76 @@ class _InfoRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     height: 1.3,
                     color: valueColor,
+                    fontFeatures: valueMonospace
+                        ? const <FontFeature>[FontFeature.tabularFigures()]
+                        : null,
                   ),
                 ),
               ],
             ),
           ),
+          if (trailing != null) ...[const SizedBox(width: 8), trailing!],
         ],
       ),
+    );
+  }
+}
+
+class _TokenActions extends StatelessWidget {
+  const _TokenActions({
+    required this.isVisible,
+    required this.onToggleVisibility,
+    required this.onCopy,
+  });
+
+  final bool isVisible;
+  final VoidCallback onToggleVisibility;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _TokenIconButton(
+          icon: isVisible
+              ? Icons.visibility_off_outlined
+              : Icons.visibility_outlined,
+          tooltip: isVisible ? 'Hide token' : 'Show token',
+          onPressed: onToggleVisibility,
+        ),
+        const SizedBox(width: 2),
+        _TokenIconButton(
+          icon: Icons.copy_rounded,
+          tooltip: 'Copy token',
+          onPressed: onCopy,
+        ),
+      ],
+    );
+  }
+}
+
+class _TokenIconButton extends StatelessWidget {
+  const _TokenIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+      padding: EdgeInsets.zero,
+      splashRadius: 18,
+      icon: Icon(icon, size: 18, color: const Color(0xFF667A8C)),
     );
   }
 }
@@ -1064,31 +1333,42 @@ class _MenuRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: metrics.menuRowVerticalPadding),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: metrics.menuRowVerticalPadding + 2,
+        ),
+        decoration: AppGlassTheme.surfaceDecoration(
+          radius: 18,
+          borderAlpha: 0.28,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.42),
+            const Color(0xFFF3F9FF).withValues(alpha: 0.22),
+          ],
+          shadows: const <BoxShadow>[],
+        ),
         child: Row(
           children: [
-            Container(
-              width: metrics.iconTileSize,
-              height: metrics.iconTileSize,
-              decoration: BoxDecoration(
-                color: _AccountSessionScreenState._surfaceColor,
-                borderRadius: BorderRadius.circular(metrics.iconTileRadius),
-                boxShadow: const [
-                  BoxShadow(
-                    color: _AccountSessionScreenState._shadowLightColor,
-                    offset: Offset(-2, -2),
-                    blurRadius: 4,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(metrics.iconTileRadius),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(
+                  width: metrics.iconTileSize,
+                  height: metrics.iconTileSize,
+                  decoration: AppGlassTheme.surfaceDecoration(
+                    radius: metrics.iconTileRadius,
+                    borderAlpha: 0.32,
+                    colors: <Color>[
+                      Colors.white.withValues(alpha: 0.54),
+                      const Color(0xFFEAF3FF).withValues(alpha: 0.18),
+                    ],
+                    shadows: const <BoxShadow>[],
                   ),
-                  BoxShadow(
-                    color: _AccountSessionScreenState._shadowDarkColor,
-                    offset: Offset(3, 4),
-                    blurRadius: 6,
-                  ),
-                ],
+                  child: Icon(icon, size: 18, color: const Color(0xFF667A8C)),
+                ),
               ),
-              child: Icon(icon, size: 18, color: const Color(0xFF667A8C)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1123,7 +1403,7 @@ class _DividerRow extends StatelessWidget {
       child: Divider(
         height: 1,
         thickness: 1,
-        color: Colors.white.withValues(alpha: 0.72),
+        color: Colors.white.withValues(alpha: 0.42),
       ),
     );
   }
@@ -1146,86 +1426,65 @@ class _DangerActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final disabled = onPressed == null;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: _AccountSessionScreenState._dangerGlowColor.withValues(
-              alpha: disabled ? 0.05 : 0.16,
-            ),
-            blurRadius: disabled ? 12 : 22,
-          ),
-          const BoxShadow(
-            color: _AccountSessionScreenState._shadowLightColor,
-            offset: Offset(-5, -5),
-            blurRadius: 10,
-          ),
-          const BoxShadow(
-            color: Color(0x28B54A44),
-            offset: Offset(8, 10),
-            blurRadius: 16,
-          ),
-        ],
-      ),
-      child: SizedBox(
-        height: height,
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            elevation: 0,
-            padding: EdgeInsets.zero,
-            backgroundColor: Colors.transparent,
-            disabledBackgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  _AccountSessionScreenState._dangerStartColor.withValues(
-                    alpha: disabled ? 0.76 : 1,
-                  ),
-                  _AccountSessionScreenState._dangerEndColor.withValues(
-                    alpha: disabled ? 0.76 : 1,
-                  ),
-                ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: DecoratedBox(
+          decoration: AppGlassTheme.accentDecoration(
+            radius: 16,
+            colors: <Color>[
+              _AccountSessionScreenState._dangerStartColor.withValues(
+                alpha: disabled ? 0.76 : 0.96,
               ),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.28),
-                width: 0.9,
+              _AccountSessionScreenState._dangerEndColor.withValues(
+                alpha: disabled ? 0.76 : 0.92,
               ),
+            ],
+            borderColor: Colors.white.withValues(alpha: 0.34),
+            glowColor: _AccountSessionScreenState._dangerGlowColor.withValues(
+              alpha: disabled ? 0.08 : 0.2,
             ),
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: isLoading
-                    ? const SizedBox(
-                        key: ValueKey('loading'),
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+          ),
+          child: SizedBox(
+            height: height,
+            child: ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                padding: EdgeInsets.zero,
+                backgroundColor: Colors.transparent,
+                disabledBackgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: isLoading
+                      ? const SizedBox(
+                          key: ValueKey('loading'),
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          label,
+                          key: const ValueKey('label'),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.1,
                           ),
                         ),
-                      )
-                    : Text(
-                        label,
-                        key: const ValueKey('label'),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
+                ),
               ),
             ),
           ),

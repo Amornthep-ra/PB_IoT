@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'features/dashboard_builder/screens/dashboard_builder_screen.dart';
+import 'features/projects/services/project_storage_service.dart';
 import 'screens/account_session_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/forgot_token_screen.dart';
+import 'screens/project_select_screen.dart';
 import 'screens/request_token_screen.dart';
 import 'screens/token_login_screen.dart';
 import 'services/auth_service.dart';
@@ -26,6 +28,7 @@ class PrinceBotApp extends StatelessWidget {
       home: const _StartupSessionGate(),
       routes: {
         '/login': (_) => const TokenLoginScreen(),
+        '/projects': (_) => const ProjectSelectScreen(),
         '/dashboard': (_) => const DashboardScreen(),
         '/dashboard-builder': (_) => const DashboardBuilderScreen(),
         '/request-token': (_) => const RequestTokenScreen(),
@@ -45,6 +48,7 @@ class _StartupSessionGate extends StatefulWidget {
 
 class _StartupSessionGateState extends State<_StartupSessionGate> {
   final AuthService _authService = AuthService();
+  final ProjectStorageService _projectStorageService = ProjectStorageService();
 
   @override
   void initState() {
@@ -67,6 +71,8 @@ class _StartupSessionGateState extends State<_StartupSessionGate> {
         await DashboardRuntimeValueStorage().clear();
         await SessionSnapshotStorage.clear();
         SessionState.current = null;
+        _goToLogin(sessionExpired: true);
+        return;
       } else {
         var synchronizedSession =
             await ProfileImageCacheStorage.synchronizeSession(restoredSession);
@@ -84,17 +90,14 @@ class _StartupSessionGateState extends State<_StartupSessionGate> {
         return;
       }
 
-      Navigator.pushReplacementNamed(
-        context,
-        SessionState.current != null ? '/dashboard' : '/login',
-      );
+      await _goToSelectedProjectOrProjectGate();
     } on TimeoutException {
       await _restoreOfflineSessionOrGoToLogin();
     } on AuthException {
       await DashboardRuntimeValueStorage().clear();
       await SessionSnapshotStorage.clear();
       SessionState.current = null;
-      _goToLogin();
+      _goToLogin(sessionExpired: true);
     } catch (_) {
       await _restoreOfflineSessionOrGoToLogin();
     }
@@ -119,14 +122,32 @@ class _StartupSessionGateState extends State<_StartupSessionGate> {
       return;
     }
 
-    Navigator.pushReplacementNamed(context, '/dashboard');
+    await _goToSelectedProjectOrProjectGate();
   }
 
-  void _goToLogin() {
+  Future<void> _goToSelectedProjectOrProjectGate() async {
+    final selectedProject = await _projectStorageService.loadSelectedProject();
     if (!mounted) {
       return;
     }
-    Navigator.pushReplacementNamed(context, '/login');
+
+    Navigator.pushReplacementNamed(
+      context,
+      selectedProject == null ? '/projects' : '/dashboard',
+    );
+  }
+
+  void _goToLogin({bool sessionExpired = false}) {
+    if (!mounted) {
+      return;
+    }
+    Navigator.pushReplacementNamed(
+      context,
+      '/login',
+      arguments: sessionExpired
+          ? TokenLoginScreen.sessionExpiredRouteArgument
+          : null,
+    );
   }
 
   @override

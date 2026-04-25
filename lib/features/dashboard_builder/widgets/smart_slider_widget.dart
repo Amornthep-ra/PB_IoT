@@ -10,7 +10,7 @@ class SmartSliderVisualSpec {
 
   static const double valueFontSize = 12.0;
   static const double trackHeight = 8.0;
-  static const double thumbSize = 13.0;
+  static const double thumbSize = 16.0;
   static const double trackBottomInset = 11.0;
   static const double estimatedValueHeight = 12.0;
   static const double valueOpticalLift = 8.0;
@@ -55,21 +55,34 @@ class SmartSliderControl extends StatefulWidget {
 class _SmartSliderControlState extends State<SmartSliderControl> {
   double? _transientValue;
 
-  void _handleValueChanged(double value) {
-    if (widget.emitOnDrag) {
-      widget.onValueChanged?.call(value);
-      return;
+  double _snapToStep(double value) {
+    final min = widget.item.minValue;
+    final max = widget.item.maxValue;
+    final step = widget.item.stepValue;
+    if (step <= 0 || max <= min) {
+      return value.clamp(min, max);
     }
+    final clamped = value.clamp(min, max);
+    final units = ((clamped - min) / step).round();
+    return (min + (units * step)).clamp(min, max);
+  }
+
+  void _handleValueChanged(double value) {
+    final snappedValue = _snapToStep(value);
     setState(() {
-      _transientValue = value;
+      _transientValue = snappedValue;
     });
+
+    if (widget.emitOnDrag) {
+      widget.onValueChanged?.call(snappedValue);
+    }
   }
 
   void _handleValueCommit(double value) {
-    if (widget.emitOnDrag) {
-      return;
+    final committedValue = _transientValue ?? _snapToStep(value);
+    if (!widget.emitOnDrag) {
+      widget.onValueChanged?.call(committedValue);
     }
-    widget.onValueChanged?.call(value);
     if (_transientValue != null) {
       setState(() {
         _transientValue = null;
@@ -135,7 +148,9 @@ class _SmartSliderControlState extends State<SmartSliderControl> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.center,
                     child: Text(
-                      _formatValueText(widget.item.copyWith(value: displayValue)),
+                      _formatValueText(
+                        widget.item.copyWith(value: displayValue),
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
@@ -174,7 +189,7 @@ class _SmartSliderControlState extends State<SmartSliderControl> {
   }
 }
 
-class _SliderTrack extends StatelessWidget {
+class _SliderTrack extends StatefulWidget {
   const _SliderTrack({
     required this.value,
     required this.minValue,
@@ -201,71 +216,86 @@ class _SliderTrack extends StatelessWidget {
   final ValueChanged<double>? onChanged;
   final ValueChanged<double>? onChangeEnd;
 
+  @override
+  State<_SliderTrack> createState() => _SliderTrackState();
+}
+
+class _SliderTrackState extends State<_SliderTrack> {
+  double? _lastInteractionValue;
+
   double _resolveValue({
     required double localDx,
     required double horizontalInset,
     required double usableWidth,
   }) {
-    final span = maxValue - minValue;
+    final span = widget.maxValue - widget.minValue;
     if (span == 0) {
-      return minValue;
+      return widget.minValue;
     }
 
     final clampedX = (localDx - horizontalInset).clamp(0.0, usableWidth);
     final nextNormalized = usableWidth <= 0 ? 0.0 : (clampedX / usableWidth);
-    return minValue + (span * nextNormalized);
+    return widget.minValue + (span * nextNormalized);
+  }
+
+  void _emitInteractionValue(double value) {
+    _lastInteractionValue = value;
+    widget.onChanged?.call(value);
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: math.max(trackHeight, thumbSize),
+      height: math.max(widget.trackHeight, widget.thumbSize),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final resolvedInset = horizontalInset
+          final resolvedInset = widget.horizontalInset
               .clamp(1.0, math.max(1.0, constraints.maxWidth * 0.2))
               .toDouble();
           final usableWidth = math
               .max(0.0, constraints.maxWidth - (resolvedInset * 2))
               .toDouble();
-          final clampedValue = normalized.clamp(0.0, 1.0).toDouble();
+          final clampedValue = widget.normalized.clamp(0.0, 1.0).toDouble();
           final maxThumbTravel = math
-              .max(0.0, usableWidth - thumbSize)
+              .max(0.0, usableWidth - widget.thumbSize)
               .toDouble();
           final thumbLeft = maxThumbTravel * clampedValue;
           final fillWidth = math
-              .max(trackHeight, thumbLeft + (thumbSize * 0.5))
+              .max(widget.trackHeight, thumbLeft + (widget.thumbSize * 0.5))
               .toDouble();
 
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapUp: enableInteraction
+            onTapUp: widget.enableInteraction
                 ? (details) {
                     final value = _resolveValue(
                       localDx: details.localPosition.dx,
                       horizontalInset: resolvedInset,
                       usableWidth: usableWidth,
                     );
-                    onChanged?.call(value);
-                    onChangeEnd?.call(value);
+                    _emitInteractionValue(value);
+                    widget.onChangeEnd?.call(value);
+                    _lastInteractionValue = null;
                   }
                 : null,
-            onHorizontalDragUpdate: enableInteraction
+            onHorizontalDragUpdate: widget.enableInteraction
                 ? (details) {
                     final value = _resolveValue(
                       localDx: details.localPosition.dx,
                       horizontalInset: resolvedInset,
                       usableWidth: usableWidth,
                     );
-                    onChanged?.call(value);
+                    _emitInteractionValue(value);
                   }
                 : null,
-            onHorizontalDragEnd: enableInteraction
+            onHorizontalDragEnd: widget.enableInteraction
                 ? (_) {
-                    if (onChangeEnd == null) {
+                    final value = _lastInteractionValue ?? widget.value;
+                    _lastInteractionValue = null;
+                    if (widget.onChangeEnd == null) {
                       return;
                     }
-                    onChangeEnd!(value);
+                    widget.onChangeEnd!(value);
                   }
                 : null,
             child: Stack(
@@ -275,7 +305,7 @@ class _SliderTrack extends StatelessWidget {
                   left: resolvedInset,
                   right: resolvedInset,
                   child: Container(
-                    height: trackHeight,
+                    height: widget.trackHeight,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(999),
                       gradient: const LinearGradient(
@@ -304,20 +334,20 @@ class _SliderTrack extends StatelessWidget {
                   left: resolvedInset,
                   child: Container(
                     width: fillWidth,
-                    height: trackHeight,
+                    height: widget.trackHeight,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(999),
                       gradient: LinearGradient(
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                         colors: [
-                          Color.lerp(accentColor, Colors.white, 0.18)!,
-                          Color.lerp(accentColor, Colors.black, 0.05)!,
+                          Color.lerp(widget.accentColor, Colors.white, 0.18)!,
+                          Color.lerp(widget.accentColor, Colors.black, 0.05)!,
                         ],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: accentColor.withValues(alpha: 0.26),
+                          color: widget.accentColor.withValues(alpha: 0.26),
                           blurRadius: 8,
                           spreadRadius: -1,
                         ),
@@ -328,16 +358,16 @@ class _SliderTrack extends StatelessWidget {
                 Positioned(
                   left: resolvedInset + thumbLeft,
                   child: Container(
-                    width: thumbSize,
-                    height: thumbSize,
+                    width: widget.thumbSize,
+                    height: widget.thumbSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color.lerp(accentColor, Colors.white, 0.28)!,
-                          accentColor,
+                          Color.lerp(widget.accentColor, Colors.white, 0.28)!,
+                          widget.accentColor,
                         ],
                       ),
                       border: Border.all(
@@ -346,7 +376,7 @@ class _SliderTrack extends StatelessWidget {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: accentColor.withValues(alpha: 0.24),
+                          color: widget.accentColor.withValues(alpha: 0.24),
                           blurRadius: 10,
                           spreadRadius: 0.2,
                         ),

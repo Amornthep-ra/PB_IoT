@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../projects/services/project_state.dart';
 import '../models/dashboard_item.dart';
 
 class DashboardBuilderLayoutStorageService {
   DashboardBuilderLayoutStorageService({
     SharedPreferences? preferences,
     this.storageKey = _defaultStorageKey,
+    this.dashboardTitleStorageKey = _dashboardTitleStorageKey,
   }) : _preferences = preferences;
 
   static const String _defaultStorageKey = 'dashboard_builder_layout_v1';
@@ -17,25 +19,30 @@ class DashboardBuilderLayoutStorageService {
 
   final SharedPreferences? _preferences;
   final String storageKey;
+  final String dashboardTitleStorageKey;
+
+  String get _effectiveStorageKey => _projectScopedKey(storageKey);
+  String get _effectiveDashboardTitleStorageKey =>
+      _projectScopedKey(dashboardTitleStorageKey);
 
   Future<String> loadDashboardTitle() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     return _normalizeDashboardTitle(
-      preferences.getString(_dashboardTitleStorageKey),
+      preferences.getString(_effectiveDashboardTitleStorageKey),
     );
   }
 
   Future<void> saveDashboardTitle(String title) async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     await preferences.setString(
-      _dashboardTitleStorageKey,
+      _effectiveDashboardTitleStorageKey,
       _normalizeDashboardTitle(title),
     );
   }
 
   Future<List<DashboardItem>?> loadItems() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
-    final raw = preferences.getString(storageKey);
+    final raw = preferences.getString(_effectiveStorageKey);
     if (raw == null || raw.trim().isEmpty) {
       return null;
     }
@@ -62,7 +69,7 @@ class DashboardBuilderLayoutStorageService {
   Future<void> saveItems(List<DashboardItem> items) async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     final payload = items.map(_itemToJson).toList();
-    await preferences.setString(storageKey, jsonEncode(payload));
+    await preferences.setString(_effectiveStorageKey, jsonEncode(payload));
   }
 
   String layoutSignature(List<DashboardItem> items) {
@@ -84,19 +91,22 @@ class DashboardBuilderLayoutStorageService {
       'maxW': item.maxW,
       'minH': item.minH,
       'maxH': item.maxH,
-      'accentColor': item.accentColor.value,
-      'titleColor': item.titleColor?.value,
+      'accentColor': item.accentColor.toARGB32(),
+      'titleColor': item.titleColor?.toARGB32(),
       'titleFontSize': item.titleFontSize,
       'titlePosition': item.titlePosition,
-      'secondaryAccentColor': item.secondaryAccentColor?.value,
-      'buttonShellColor': item.buttonShellColor?.value,
-      'buttonInnerColor': item.buttonInnerColor?.value,
-      'buttonBorderColor': item.buttonBorderColor?.value,
+      'secondaryAccentColor': item.secondaryAccentColor?.toARGB32(),
+      'buttonShellColor': item.buttonShellColor?.toARGB32(),
+      'buttonInnerColor': item.buttonInnerColor?.toARGB32(),
+      'buttonBorderColor': item.buttonBorderColor?.toARGB32(),
       'buttonBorderWidth': item.buttonBorderWidth,
       'valueLabelBorderWidth': item.valueLabelBorderWidth,
       'gaugeBorderWidth': item.gaugeBorderWidth,
       'sliderBorderWidth': item.sliderBorderWidth,
       'toggleBorderWidth': item.toggleBorderWidth,
+      'glowColor': item.glowColor?.toARGB32(),
+      'glowStrength': item.glowStrength,
+      'glowBlur': item.glowBlur,
       'value': item.value,
       'minValue': item.minValue,
       'maxValue': item.maxValue,
@@ -128,19 +138,22 @@ class DashboardBuilderLayoutStorageService {
       'maxW': item.maxW,
       'minH': item.minH,
       'maxH': item.maxH,
-      'accentColor': item.accentColor.value,
-      'titleColor': item.titleColor?.value,
+      'accentColor': item.accentColor.toARGB32(),
+      'titleColor': item.titleColor?.toARGB32(),
       'titleFontSize': item.titleFontSize,
       'titlePosition': item.titlePosition,
-      'secondaryAccentColor': item.secondaryAccentColor?.value,
-      'buttonShellColor': item.buttonShellColor?.value,
-      'buttonInnerColor': item.buttonInnerColor?.value,
-      'buttonBorderColor': item.buttonBorderColor?.value,
+      'secondaryAccentColor': item.secondaryAccentColor?.toARGB32(),
+      'buttonShellColor': item.buttonShellColor?.toARGB32(),
+      'buttonInnerColor': item.buttonInnerColor?.toARGB32(),
+      'buttonBorderColor': item.buttonBorderColor?.toARGB32(),
       'buttonBorderWidth': item.buttonBorderWidth,
       'valueLabelBorderWidth': item.valueLabelBorderWidth,
       'gaugeBorderWidth': item.gaugeBorderWidth,
       'sliderBorderWidth': item.sliderBorderWidth,
       'toggleBorderWidth': item.toggleBorderWidth,
+      'glowColor': item.glowColor?.toARGB32(),
+      'glowStrength': item.glowStrength,
+      'glowBlur': item.glowBlur,
       'minValue': item.minValue,
       'maxValue': item.maxValue,
       'unit': item.unit,
@@ -207,11 +220,14 @@ class DashboardBuilderLayoutStorageService {
       buttonInnerColor: _optionalColor(json['buttonInnerColor']),
       buttonBorderColor: _optionalColor(json['buttonBorderColor']),
       buttonBorderWidth: (json['buttonBorderWidth'] as num?)?.toDouble(),
-      valueLabelBorderWidth:
-          (json['valueLabelBorderWidth'] as num?)?.toDouble(),
+      valueLabelBorderWidth: (json['valueLabelBorderWidth'] as num?)
+          ?.toDouble(),
       gaugeBorderWidth: (json['gaugeBorderWidth'] as num?)?.toDouble(),
       sliderBorderWidth: (json['sliderBorderWidth'] as num?)?.toDouble(),
       toggleBorderWidth: (json['toggleBorderWidth'] as num?)?.toDouble(),
+      glowColor: _optionalColor(json['glowColor']),
+      glowStrength: (json['glowStrength'] as num?)?.toDouble(),
+      glowBlur: (json['glowBlur'] as num?)?.toDouble(),
       value: (json['value'] as num?)?.toDouble() ?? 0,
       minValue: (json['minValue'] as num?)?.toDouble() ?? 0,
       maxValue: (json['maxValue'] as num?)?.toDouble() ?? 100,
@@ -245,5 +261,13 @@ class DashboardBuilderLayoutStorageService {
       return defaultDashboardTitle;
     }
     return trimmed;
+  }
+
+  String _projectScopedKey(String baseKey) {
+    final projectId = ProjectState.current?.id.trim();
+    if (projectId == null || projectId.isEmpty) {
+      return baseKey;
+    }
+    return '${baseKey}_$projectId';
   }
 }

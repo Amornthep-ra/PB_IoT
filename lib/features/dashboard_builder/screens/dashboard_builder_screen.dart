@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../../theme/app_theme.dart';
 import '../../dashboard/models/widget_binding_model.dart';
 import '../../dashboard/models/device_snapshot_model.dart';
 import '../../dashboard/services/dashboard_service.dart';
@@ -130,7 +132,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   late List<DashboardItem> _items;
   String? _selectedId;
   final Set<String> _selectedIds = <String>{};
-  bool _isEditMode = true;
+  final bool _isEditMode = true;
   bool _isMultiSelectMode = false;
   final List<_DashboardBuilderSnapshot> _undoStack =
       <_DashboardBuilderSnapshot>[];
@@ -531,6 +533,17 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     }
   }
 
+  Future<void> _handlePopInvoked(bool didPop) async {
+    if (didPop) {
+      return;
+    }
+    final shouldLeave = await _confirmDiscardUnsavedChanges();
+    if (!mounted || !shouldLeave) {
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
   void _syncItemSeedFromItems() {
     var maxSeed = _itemSeed;
     final suffixPattern = RegExp(r'-(\d+)$');
@@ -641,37 +654,21 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
   BoxDecoration get _pageDecoration => const BoxDecoration(
     gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFFF8FAFD), Color(0xFFE8EEF5)],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [DashboardRuntimeTheme.backgroundColor, Color(0xFFF8FBF8)],
     ),
   );
 
-  BoxDecoration get _canvasDecoration => BoxDecoration(
-    borderRadius: BorderRadius.circular(34),
-    gradient: const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFFF3F7FB), Color(0xFFEAF0F6), Color(0xFFEFF4F9)],
-    ),
-    border: Border.all(color: Colors.white.withValues(alpha: 0.82), width: 1.2),
-    boxShadow: const [
-      BoxShadow(
-        color: DashboardRuntimeTheme.shadowLightColor,
-        blurRadius: 16,
-        offset: Offset(-8, -8),
-      ),
-      BoxShadow(
-        color: DashboardRuntimeTheme.shadowDarkColor,
-        blurRadius: 24,
-        offset: Offset(10, 12),
-      ),
-      BoxShadow(
-        color: Color(0x14677E92),
-        blurRadius: 28,
-        offset: Offset(0, 18),
-      ),
+  BoxDecoration get _canvasDecoration => AppGlassTheme.surfaceDecoration(
+    radius: 34,
+    borderAlpha: 0.62,
+    colors: <Color>[
+      const Color(0xFFFFFFFF).withValues(alpha: 0.56),
+      const Color(0xFFF2F8FB).withValues(alpha: 0.34),
+      const Color(0xFFEAF3F8).withValues(alpha: 0.26),
     ],
+    shadows: AppGlassTheme.shadowLg,
   );
 
   GridRect _defaultButtonRect({
@@ -1399,7 +1396,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
             child: DecoratedBox(
               decoration: DashboardRuntimeTheme.cardDecoration(radius: 28),
               child: Padding(
@@ -1410,21 +1407,29 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                   children: [
                     Row(
                       children: [
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: DashboardRuntimeTheme.surfaceColor,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: DashboardRuntimeTheme.surfaceBorderColor,
-                            ),
-                          ),
-                          child: const SizedBox(
-                            width: 38,
-                            height: 38,
-                            child: Icon(
-                              Icons.info_outline_rounded,
-                              color: DashboardRuntimeTheme.labelTextColor,
-                              size: 20,
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: AppGlassTheme.surfaceDecoration(
+                                radius: 15,
+                                borderAlpha: 0.34,
+                                colors: <Color>[
+                                  Colors.white.withValues(alpha: 0.62),
+                                  const Color(
+                                    0xFFEAF3FF,
+                                  ).withValues(alpha: 0.26),
+                                ],
+                                shadows: const <BoxShadow>[],
+                              ),
+                              child: const Icon(
+                                Icons.info_outline_rounded,
+                                color: DashboardRuntimeTheme.labelTextColor,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),
@@ -1437,11 +1442,12 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                 'Edit Mode Guide',
                                 style: TextStyle(
                                   color: DashboardRuntimeTheme.headlineColor,
-                                  fontSize: 18,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              SizedBox(height: 3),
                               Text(
                                 'วิธีใช้งานหน้า Edit Mode และการจัดการ widget',
                                 style: TextStyle(
@@ -1453,15 +1459,41 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                             ],
                           ),
                         ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                          color: DashboardRuntimeTheme.mutedTextColor,
-                          splashRadius: 20,
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.of(context).pop(),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: AppGlassTheme.surfaceDecoration(
+                                    radius: 15,
+                                    borderAlpha: 0.3,
+                                    colors: <Color>[
+                                      Colors.white.withValues(alpha: 0.54),
+                                      const Color(
+                                        0xFFF2F6FB,
+                                      ).withValues(alpha: 0.2),
+                                    ],
+                                    shadows: const <BoxShadow>[],
+                                  ),
+                                  child: const Icon(
+                                    Icons.close_rounded,
+                                    color: DashboardRuntimeTheme.mutedTextColor,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                     ConstrainedBox(
                       constraints: BoxConstraints(
                         maxHeight: MediaQuery.of(context).size.height * 0.6,
@@ -1641,64 +1673,87 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
   Widget _buildSaveAction() {
     final canSave = !_isLayoutLoading && !_isLayoutSaving && _hasUnsavedChanges;
-    return TextButton.icon(
-      onPressed: canSave ? () => _saveLayout() : null,
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        backgroundColor: canSave
-            ? DashboardRuntimeTheme.buttonStartColor
-            : DashboardRuntimeTheme.cardColor,
-        foregroundColor: canSave
-            ? Colors.white
-            : DashboardRuntimeTheme.mutedTextColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        side: BorderSide(
-          color: canSave
-              ? DashboardRuntimeTheme.surfaceBorderFocusColor
-              : DashboardRuntimeTheme.surfaceBorderColor,
-        ),
-        elevation: 0,
-      ),
-      icon: _isLayoutSaving
-          ? const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
+    return DecoratedBox(
+      decoration: canSave
+          ? AppGlassTheme.accentDecoration(
+              radius: 999,
+              borderColor: DashboardRuntimeTheme.surfaceBorderFocusColor,
+              colors: const <Color>[
+                DashboardRuntimeTheme.buttonStartColor,
+                DashboardRuntimeTheme.buttonEndColor,
+              ],
+              glowColor: DashboardRuntimeTheme.buttonGlowColor,
             )
-          : const Icon(Icons.save_rounded, size: 14),
-      label: const Text(
-        'Save',
-        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          : AppGlassTheme.surfaceDecoration(
+              radius: 999,
+              borderAlpha: 0.60,
+              colors: <Color>[
+                const Color(0xFFFFFFFF).withValues(alpha: 0.54),
+                const Color(0xFFF0F4F8).withValues(alpha: 0.30),
+              ],
+              shadows: const <BoxShadow>[],
+            ),
+      child: TextButton.icon(
+        onPressed: canSave ? () => _saveLayout() : null,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          foregroundColor: canSave
+              ? Colors.white
+              : DashboardRuntimeTheme.mutedTextColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          backgroundColor: Colors.transparent,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        icon: _isLayoutSaving
+            ? const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.8,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : const Icon(Icons.save_rounded, size: 13),
+        label: const Text(
+          'Save',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+        ),
       ),
     );
   }
 
   Widget _buildInfoAction() {
     final canOpenInfo = _isEditMode;
-    return TextButton.icon(
-      onPressed: canOpenInfo ? _openEditModeInfoSheet : null,
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        backgroundColor: canOpenInfo
-            ? DashboardRuntimeTheme.surfaceColor
-            : DashboardRuntimeTheme.cardColor,
-        foregroundColor: canOpenInfo
-            ? DashboardRuntimeTheme.headlineColor
-            : DashboardRuntimeTheme.mutedTextColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        side: BorderSide(
-          color: canOpenInfo
-              ? DashboardRuntimeTheme.surfaceBorderFocusColor.withValues(
-                  alpha: 0.72,
-                )
-              : DashboardRuntimeTheme.surfaceBorderColor,
-        ),
-        elevation: 0,
+    return DecoratedBox(
+      decoration: AppGlassTheme.surfaceDecoration(
+        radius: 999,
+        borderAlpha: canOpenInfo ? 0.66 : 0.56,
+        colors: <Color>[
+          const Color(0xFFFFFFFF).withValues(alpha: canOpenInfo ? 0.62 : 0.46),
+          const Color(0xFFEAF2F8).withValues(alpha: canOpenInfo ? 0.34 : 0.22),
+        ],
+        shadows: const <BoxShadow>[],
       ),
-      icon: const Icon(Icons.info_outline_rounded, size: 14),
-      label: const Text(
-        'Info',
-        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+      child: TextButton.icon(
+        onPressed: canOpenInfo ? _openEditModeInfoSheet : null,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          foregroundColor: canOpenInfo
+              ? DashboardRuntimeTheme.headlineColor
+              : DashboardRuntimeTheme.mutedTextColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          backgroundColor: Colors.transparent,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        icon: const Icon(Icons.info_outline_rounded, size: 13),
+        label: const Text(
+          'Info',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+        ),
       ),
     );
   }
@@ -2026,6 +2081,97 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGlassEmptyState() {
+    assert(() {
+      _buildEmptyState;
+      return true;
+    }());
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final maxHeight = constraints.maxHeight;
+        final titleFontSize = maxWidth < 360 ? 18.0 : 22.0;
+        final bodyFontSize = maxWidth < 360 ? 13.0 : 14.0;
+        final topBottomPadding = maxHeight < 560 ? 20.0 : 30.0;
+
+        return Center(
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              30,
+              topBottomPadding,
+              30,
+              topBottomPadding,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+                  decoration: AppGlassTheme.surfaceDecoration(
+                    radius: 28,
+                    borderAlpha: 0.64,
+                    colors: <Color>[
+                      const Color(0xFFFFFFFF).withValues(alpha: 0.78),
+                      const Color(0xFFF4FBF7).withValues(alpha: 0.42),
+                    ],
+                    shadows: AppGlassTheme.shadowMd,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: AppGlassTheme.accentDecoration(
+                          radius: 999,
+                          borderColor: const Color(0xFF9EC3F0),
+                          colors: const <Color>[
+                            Color(0xFFB6D2F5),
+                            Color(0xFF82AEE8),
+                          ],
+                          glowColor: const Color(0xFF82AEE8),
+                        ),
+                        child: const Icon(
+                          Icons.dashboard_customize_outlined,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'เริ่มจัดวางวิดเจ็ตใน Edit Mode',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: titleFontSize,
+                          height: 1.18,
+                          fontWeight: FontWeight.w800,
+                          color: DashboardRuntimeTheme.headlineColor,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'แตะปุ่ม + เพื่อเพิ่มวิดเจ็ต หรือแตะพื้นที่ว่างเพื่อเริ่มจัดการเลย์เอาต์ของแดชบอร์ดนี้',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: bodyFontSize,
+                          height: 1.35,
+                          color: DashboardRuntimeTheme.mutedTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         );
@@ -2544,8 +2690,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _confirmDiscardUnsavedChanges,
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        unawaited(_handlePopInvoked(didPop));
+      },
       child: Scaffold(
         backgroundColor: DashboardRuntimeTheme.backgroundColor,
         appBar: AppBar(
@@ -2554,11 +2703,43 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
           scrolledUnderElevation: 0,
           foregroundColor: DashboardRuntimeTheme.headlineColor,
           toolbarHeight: 54,
+          titleSpacing: 20,
+          title: const Text(
+            'Edit Mode',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: DashboardRuntimeTheme.headlineColor,
+            ),
+          ),
+          flexibleSpace: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: DecoratedBox(
+                    decoration: AppGlassTheme.surfaceDecoration(
+                      radius: 22,
+                      borderAlpha: 0.60,
+                      colors: <Color>[
+                        const Color(0xFFFFFFFF).withValues(alpha: 0.72),
+                        const Color(0xFFF4FBF7).withValues(alpha: 0.42),
+                      ],
+                      shadows: AppGlassTheme.shadowMd,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           actions: [
             _buildSaveAction(),
-            const SizedBox(width: 8),
+            const SizedBox(width: 5),
             _buildInfoAction(),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
           ],
         ),
         floatingActionButton: _isEditMode ? _buildFloatingControls() : null,
@@ -2701,7 +2882,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                         ),
                                       if (showEmptyState)
                                         Positioned.fill(
-                                          child: _buildEmptyState(),
+                                          child: _buildGlassEmptyState(),
                                         ),
                                       if (activePreviewItem != null &&
                                           previewRect != null)
@@ -2785,13 +2966,19 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         showHandles && canResizeHorizontally && canResizeVertically;
     final outlineColor = _previewInvalid
         ? const Color(0xFFD16A6A)
-        : const Color(0xFF97D3A8);
+        : const Color(0xFF6CBF98);
+    final outlineStartColor = _previewInvalid
+        ? const Color(0xFFF3A39D)
+        : const Color(0xFF9ED8BC);
+    final outlineEndColor = _previewInvalid
+        ? const Color(0xFFD16A6A)
+        : const Color(0xFF4FA887);
     final haloColor = _previewInvalid
         ? const Color(0xFFF3B6B6)
-        : const Color(0xFFCFEAD6);
+        : const Color(0xFFCBEFDE);
     final ambientColor = _previewInvalid
         ? const Color(0xFFE59D9D)
-        : const Color(0xFFB6DEC0);
+        : const Color(0xFFA8DCC4);
     final usesSliderShellHighlight = item.type == DashboardItemType.slider;
     final sliderLayout = usesSliderShellHighlight
         ? buildSliderShellLayout(
@@ -2815,23 +3002,37 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     final sliderVisualHorizontalInset = usesSliderShellHighlight
         ? itemVisualInset
         : 0.0;
-    final selectionHorizontalInset = item.type == DashboardItemType.slider
+    final selectionHorizontalInset =
+        item.type == DashboardItemType.slider ||
+            item.type == DashboardItemType.valueLabel
         ? itemVisualInset
         : sliderVisualHorizontalInset;
-    final selectionTopInset = item.type == DashboardItemType.slider
-        ? itemVisualInset + sliderLayout!.shellTopInset
+    final selectionTopInset =
+        item.type == DashboardItemType.slider ||
+            item.type == DashboardItemType.valueLabel
+        ? itemVisualInset +
+              (item.type == DashboardItemType.slider
+                  ? sliderLayout!.shellTopInset
+                  : 0.0)
         : sliderVisualTopInset;
-    final selectionBottomInset = item.type == DashboardItemType.slider
-        ? itemVisualInset + sliderLayout!.shellBottomInset
+    final selectionBottomInset =
+        item.type == DashboardItemType.slider ||
+            item.type == DashboardItemType.valueLabel
+        ? itemVisualInset +
+              (item.type == DashboardItemType.slider
+                  ? sliderLayout!.shellBottomInset
+                  : 0.0)
         : sliderVisualBottomInset;
-    final visualCenterY = usesSliderShellHighlight
-        ? sliderVisualTopInset +
-              ((height - sliderVisualTopInset - sliderVisualBottomInset) / 2)
-        : (height / 2);
-    final handleCenterY = item.type == DashboardItemType.slider
-        ? selectionTopInset +
-              ((height - selectionTopInset - selectionBottomInset) / 2)
-        : visualCenterY;
+    final selectionLeft =
+        handleInset + shellHighlightInset + selectionHorizontalInset;
+    final selectionTop = handleInset + shellHighlightInset + selectionTopInset;
+    final selectionWidth =
+        width - (shellHighlightInset * 2) - (selectionHorizontalInset * 2);
+    final selectionHeight =
+        (height - selectionBottomInset - selectionTopInset) -
+        (shellHighlightInset * 2);
+    final selectionCenterX = selectionLeft + (selectionWidth / 2);
+    final selectionCenterY = selectionTop + (selectionHeight / 2);
     final highlightRadius = item.type == DashboardItemType.button
         ? math.max(0.0, math.min(width, height) / 2)
         : item.type == DashboardItemType.toggle
@@ -3015,51 +3216,63 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
           ),
           if (showSelectionChrome)
             Positioned(
-              left:
-                  handleInset + shellHighlightInset + selectionHorizontalInset,
-              top: handleInset + shellHighlightInset + selectionTopInset,
-              width:
-                  width -
-                  (shellHighlightInset * 2) -
-                  (selectionHorizontalInset * 2),
-              height:
-                  (height - selectionBottomInset - selectionTopInset) -
-                  (shellHighlightInset * 2),
+              left: selectionLeft,
+              top: selectionTop,
+              width: selectionWidth,
+              height: selectionHeight,
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(highlightRadius),
-                    color: outlineColor.withValues(
-                      alpha: isBeingDragged ? 0.035 : 0.018,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        outlineStartColor.withValues(
+                          alpha: isBeingDragged ? 0.14 : 0.08,
+                        ),
+                        outlineEndColor.withValues(
+                          alpha: isBeingDragged ? 0.08 : 0.03,
+                        ),
+                      ],
                     ),
                     border: Border.all(
                       color: outlineColor.withValues(
-                        alpha: isBeingDragged ? 0.72 : 0.46,
+                        alpha: isBeingDragged ? 0.86 : 0.58,
                       ),
-                      width: isBeingDragged ? 1.7 : 1.2,
+                      width: isBeingDragged ? 1.8 : 1.25,
                     ),
-                    boxShadow: isBeingDragged
-                        ? [
-                            BoxShadow(
-                              color: haloColor.withValues(alpha: 0.055),
-                              blurRadius: 10,
-                              spreadRadius: 0.15,
-                            ),
-                            BoxShadow(
-                              color: ambientColor.withValues(alpha: 0.05),
-                              blurRadius: 14,
-                              spreadRadius: 0.2,
-                            ),
-                          ]
-                        : null,
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.white.withValues(
+                          alpha: isBeingDragged ? 0.14 : 0.08,
+                        ),
+                        blurRadius: 10,
+                        offset: const Offset(0, -1),
+                      ),
+                      BoxShadow(
+                        color: haloColor.withValues(
+                          alpha: isBeingDragged ? 0.14 : 0.07,
+                        ),
+                        blurRadius: isBeingDragged ? 18 : 12,
+                        spreadRadius: isBeingDragged ? 0.8 : 0.2,
+                      ),
+                      BoxShadow(
+                        color: ambientColor.withValues(
+                          alpha: isBeingDragged ? 0.12 : 0.05,
+                        ),
+                        blurRadius: isBeingDragged ? 24 : 16,
+                        spreadRadius: isBeingDragged ? 0.6 : 0.12,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           if (showTopHandle)
             Positioned(
-              left: (width / 2) - (handleExtent / 2) + handleInset,
-              top: 0,
+              left: selectionCenterX - (handleExtent / 2),
+              top: selectionTop - handleInset,
               width: handleExtent,
               height: handleExtent,
               child: _ResizeHandle(
@@ -3080,8 +3293,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             ),
           if (showTopLeftHandle)
             Positioned(
-              left: 0,
-              top: 0,
+              left: selectionLeft - handleInset,
+              top: selectionTop - handleInset,
               width: handleExtent,
               height: handleExtent,
               child: _ResizeHandle(
@@ -3103,8 +3316,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             ),
           if (showRightHandle)
             Positioned(
-              right: 0,
-              top: handleCenterY - (handleExtent / 2) + handleInset,
+              left: selectionLeft + selectionWidth - handleInset,
+              top: selectionCenterY - (handleExtent / 2),
               width: handleExtent,
               height: handleExtent,
               child: _ResizeHandle(
@@ -3125,8 +3338,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             ),
           if (showTopRightHandle)
             Positioned(
-              right: 0,
-              top: 0,
+              left: selectionLeft + selectionWidth - handleInset,
+              top: selectionTop - handleInset,
               width: handleExtent,
               height: handleExtent,
               child: _ResizeHandle(
@@ -3148,10 +3361,10 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             ),
           if (showBottomHandle)
             Positioned(
-              left: (width / 2) - (handleExtent / 2) + handleInset,
+              left: selectionCenterX - (handleExtent / 2),
               width: handleExtent,
               height: handleExtent,
-              bottom: 0,
+              top: selectionTop + selectionHeight - handleInset,
               child: _ResizeHandle(
                 item: item,
                 color: outlineColor,
@@ -3170,8 +3383,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             ),
           if (showBottomRightHandle)
             Positioned(
-              right: 0,
-              bottom: 0,
+              left: selectionLeft + selectionWidth - handleInset,
+              top: selectionTop + selectionHeight - handleInset,
               width: handleExtent,
               height: handleExtent,
               child: _ResizeHandle(
@@ -3193,8 +3406,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             ),
           if (showLeftHandle)
             Positioned(
-              left: 0,
-              top: handleCenterY - (handleExtent / 2) + handleInset,
+              left: selectionLeft - handleInset,
+              top: selectionCenterY - (handleExtent / 2),
               width: handleExtent,
               height: handleExtent,
               child: _ResizeHandle(
@@ -3215,8 +3428,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             ),
           if (showBottomLeftHandle)
             Positioned(
-              left: 0,
-              bottom: 0,
+              left: selectionLeft - handleInset,
+              top: selectionTop + selectionHeight - handleInset,
               width: handleExtent,
               height: handleExtent,
               child: _ResizeHandle(
@@ -3274,10 +3487,16 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     }
     final color = _previewInvalid
         ? const Color(0xFFD16A6A)
-        : const Color(0xFFD8F5DA);
+        : const Color(0xFF67BF91);
+    final previewStartColor = _previewInvalid
+        ? const Color(0xFFF5BCB7)
+        : const Color(0xFFBFE8CF);
+    final previewEndColor = _previewInvalid
+        ? const Color(0xFFE78982)
+        : const Color(0xFF73C89A);
     final glowColor = _previewInvalid
         ? const Color(0xFFF3B6B6)
-        : const Color(0xFFBFF3C4);
+        : const Color(0xFFC8F0D6);
     final previewRadius = activeItem.type == DashboardItemType.slider
         ? math.max(0.0, (height / 2) - 2.0)
         : 24.0;
@@ -3293,18 +3512,36 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
           curve: Curves.easeOut,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(previewRadius),
-            color: color.withValues(alpha: _previewInvalid ? 0.06 : 0.018),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                previewStartColor.withValues(
+                  alpha: _previewInvalid ? 0.18 : 0.10,
+                ),
+                previewEndColor.withValues(
+                  alpha: _previewInvalid ? 0.10 : 0.04,
+                ),
+              ],
+            ),
             border: Border.all(
-              color: color.withValues(alpha: _previewInvalid ? 0.76 : 0.52),
-              width: _previewInvalid ? 1.3 : 0.9,
+              color: color.withValues(alpha: _previewInvalid ? 0.82 : 0.62),
+              width: _previewInvalid ? 1.45 : 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: glowColor.withValues(
-                  alpha: _previewInvalid ? 0.05 : 0.028,
+                color: Colors.white.withValues(
+                  alpha: _previewInvalid ? 0.10 : 0.08,
                 ),
-                blurRadius: 9,
-                spreadRadius: 0,
+                blurRadius: 10,
+                offset: const Offset(0, -1),
+              ),
+              BoxShadow(
+                color: glowColor.withValues(
+                  alpha: _previewInvalid ? 0.13 : 0.08,
+                ),
+                blurRadius: 16,
+                spreadRadius: 0.35,
               ),
             ],
           ),
@@ -3436,13 +3673,29 @@ class _ResizeHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const hitSize = 64.0;
+    final isCorner =
+        position == DashboardBuilderResizeHandlePosition.topLeft ||
+        position == DashboardBuilderResizeHandlePosition.topRight ||
+        position == DashboardBuilderResizeHandlePosition.bottomRight ||
+        position == DashboardBuilderResizeHandlePosition.bottomLeft;
     final isVertical =
         position == DashboardBuilderResizeHandlePosition.left ||
         position == DashboardBuilderResizeHandlePosition.right;
-    final indicatorWidth = isVertical ? 10.0 : 22.0;
-    final indicatorHeight = isVertical ? 22.0 : 10.0;
-    final accentWidth = isVertical ? 2.0 : 8.0;
-    final accentHeight = isVertical ? 8.0 : 2.0;
+    final indicatorWidth = isCorner ? 20.0 : (isVertical ? 12.0 : 24.0);
+    final indicatorHeight = isCorner ? 20.0 : (isVertical ? 24.0 : 12.0);
+    final accentWidth = isCorner ? 9.0 : (isVertical ? 2.4 : 10.0);
+    final accentHeight = isCorner ? 9.0 : (isVertical ? 10.0 : 2.4);
+    final indicatorRadius = isCorner
+        ? 999.0
+        : math.max(indicatorWidth, indicatorHeight);
+    final indicatorGradient = <Color>[
+      const Color(0xFFFFFFFF).withValues(alpha: 0.96),
+      color.withValues(alpha: isCorner ? 0.26 : 0.20),
+    ];
+    final accentGradient = <Color>[
+      color.withValues(alpha: 0.96),
+      color.withValues(alpha: 0.70),
+    ];
 
     return Listener(
       behavior: HitTestBehavior.opaque,
@@ -3460,34 +3713,62 @@ class _ResizeHandle extends StatelessWidget {
                   width: indicatorWidth,
                   height: indicatorHeight,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7FBF7).withValues(alpha: 0.94),
-                    borderRadius: BorderRadius.circular(
-                      math.max(indicatorWidth, indicatorHeight),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: indicatorGradient,
                     ),
+                    borderRadius: BorderRadius.circular(indicatorRadius),
                     border: Border.all(
-                      color: color.withValues(alpha: 0.30),
-                      width: 0.9,
+                      color: color.withValues(alpha: 0.40),
+                      width: 1,
                     ),
                     boxShadow: [
                       const BoxShadow(
                         color: Color(0x12000000),
-                        blurRadius: 4,
+                        blurRadius: 6,
                         offset: Offset(0, 2),
                       ),
                       BoxShadow(
-                        color: color.withValues(alpha: 0.04),
+                        color: Colors.white.withValues(alpha: 0.12),
                         blurRadius: 8,
-                        spreadRadius: 0.15,
+                        offset: const Offset(0, -1),
+                      ),
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.10),
+                        blurRadius: 12,
+                        spreadRadius: 0.2,
                       ),
                     ],
                   ),
                   child: Center(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.70),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: accentGradient,
+                        ),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: SizedBox(width: accentWidth, height: accentHeight),
+                      child: SizedBox(
+                        width: accentWidth,
+                        height: accentHeight,
+                        child: isCorner
+                            ? Center(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.92),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const SizedBox(
+                                    width: 3.6,
+                                    height: 3.6,
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -3583,36 +3864,67 @@ class _BuilderInfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: DashboardRuntimeTheme.insetSurfaceDecoration(radius: 18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 98,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: DashboardRuntimeTheme.labelTextColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: AppGlassTheme.surfaceDecoration(
+              radius: 20,
+              borderAlpha: 0.34,
+              colors: <Color>[
+                Colors.white.withValues(alpha: 0.58),
+                const Color(0xFFF4F9FF).withValues(alpha: 0.26),
+              ],
+              shadows: const <BoxShadow>[],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: DashboardRuntimeTheme.fieldTextColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 104,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: AppGlassTheme.surfaceDecoration(
+                    radius: 14,
+                    borderAlpha: 0.24,
+                    colors: <Color>[
+                      Colors.white.withValues(alpha: 0.42),
+                      const Color(0xFFEAF3FF).withValues(alpha: 0.16),
+                    ],
+                    shadows: const <BoxShadow>[],
+                  ),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: DashboardRuntimeTheme.labelTextColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: DashboardRuntimeTheme.fieldTextColor,
+                        fontSize: 13,
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

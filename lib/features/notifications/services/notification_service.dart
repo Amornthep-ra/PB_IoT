@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../projects/services/project_state.dart';
 import '../models/alert_event_model.dart';
 import '../models/alert_rule_model.dart';
 
@@ -22,34 +23,39 @@ class NotificationService {
   final String eventsStorageKey;
   final String historyStorageKey;
 
+  String get _effectiveRulesStorageKey => _projectScopedKey(rulesStorageKey);
+  String get _effectiveEventsStorageKey => _projectScopedKey(eventsStorageKey);
+  String get _effectiveHistoryStorageKey =>
+      _projectScopedKey(historyStorageKey);
+
   Future<List<AlertRuleModel>> loadRules() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
-    final raw = preferences.getString(rulesStorageKey);
+    final raw = preferences.getString(_effectiveRulesStorageKey);
     return _decodeRules(raw);
   }
 
   Future<void> saveRules(List<AlertRuleModel> rules) async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     final payload = rules.map((rule) => rule.toJson()).toList();
-    await preferences.setString(rulesStorageKey, jsonEncode(payload));
+    await preferences.setString(_effectiveRulesStorageKey, jsonEncode(payload));
   }
 
   Future<List<AlertEventModel>> loadEvents() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
-    final raw = preferences.getString(eventsStorageKey);
+    final raw = preferences.getString(_effectiveEventsStorageKey);
     return _decodeEvents(raw);
   }
 
   Future<void> saveEvents(List<AlertEventModel> events) async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     final payload = events.map((event) => event.toJson()).toList();
-    await preferences.setString(eventsStorageKey, jsonEncode(payload));
+    await preferences.setString(_effectiveEventsStorageKey, jsonEncode(payload));
   }
 
   Future<List<AlertEventModel>> loadHistoryEvents() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
-    final historyRaw = preferences.getString(historyStorageKey);
-    final currentRaw = preferences.getString(eventsStorageKey);
+    final historyRaw = preferences.getString(_effectiveHistoryStorageKey);
+    final currentRaw = preferences.getString(_effectiveEventsStorageKey);
 
     final history = _decodeEvents(historyRaw);
     if (history.isNotEmpty) {
@@ -66,7 +72,10 @@ class NotificationService {
   Future<void> saveHistoryEvents(List<AlertEventModel> events) async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     final payload = events.map((event) => event.toJson()).toList();
-    await preferences.setString(historyStorageKey, jsonEncode(payload));
+    await preferences.setString(
+      _effectiveHistoryStorageKey,
+      jsonEncode(payload),
+    );
   }
 
   Future<void> appendEvent(AlertEventModel event) async {
@@ -113,17 +122,17 @@ class NotificationService {
 
   Future<void> clearRules() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
-    await preferences.remove(rulesStorageKey);
+    await preferences.remove(_effectiveRulesStorageKey);
   }
 
   Future<void> clearEvents() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
-    await preferences.remove(eventsStorageKey);
+    await preferences.remove(_effectiveEventsStorageKey);
   }
 
   Future<void> clearHistoryEvents() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
-    await preferences.remove(historyStorageKey);
+    await preferences.remove(_effectiveHistoryStorageKey);
   }
 
   Future<void> deleteHistoryEvent(String eventId) async {
@@ -186,5 +195,13 @@ class NotificationService {
 
     events[index] = events[index].copyWith(isRead: isRead);
     return events;
+  }
+
+  String _projectScopedKey(String baseKey) {
+    final projectId = ProjectState.current?.id.trim();
+    if (projectId == null || projectId.isEmpty) {
+      return baseKey;
+    }
+    return '${baseKey}_$projectId';
   }
 }

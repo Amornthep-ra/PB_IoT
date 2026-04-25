@@ -48,7 +48,7 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
 
     if (gmail.isEmpty) {
       setState(() {
-        _errorText = 'Please enter your Gmail address.';
+        _errorText = 'กรุณากรอกที่อยู่ Gmail ของคุณ';
       });
       return;
     }
@@ -65,7 +65,7 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('A new token request was sent. Please check your Gmail.'),
+          content: Text('ส่งคำขอโทเค็นใหม่เรียบร้อยแล้ว โปรดตรวจสอบที่ Gmail ของคุณ'),
         ),
       );
       Navigator.maybePop(context);
@@ -81,7 +81,7 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
         return;
       }
       setState(() {
-        _errorText = 'Unable to send a new token right now. Please try again.';
+        _errorText = 'ส่งโทเค็นใหม่ไม่สำเร็จ โปรดลองใหม่อีกครั้ง';
       });
     } finally {
       if (mounted) {
@@ -136,6 +136,99 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
     );
   }
 
+  Widget _buildForgotCardContent({
+    required double titleFontSize,
+    required double bodyFontSize,
+    required bool compactContent,
+    required double resolvedIntroGap,
+    required double resolvedFieldGap,
+    required double resolvedHelperGap,
+    required double resolvedEmptyErrorGap,
+    required double resolvedSubmitGap,
+    required double buttonHeight,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Forgot Token',
+          style: TextStyle(
+            fontSize: titleFontSize,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+            color: _headlineColor,
+          ),
+        ),
+        SizedBox(height: resolvedIntroGap),
+        Text(
+          'กรอกที่อยู่อีเมลล์ของคุณ แล้วเราจะส่ง Token ใหม่ไปยังกล่องจดหมายของคุณ',
+          style: TextStyle(
+            fontSize: bodyFontSize,
+            height: compactContent ? 1.38 : 1.45,
+            color: const Color(0xFF5D6E80),
+          ),
+        ),
+        SizedBox(height: resolvedFieldGap),
+        _FieldBlock(
+          label: 'Gmail Address',
+          child: _ForgotTextField(
+            controller: _gmailController,
+            hintText: 'กรอกที่อยู่อีเมลล์ของคุณ',
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.done,
+            keyboardAppearance: Brightness.light,
+            hasError: _errorText != null,
+            decorationBuilder: _inputDecoration,
+            onSubmitted: (_) => _onSendTokenPressed(),
+            onChanged: (_) {
+              if (_errorText != null) {
+                setState(() {
+                  _errorText = null;
+                });
+              }
+            },
+          ),
+        ),
+        SizedBox(height: resolvedHelperGap),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: _errorText == null
+              ? SizedBox(height: resolvedEmptyErrorGap)
+              : Container(
+                  key: ValueKey<String>(_errorText!),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF2F2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFF2C8C8),
+                    ),
+                  ),
+                  child: Text(
+                    _errorText!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: Color(0xFFB24A4A),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+        ),
+        SizedBox(height: resolvedSubmitGap),
+        _PrimaryActionButton(
+          height: buttonHeight,
+          isLoading: _isLoading,
+          label: 'Send New Token',
+          onPressed: _isLoading ? null : _onSendTokenPressed,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
@@ -157,7 +250,7 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
                   height: constraints.maxHeight,
                   bottomSafeInset: mediaQuery.padding.bottom,
                 );
-                final isShortHeight = constraints.maxHeight < 760;
+                final isShortHeight = constraints.maxHeight < 780;
                 final cardPadding = EdgeInsets.fromLTRB(
                   20,
                   isShortHeight ? 18 : 20,
@@ -166,8 +259,116 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
                 );
                 final introGap = isShortHeight ? 6.0 : 8.0;
                 final fieldTopGap = isShortHeight ? 18.0 : 22.0;
+                final helperGap = isShortHeight ? 10.0 : 14.0;
                 final errorGap = isShortHeight ? 14.0 : 18.0;
                 final submitGap = isShortHeight ? 16.0 : 18.0;
+                final emptyErrorGap = isShortHeight ? 14.0 : 18.0;
+                Widget buildForgotCard({
+                  required double availableHeight,
+                  required double availableWidth,
+                }) {
+                  final compactContent = availableHeight < 575;
+                  final contentScale = (availableHeight / 620).clamp(0.82, 1.0);
+                  final heroSize = (metrics.authHeroSize * contentScale).clamp(
+                    104.0,
+                    metrics.authHeroSize,
+                  );
+                  final heroGap =
+                      (metrics.authResolvedHeroCardGap(
+                        keyboardVisible: false,
+                      ) *
+                              contentScale)
+                          .clamp(8.0, 18.0);
+                  final resolvedCardPadding = EdgeInsets.fromLTRB(
+                    cardPadding.left,
+                    (cardPadding.top * (compactContent ? contentScale : 1.0))
+                        .clamp(14.0, cardPadding.top),
+                    cardPadding.right,
+                    (cardPadding.bottom *
+                            (compactContent
+                                ? (contentScale - 0.04).clamp(0.82, 1.0)
+                                : 1.0))
+                        .clamp(14.0, cardPadding.bottom),
+                  );
+                  final resolvedIntroGap =
+                      (introGap * contentScale).clamp(4.0, introGap);
+                  final resolvedFieldGap = (metrics.authFieldGap * contentScale)
+                      .clamp(10.0, metrics.authFieldGap);
+                  final resolvedHelperGap =
+                      (helperGap * contentScale).clamp(2.0, 8.0);
+                  final resolvedEmptyErrorGap =
+                      (emptyErrorGap * contentScale).clamp(2.0, 8.0);
+                  final resolvedSubmitGap =
+                      (submitGap * contentScale).clamp(6.0, 12.0);
+                  final buttonHeight = ((metrics.primaryButtonHeight + 4) *
+                          contentScale)
+                      .clamp(44.0, metrics.primaryButtonHeight + 4);
+                  final titleFontSize =
+                      (24 * contentScale).clamp(20.0, 24.0);
+                  final bodyFontSize =
+                      (15 * contentScale).clamp(13.0, 15.0);
+
+                  return Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        width: availableWidth,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _LogoHero(
+                              width: heroSize,
+                              height: heroSize,
+                            ),
+                            SizedBox(height: heroGap),
+                            Container(
+                              padding: resolvedCardPadding,
+                              decoration: BoxDecoration(
+                                color: _cardColor,
+                                borderRadius: BorderRadius.circular(
+                                  metrics.authCardRadius,
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.78),
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: _shadowLightColor,
+                                    offset: Offset(-8, -8),
+                                    blurRadius: 16,
+                                  ),
+                                  BoxShadow(
+                                    color: _shadowDarkColor,
+                                    offset: Offset(10, 12),
+                                    blurRadius: 24,
+                                  ),
+                                  BoxShadow(
+                                    color: Color(0x14677E92),
+                                    offset: Offset(0, 18),
+                                    blurRadius: 28,
+                                  ),
+                                ],
+                              ),
+                              child: _buildForgotCardContent(
+                                titleFontSize: titleFontSize,
+                                bodyFontSize: bodyFontSize,
+                                compactContent: compactContent,
+                                resolvedIntroGap: resolvedIntroGap,
+                                resolvedFieldGap: resolvedFieldGap,
+                                resolvedHelperGap: resolvedHelperGap,
+                                resolvedEmptyErrorGap: resolvedEmptyErrorGap,
+                                resolvedSubmitGap: resolvedSubmitGap,
+                                buttonHeight: buttonHeight,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
                 final content = Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -186,7 +387,13 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _LogoHero(
+                    if (constraints.maxHeight > 0) ...[
+                      buildForgotCard(
+                        availableHeight: constraints.maxHeight,
+                        availableWidth: constraints.maxWidth,
+                      ),
+                    ] else ...[
+                      _LogoHero(
                       width: metrics.authHeroSize,
                       height: metrics.authHeroSize,
                     ),
@@ -237,7 +444,7 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
                           ),
                           SizedBox(height: introGap),
                           const Text(
-                            'กรอกที่อยู่ Gmail ของคุณ แล้วเราจะส่งโทเคนใหม่ไปยังกล่องจดหมายของคุณ',
+                            'กรอกที่อยู่อีเมลล์ของคุณ แล้วเราจะส่ง Token ใหม่ไปยังกล่องจดหมายของคุณ',
                             style: TextStyle(
                               fontSize: 14,
                               height: 1.45,
@@ -249,7 +456,7 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
                             label: 'Gmail Address',
                             child: _ForgotTextField(
                               controller: _gmailController,
-                              hintText: 'กรอกที่อยู่ Gmail ของคุณ',
+                              hintText: 'กรอกที่อยู่อีเมลล์ของคุณ',
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.done,
                               keyboardAppearance: Brightness.light,
@@ -304,6 +511,7 @@ class _ForgotTokenScreenState extends State<ForgotTokenScreen> {
                         ],
                       ),
                     ),
+                    ],
                   ],
                 );
 
@@ -548,7 +756,7 @@ class _FieldBlock extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
             color: _ForgotTokenScreenState._labelTextColor,
           ),

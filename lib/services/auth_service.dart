@@ -14,13 +14,15 @@ class AuthService {
     _httpClient.connectionTimeout = const Duration(seconds: 10);
   }
 
-  static const String _loginUrl = 'https://princebot.co.th/api/public/login';
-  static const String _logoutUrl = 'https://princebot.co.th/api/public/logout';
+  static const String _loginUrl =
+      'https://console.princebot.co.th/api/public/login';
+  static const String _logoutUrl =
+      'https://console.princebot.co.th/api/public/logout';
   static const String _profilePhotoUrl =
-      'https://princebot.co.th/api/public/profile-photo';
+      'https://console.princebot.co.th/api/public/profile-photo';
   static const String _sessionUrl =
-      'https://princebot.co.th/api/public/session';
-  static const String _serverBaseUrl = 'https://princebot.co.th';
+      'https://console.princebot.co.th/api/public/session';
+  static const String _serverBaseUrl = 'https://console.princebot.co.th';
 
   final HttpClient _httpClient;
 

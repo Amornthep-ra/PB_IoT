@@ -17,6 +17,7 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
 
   bool _isLoading = false;
   String? _errorText;
+  bool get _showDeviceIdField => false;
 
   static const _backgroundColor = Color(0xFFF2F5FA);
   static const _cardColor = Color(0xFFEFF3F8);
@@ -47,11 +48,10 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
     FocusScope.of(context).unfocus();
 
     final gmail = _gmailController.text.trim();
-    final deviceId = _deviceIdController.text.trim();
 
-    if (gmail.isEmpty || deviceId.isEmpty) {
+    if (gmail.isEmpty) {
       setState(() {
-        _errorText = 'Please enter your Gmail address and device ID.';
+        _errorText = 'กรุณากรอกที่อยู่ Gmail ของคุณ';
       });
       return;
     }
@@ -62,13 +62,13 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
     });
 
     try {
-      await _tokenRequestService.requestToken(gmail: gmail, deviceId: deviceId);
+      await _tokenRequestService.requestToken(gmail: gmail);
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Token request submitted. Please check your Gmail.'),
+          content: Text('ส่งคำขอโทเค็นเรียบร้อยแล้ว โปรดตรวจสอบที่ Gmail ของคุณ'),
         ),
       );
       Navigator.maybePop(context);
@@ -84,7 +84,7 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
         return;
       }
       setState(() {
-        _errorText = 'Unable to create token right now. Please try again.';
+        _errorText = 'สร้างโทเค็นไม่สำเร็จ โปรดลองใหม่อีกครั้ง';
       });
     } finally {
       if (mounted) {
@@ -205,11 +205,11 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
                   final resolvedFieldGap = (metrics.authFieldGap * contentScale)
                       .clamp(10.0, metrics.authFieldGap);
                   final resolvedHelperGap =
-                      (helperGap * contentScale).clamp(8.0, helperGap);
+                      (helperGap * contentScale).clamp(2.0, 8.0);
                   final resolvedEmptyErrorGap =
-                      (emptyErrorGap * contentScale).clamp(10.0, emptyErrorGap);
+                      (emptyErrorGap * contentScale).clamp(2.0, 8.0);
                   final resolvedSubmitGap =
-                      (submitGap * contentScale).clamp(12.0, submitGap);
+                      (submitGap * contentScale).clamp(6.0, 12.0);
                   final resolvedNoteTopGap =
                       (8 * contentScale).clamp(4.0, 8.0);
                   final buttonHeight = ((metrics.primaryButtonHeight + 4) *
@@ -218,7 +218,7 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
                   final titleFontSize =
                       (24 * contentScale).clamp(20.0, 24.0);
                   final bodyFontSize =
-                      (14 * contentScale).clamp(12.0, 14.0);
+                      (15 * contentScale).clamp(13.0, 15.0);
                   final noteFontSize =
                       (12 * contentScale).clamp(11.0, 12.0);
 
@@ -279,7 +279,7 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
                                   ),
                                   SizedBox(height: resolvedIntroGap),
                                   Text(
-                                    'กรอก Gmail และชื่ออุปกรณ์ (Device ID) ของคุณ เพื่อรับรหัสเข้าใช้งาน (Access Token) ใหม่ทางอีเมลครับ',
+                                    'กรอกอีเมลล์ของคุณเพื่อรับ Token เข้าใช้งานผ่านอีเมลล์',
                                     style: TextStyle(
                                       fontSize: bodyFontSize,
                                       height: compactContent ? 1.38 : 1.45,
@@ -291,12 +291,13 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
                                     label: 'Gmail Address',
                                     child: _RequestTextField(
                                       controller: _gmailController,
-                                      hintText: 'ตัวอย่าง: example@gmail.com',
+                                      hintText: 'กรอกที่อยู่อีเมลล์ของคุณ',
                                       keyboardType: TextInputType.emailAddress,
-                                      textInputAction: TextInputAction.next,
+                                      textInputAction: TextInputAction.done,
                                       keyboardAppearance: Brightness.light,
                                       hasError: _errorText != null,
                                       decorationBuilder: _inputDecoration,
+                                      onSubmitted: (_) => _onCreateTokenPressed(),
                                       onChanged: (_) {
                                         if (_errorText != null) {
                                           setState(() {
@@ -307,7 +308,8 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
                                     ),
                                   ),
                                   SizedBox(height: resolvedFieldGap),
-                                  _FieldBlock(
+                                  if (_showDeviceIdField)
+                                    _FieldBlock(
                                     label: 'Device ID',
                                     child: _RequestTextField(
                                       controller: _deviceIdController,
@@ -333,8 +335,10 @@ class _RequestTokenScreenState extends State<RequestTokenScreen> {
                                       },
                                     ),
                                   ),
-                                  SizedBox(height: resolvedNoteTopGap),
-                                  Text(
+                                  if (_showDeviceIdField)
+                                    SizedBox(height: resolvedNoteTopGap),
+                                  if (_showDeviceIdField)
+                                    Text(
                                     'ตั้งชื่ออุปกรณ์ (Device ID) เพื่อช่วยให้จำได้ว่ากำลังใช้ Token ไหนอยู่ และชื่อนี้จะถูกใช้เป็นชื่อโปรไฟล์ของคุณด้วย',
                                     style: TextStyle(
                                       fontSize: noteFontSize,
@@ -656,7 +660,7 @@ class _FieldBlock extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
             color: _RequestTokenScreenState._labelTextColor,
           ),

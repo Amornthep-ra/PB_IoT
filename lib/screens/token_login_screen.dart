@@ -13,6 +13,8 @@ import '../theme/app_responsive.dart';
 class TokenLoginScreen extends StatefulWidget {
   const TokenLoginScreen({super.key});
 
+  static const sessionExpiredRouteArgument = 'sessionExpired';
+
   @override
   State<TokenLoginScreen> createState() => _TokenLoginScreenState();
 }
@@ -25,7 +27,8 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
   bool _isLoading = false;
   bool _rememberMe = false;
   bool _obscureToken = true;
-  String? _errorText;
+  bool _handledRouteError = false;
+  _LoginError? _loginError;
 
   static const _backgroundColor = Color(0xFFF2F5FA);
   static const _cardColor = Color(0xFFEFF3F8);
@@ -47,6 +50,21 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
   void initState() {
     super.initState();
     _loadRememberedLogin();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_handledRouteError) {
+      return;
+    }
+
+    _handledRouteError = true;
+    final routeArgument = ModalRoute.of(context)?.settings.arguments;
+    if (routeArgument == TokenLoginScreen.sessionExpiredRouteArgument) {
+      _loginError = _LoginError.sessionExpired;
+    }
   }
 
   Future<void> _loadRememberedLogin() async {
@@ -78,14 +96,14 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
 
     if (token.isEmpty) {
       setState(() {
-        _errorText = 'Please enter your app token.';
+        _loginError = _LoginError.missingToken;
       });
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _errorText = null;
+      _loginError = null;
     });
 
     try {
@@ -107,34 +125,34 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
       if (!mounted) {
         return;
       }
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      Navigator.pushReplacementNamed(context, '/projects');
     } on AuthException catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _errorText = error.message;
+        _loginError = _LoginError.fromAuthException(error);
       });
     } on TimeoutException {
       if (!mounted) {
         return;
       }
       setState(() {
-        _errorText = 'The server took too long to respond. Please try again.';
+        _loginError = _LoginError.timeout;
       });
     } on SocketException {
       if (!mounted) {
         return;
       }
       setState(() {
-        _errorText = 'Cannot connect to the server. Please try again.';
+        _loginError = _LoginError.offline;
       });
     } catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _errorText = 'Unable to login right now. Please try again.';
+        _loginError = _LoginError.unknown;
       });
     } finally {
       if (mounted) {
@@ -171,7 +189,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
     return InputDecoration(
       hintText: hintText,
       hintStyle: const TextStyle(
-        fontSize: 16,
+        fontSize: 12,
         color: _mutedTextColor,
         fontWeight: FontWeight.w400,
       ),
@@ -205,6 +223,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
     final size = mediaQuery.size;
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final width = size.width;
+    final loginError = _loginError;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -282,18 +301,18 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                             label: 'Token Access',
                             child: _LoginTextField(
                               controller: _tokenController,
-                              hintText: 'Enter your app token',
+                              hintText: 'กรุณากรอกโทเค็นแอปของคุณ',
                               textInputAction: TextInputAction.next,
                               keyboardType: TextInputType.text,
                               onChanged: (_) {
-                                if (_errorText != null) {
+                                if (_loginError != null) {
                                   setState(() {
-                                    _errorText = null;
+                                    _loginError = null;
                                   });
                                 }
                               },
                               decorationBuilder: _inputDecoration,
-                              hasError: _errorText != null,
+                              hasError: _loginError != null,
                               isObscured: _obscureToken,
                               keyboardAppearance: Brightness.light,
                               style: const TextStyle(
@@ -332,11 +351,11 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                           ),
                           SizedBox(height: metrics.authFieldGap),
                           _FieldBlock(
-                            label: 'Display Name',
-                            trailingLabel: 'optional',
+                            label: 'Profile Name',
+                            trailingLabel: '(ชื่อโปรไฟล์)',
                             child: _LoginTextField(
                               controller: _displayNameController,
-                              hintText: 'Enter your display name',
+                              hintText: 'กรอกชื่อที่ต้องการให้เป็นชื่อโปรไฟล์',
                               textInputAction: TextInputAction.done,
                               onSubmitted: (_) => _onLoginPressed(),
                               decorationBuilder: _inputDecoration,
@@ -346,30 +365,11 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                           const SizedBox(height: 12),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 180),
-                            child: _errorText == null
+                            child: loginError == null
                                 ? SizedBox(height: errorGapHeight)
-                                : Container(
-                                    key: ValueKey<String>(_errorText!),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF2F2),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: const Color(0xFFF2C8C8),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _errorText!,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        height: 1.35,
-                                        color: Color(0xFFB24A4A),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
+                                : _LoginErrorBox(
+                                    key: ValueKey<String>(loginError.title),
+                                    error: loginError,
                                   ),
                           ),
                           const SizedBox(height: 8),
@@ -418,6 +418,148 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                   ),
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginError {
+  const _LoginError({
+    required this.title,
+    required this.message,
+    required this.icon,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
+
+  static const missingToken = _LoginError(
+    title: 'กรุณากรอก Token',
+    message: 'ใส่ app token ที่ได้รับก่อนเข้าสู่ระบบ',
+    icon: Icons.vpn_key_rounded,
+  );
+
+  static const invalidToken = _LoginError(
+    title: 'Token ไม่ถูกต้อง',
+    message: 'ตรวจสอบ token อีกครั้ง หรือลองขอ token ใหม่หากยังเข้าไม่ได้',
+    icon: Icons.vpn_key_rounded,
+  );
+
+  static const timeout = _LoginError(
+    title: 'เซิร์ฟเวอร์ตอบสนองช้า',
+    message: 'รอสักครู่แล้วลองใหม่อีกครั้ง',
+    icon: Icons.schedule_rounded,
+  );
+
+  static const offline = _LoginError(
+    title: 'ไม่มีอินเทอร์เน็ต',
+    message: 'ตรวจสอบ Wi-Fi หรือสัญญาณมือถือ แล้วลองเข้าสู่ระบบอีกครั้ง',
+    icon: Icons.wifi_off_rounded,
+  );
+
+  static const sessionExpired = _LoginError(
+    title: 'Session หมดอายุ',
+    message: 'กรุณาเข้าสู่ระบบใหม่เพื่อเชื่อมต่ออุปกรณ์อีกครั้ง',
+    icon: Icons.lock_outline_rounded,
+  );
+
+  static const server = _LoginError(
+    title: 'ระบบยังไม่พร้อมใช้งาน',
+    message: 'เซิร์ฟเวอร์มีปัญหาชั่วคราว กรุณาลองใหม่ภายหลัง',
+    icon: Icons.cloud_off_rounded,
+  );
+
+  static const unknown = _LoginError(
+    title: 'เข้าสู่ระบบไม่สำเร็จ',
+    message: 'ลองอีกครั้ง หรือเช็ก token และการเชื่อมต่ออินเทอร์เน็ต',
+    icon: Icons.error_outline_rounded,
+  );
+
+  factory _LoginError.fromAuthException(AuthException error) {
+    final message = error.message.toLowerCase();
+    final statusCode = error.statusCode;
+
+    if (message.contains('session') && message.contains('expired')) {
+      return sessionExpired;
+    }
+
+    if (statusCode == 408 || statusCode == 504) {
+      return timeout;
+    }
+
+    if (statusCode == 400 ||
+        statusCode == 401 ||
+        statusCode == 403 ||
+        message.contains('token')) {
+      return invalidToken;
+    }
+
+    if (statusCode != null && statusCode >= 500) {
+      return server;
+    }
+
+    return unknown;
+  }
+}
+
+class _LoginErrorBox extends StatelessWidget {
+  const _LoginErrorBox({super.key, required this.error});
+
+  final _LoginError error;
+
+  @override
+  Widget build(BuildContext context) {
+    const errorColor = Color(0xFFB24A4A);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF2F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF2C8C8)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE2E2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(error.icon, size: 18, color: errorColor),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  error.title,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.25,
+                    color: errorColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  error.message,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: Color(0xFF8F4A4A),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../../theme/app_theme.dart';
 import '../../dashboard/models/widget_binding_model.dart';
 import '../../dashboard/services/dashboard_runtime_controller.dart';
 import '../../dashboard/services/dashboard_service.dart';
@@ -42,6 +43,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   static const int _minColumns = 18;
   static const int _maxColumns = 26;
   static const Duration _controlTapCooldown = Duration(seconds: 3);
+  static const String _cooldownStatusKey = 'control-cooldown';
 
   final DashboardService _dashboardService = DashboardService();
   final Map<String, Timer> _controlWriteDebounceTimers = <String, Timer>{};
@@ -49,13 +51,23 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   final Map<String, _QueuedControlWrite> _queuedControlWrites =
       <String, _QueuedControlWrite>{};
   final Map<String, DateTime> _recentControlInteractions = <String, DateTime>{};
-  String? _activeStatusMessage;
+  ValueNotifier<String>? _statusTextNotifierCache;
+  final ValueNotifier<Color> _statusColorNotifier = ValueNotifier<Color>(
+    DashboardRuntimeTheme.buttonEndColor,
+  );
+  final ValueNotifier<IconData> _statusIconNotifier = ValueNotifier<IconData>(
+    Icons.schedule_rounded,
+  );
+  Timer? _cooldownStatusTimer;
+  String? _activeStatusKey;
 
   DashboardRuntimeController get _runtimeController => widget.runtimeController;
   List<DashboardItem> get _items => _runtimeController.items;
   bool get _isLoading => _runtimeController.isLoading;
   String? get _errorText => _runtimeController.errorText;
   String get _dashboardTitle => _runtimeController.dashboardTitle;
+  ValueNotifier<String> get _statusTextNotifier =>
+      _statusTextNotifierCache ??= ValueNotifier<String>('');
 
   @override
   void initState() {
@@ -72,6 +84,10 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     }
     _controlWriteDebounceTimers.clear();
     _queuedControlWrites.clear();
+    _cooldownStatusTimer?.cancel();
+    _statusTextNotifierCache?.dispose();
+    _statusColorNotifier.dispose();
+    _statusIconNotifier.dispose();
     super.dispose();
   }
 
@@ -113,20 +129,14 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                 filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: const Color(0xFFFFFFFF).withValues(alpha: 0.60),
-                    ),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFFFFFFFF).withValues(alpha: 0.70),
-                        const Color(0xFFF4FBF7).withValues(alpha: 0.46),
-                      ],
-                    ),
-                    boxShadow: const [
+                  decoration: AppGlassTheme.surfaceDecoration(
+                    radius: 22,
+                    borderAlpha: 0.60,
+                    colors: <Color>[
+                      const Color(0xFFFFFFFF).withValues(alpha: 0.70),
+                      const Color(0xFFF4FBF7).withValues(alpha: 0.46),
+                    ],
+                    shadows: const <BoxShadow>[
                       BoxShadow(
                         color: Color(0x120F172A),
                         blurRadius: 18,
@@ -163,25 +173,18 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                             child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: const Color(
+                              decoration: AppGlassTheme.surfaceDecoration(
+                                radius: 18,
+                                borderAlpha: 0.76,
+                                colors: <Color>[
+                                  const Color(
                                     0xFFFFFFFF,
-                                  ).withValues(alpha: 0.76),
-                                ),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    const Color(
-                                      0xFFFFFFFF,
-                                    ).withValues(alpha: 0.68),
-                                    const Color(
-                                      0xFFEAF7F1,
-                                    ).withValues(alpha: 0.38),
-                                  ],
-                                ),
+                                  ).withValues(alpha: 0.68),
+                                  const Color(
+                                    0xFFEAF7F1,
+                                  ).withValues(alpha: 0.38),
+                                ],
+                                shadows: const <BoxShadow>[],
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -218,19 +221,14 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: const Color(0xFFF1A6A1),
-                                ),
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFFF3B0AA),
-                                    Color(0xFFE58983),
-                                  ],
-                                ),
+                              decoration: AppGlassTheme.accentDecoration(
+                                radius: 16,
+                                borderColor: const Color(0xFFF1A6A1),
+                                colors: const <Color>[
+                                  Color(0xFFF3B0AA),
+                                  Color(0xFFE58983),
+                                ],
+                                glowColor: const Color(0xFFE58983),
                               ),
                               child: TextButton(
                                 onPressed: () => Navigator.of(context).pop(),
@@ -255,19 +253,14 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                             ),
                             const SizedBox(width: 8),
                             DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: const Color(0xFF9BD0AE),
-                                ),
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFFA6D9B7),
-                                    Color(0xFF79BE93),
-                                  ],
-                                ),
+                              decoration: AppGlassTheme.accentDecoration(
+                                radius: 16,
+                                borderColor: const Color(0xFF9BD0AE),
+                                colors: const <Color>[
+                                  Color(0xFFA6D9B7),
+                                  Color(0xFF79BE93),
+                                ],
+                                glowColor: const Color(0xFF79BE93),
                               ),
                               child: FilledButton(
                                 onPressed: () =>
@@ -525,6 +518,15 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       return false;
     }
 
+    final isMomentaryButtonRelease =
+        previous.type == DashboardItemType.button &&
+        previous.sendBehavior.trim().toLowerCase() == 'push' &&
+        previous.enabled &&
+        !next.enabled;
+    if (isMomentaryButtonRelease) {
+      return true;
+    }
+
     if (next.type == DashboardItemType.slider) {
       return true;
     }
@@ -534,7 +536,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     final previousAt = _recentControlInteractions[interactionKey];
     if (previousAt != null &&
         now.difference(previousAt) < _controlTapCooldown) {
-      _showTransientStatus('กรุณารอ 3 วินาทีแล้วกดใหม่');
+      _showCooldownStatus(previousAt);
       return false;
     }
     _recentControlInteractions[interactionKey] = now;
@@ -554,14 +556,12 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     }
 
     final pin = _extractVirtualPin(item.dataKey);
-    if (pin == null) {
-      return false;
-    }
-
-    final writeKey = '${item.id}:$pin';
-    if (_controlWriteDebounceTimers.containsKey(writeKey) ||
-        _controlWriteInFlight.contains(writeKey)) {
-      return true;
+    if (pin != null) {
+      final writeKey = '${item.id}:$pin';
+      if (_controlWriteDebounceTimers.containsKey(writeKey) ||
+          _controlWriteInFlight.contains(writeKey)) {
+        return true;
+      }
     }
 
     if (item.type == DashboardItemType.slider) {
@@ -580,7 +580,12 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     if (!_isControlWidget(item.type) || !_isItemInteractionLocked(item)) {
       return;
     }
-    _showTransientStatus('กรุณารอ 3 วินาทีแล้วกดใหม่');
+    final interactionKey = '${item.id}:${item.type.name}';
+    final previousAt = _recentControlInteractions[interactionKey];
+    if (previousAt == null) {
+      return;
+    }
+    _showCooldownStatus(previousAt);
   }
 
   bool _isWritableBindingMode(String mode) {
@@ -681,7 +686,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to send widget value right now.')),
+        const SnackBar(
+          content: Text(
+            'ส่งคำสั่งไปยังอุปกรณ์ไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองใหม่',
+          ),
+        ),
       );
     } finally {
       _controlWriteInFlight.remove(writeKey);
@@ -695,14 +704,93 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     }
   }
 
-  void _showTransientStatus(String message) {
+  int _remainingCooldownSeconds(DateTime startedAt) {
+    final remaining =
+        _controlTapCooldown - DateTime.now().difference(startedAt);
+    final milliseconds = remaining.inMilliseconds;
+    if (milliseconds <= 0) {
+      return 0;
+    }
+    return ((milliseconds + 999) ~/ 1000)
+        .clamp(1, _controlTapCooldown.inSeconds)
+        .toInt();
+  }
+
+  String _cooldownStatusMessage(int seconds) {
+    return 'รออีก $seconds วินาที';
+  }
+
+  void _setCooldownStatus(int seconds) {
+    _statusTextNotifier.value = _cooldownStatusMessage(seconds);
+    _statusColorNotifier.value = DashboardRuntimeTheme.errorTextColor;
+    _statusIconNotifier.value = Icons.schedule_rounded;
+  }
+
+  void _setReadyStatus() {
+    _statusTextNotifier.value = 'พร้อมกดอีกครั้ง';
+    _statusColorNotifier.value = DashboardRuntimeTheme.buttonEndColor;
+    _statusIconNotifier.value = Icons.check_circle_rounded;
+  }
+
+  void _showCooldownStatus(DateTime startedAt) {
     if (!mounted) {
       return;
     }
-    if (_activeStatusMessage == message) {
+    final remainingSeconds = _remainingCooldownSeconds(startedAt);
+    if (remainingSeconds <= 0) {
       return;
     }
-    _activeStatusMessage = message;
+
+    _showStatusSnackBar(
+      statusKey: _cooldownStatusKey,
+      message: _cooldownStatusMessage(remainingSeconds),
+      color: DashboardRuntimeTheme.errorTextColor,
+      icon: Icons.schedule_rounded,
+      duration: const Duration(days: 1),
+    );
+    _cooldownStatusTimer?.cancel();
+    _cooldownStatusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final nextSeconds = _remainingCooldownSeconds(startedAt);
+      if (nextSeconds <= 0) {
+        timer.cancel();
+        if (_activeStatusKey == _cooldownStatusKey) {
+          _setReadyStatus();
+          Future<void>.delayed(const Duration(milliseconds: 450), () {
+            if (mounted && _activeStatusKey == _cooldownStatusKey) {
+              ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+            }
+          });
+        }
+        return;
+      }
+
+      _setCooldownStatus(nextSeconds);
+    });
+  }
+
+  void _showStatusSnackBar({
+    required String statusKey,
+    required String message,
+    required Color color,
+    required IconData icon,
+    required Duration duration,
+  }) {
+    if (!mounted) {
+      return;
+    }
+    final statusTextNotifier = _statusTextNotifier;
+    statusTextNotifier.value = message;
+    _statusColorNotifier.value = color;
+    _statusIconNotifier.value = icon;
+    if (_activeStatusKey == statusKey) {
+      return;
+    }
+    _activeStatusKey = statusKey;
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     final controller = messenger?.showSnackBar(
@@ -719,50 +807,76 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Container(
+              SizedBox(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: DashboardRuntimeTheme.accentGradient(),
-                  boxShadow: [
-                    BoxShadow(
-                      color: DashboardRuntimeTheme.buttonGlowColor.withValues(
-                        alpha: 0.24,
+                child: AnimatedBuilder(
+                  animation: Listenable.merge(<Listenable>[
+                    _statusColorNotifier,
+                    _statusIconNotifier,
+                  ]),
+                  builder: (context, child) {
+                    final color = _statusColorNotifier.value;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color.lerp(color, Colors.white, 0.22) ?? color,
+                            color,
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.24),
+                            blurRadius: 12,
+                          ),
+                        ],
                       ),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.schedule_rounded,
-                  size: 18,
-                  color: Colors.white,
+                      child: Icon(
+                        _statusIconNotifier.value,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: DashboardRuntimeTheme.headlineColor,
-                    letterSpacing: 0.1,
-                  ),
+                child: AnimatedBuilder(
+                  animation: Listenable.merge(<Listenable>[
+                    statusTextNotifier,
+                    _statusColorNotifier,
+                  ]),
+                  builder: (context, child) {
+                    return AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 180),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _statusColorNotifier.value,
+                        letterSpacing: 0.1,
+                      ),
+                      child: Text(statusTextNotifier.value),
+                    );
+                  },
                 ),
               ),
             ],
           ),
         ),
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
+        duration: duration,
         margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       ),
     );
     controller?.closed.then((_) {
-      if (_activeStatusMessage == message) {
-        _activeStatusMessage = null;
+      if (_activeStatusKey == statusKey) {
+        _activeStatusKey = null;
       }
     });
   }
@@ -780,6 +894,139 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     final rawColumns = ((width + _gridGap) / (_targetCellSize + _gridGap))
         .floor();
     return rawColumns.clamp(_minColumns, _maxColumns);
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: AppGlassTheme.surfaceDecoration(
+            radius: 14,
+            borderAlpha: 0.62,
+            colors: <Color>[
+              const Color(0xFFFFF7F7).withValues(alpha: 0.84),
+              const Color(0xFFFFE7E6).withValues(alpha: 0.54),
+            ],
+            shadows: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x12A33A3A),
+                blurRadius: 18,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFF6B3AE).withValues(alpha: 0.32),
+                  border: Border.all(
+                    color: const Color(0xFFFFE4E1).withValues(alpha: 0.88),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.error_outline_rounded,
+                  size: 13,
+                  color: DashboardRuntimeTheme.errorTextColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: DashboardRuntimeTheme.errorTextColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                decoration: AppGlassTheme.surfaceDecoration(
+                  radius: 24,
+                  borderAlpha: 0.60,
+                  colors: <Color>[
+                    const Color(0xFFFFFFFF).withValues(alpha: 0.78),
+                    const Color(0xFFF4FBF7).withValues(alpha: 0.44),
+                  ],
+                  shadows: AppGlassTheme.shadowMd,
+                ),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFCBE1FA), Color(0xFFA4C7F4)],
+                        ),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(14),
+                        child: Icon(
+                          Icons.dashboard_customize_outlined,
+                          size: 24,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 14),
+                    Text(
+                      'No widgets on this dashboard yet',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: DashboardRuntimeTheme.headlineColor,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'ไปที่ Edit Mode เพื่อเริ่มเพิ่มและจัดวางวิดเจ็ตตามต้องการ',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: DashboardRuntimeTheme.mutedTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -849,28 +1096,14 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                         child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: const Color(
-                                0xFFFFFFFF,
-                              ).withValues(alpha: 0.60),
-                            ),
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                const Color(0xFFFFFFFF).withValues(alpha: 0.66),
-                                const Color(0xFFF4FBF7).withValues(alpha: 0.40),
-                              ],
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x120F172A),
-                                blurRadius: 20,
-                                offset: Offset(0, 10),
-                              ),
+                          decoration: AppGlassTheme.surfaceDecoration(
+                            radius: 22,
+                            borderAlpha: 0.60,
+                            colors: <Color>[
+                              const Color(0xFFFFFFFF).withValues(alpha: 0.66),
+                              const Color(0xFFF4FBF7).withValues(alpha: 0.40),
                             ],
+                            shadows: AppGlassTheme.shadowMd,
                           ),
                           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
                           child: LayoutBuilder(
@@ -998,27 +1231,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   if (_errorText != null) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: DashboardRuntimeTheme.errorBackgroundColor,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: DashboardRuntimeTheme.errorBorderColor,
-                          ),
-                        ),
-                        child: Text(
-                          _errorText!,
-                          style: const TextStyle(
-                            color: DashboardRuntimeTheme.errorTextColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
+                      child: _buildErrorBanner(_errorText!),
                     ),
                   ],
                   Padding(
@@ -1028,41 +1241,19 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                         child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(28),
-                            border: Border.all(
-                              color: const Color(
-                                0xFFFFFFFF,
-                              ).withValues(alpha: 0.54),
-                            ),
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                const Color(0xFFFFFFFF).withValues(alpha: 0.42),
-                                const Color(0xFFF5FBF8).withValues(alpha: 0.24),
-                              ],
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x0E0F172A),
-                                blurRadius: 14,
-                                offset: Offset(0, 8),
-                              ),
+                          decoration: AppGlassTheme.surfaceDecoration(
+                            radius: 28,
+                            borderAlpha: 0.58,
+                            colors: <Color>[
+                              const Color(0xFFFFFFFF).withValues(alpha: 0.48),
+                              const Color(0xFFF4FBF7).withValues(alpha: 0.30),
                             ],
+                            shadows: AppGlassTheme.shadowSm,
                           ),
                           child: SizedBox(
                             height: canvasHeight,
                             child: _items.isEmpty
-                                ? const Center(
-                                    child: Text(
-                                      'ยังไม่มีวิดเจ็ต ไปที่ Edit Mode',
-                                      style: TextStyle(
-                                        color: DashboardRuntimeTheme
-                                            .mutedTextColor,
-                                      ),
-                                    ),
-                                  )
+                                ? _buildEmptyState()
                                 : Stack(
                                     children: [
                                       for (final item in _items)

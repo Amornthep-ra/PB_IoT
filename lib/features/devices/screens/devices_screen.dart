@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
 import '../../dashboard/models/device_snapshot_model.dart';
 import '../../dashboard/services/dashboard_runtime_controller.dart';
 import '../../dashboard/widgets/dashboard_runtime_theme.dart';
+import '../../../theme/app_theme.dart';
 
 class DevicesScreen extends StatefulWidget {
   const DevicesScreen({
@@ -20,6 +22,84 @@ class DevicesScreen extends StatefulWidget {
 
 class _DevicesScreenState extends State<DevicesScreen> {
   DashboardRuntimeController get _runtimeController => widget.runtimeController;
+
+  BoxDecoration _glassSurface({
+    double radius = 24,
+    bool emphasized = false,
+  }) {
+    return AppGlassTheme.surfaceDecoration(
+      radius: radius,
+      borderAlpha: emphasized ? 0.62 : 0.5,
+      colors: <Color>[
+        const Color(0xFFFFFFFF).withValues(alpha: emphasized ? 0.82 : 0.74),
+        const Color(0xFFF5FBFF).withValues(alpha: emphasized ? 0.54 : 0.42),
+      ],
+      shadows: emphasized ? AppGlassTheme.shadowMd : AppGlassTheme.shadowSm,
+    );
+  }
+
+  Widget _buildGlassSection({
+    required Widget child,
+    double radius = 24,
+    bool emphasized = false,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(20),
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: padding,
+          decoration: _glassSurface(radius: radius, emphasized: emphasized),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader({required bool isLoading}) {
+    return _buildGlassSection(
+      radius: 28,
+      emphasized: true,
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Devices',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: DashboardRuntimeTheme.fieldTextColor,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'ติดตามสถานะเชื่อมต่อและตรวจสอบข้อมูลอุปกรณ์แบบ Real-time จากจุดเดียว',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.4,
+                    color: DashboardRuntimeTheme.mutedTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _RefreshButton(
+            isRefreshing: isLoading,
+            onPressed: () =>
+                unawaited(_runtimeController.refreshSnapshotFromServer()),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -45,6 +125,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   Widget build(BuildContext context) {
     final snapshot = _runtimeController.snapshot;
     final isLoading = _runtimeController.isLoading;
+    final showLegacyHeader = DateTime.now().millisecondsSinceEpoch < 0;
 
     return SafeArea(
       child: RefreshIndicator(
@@ -54,6 +135,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
           children: [
+            _buildHeader(isLoading: isLoading),
+            const SizedBox(height: 18),
+            if (showLegacyHeader) ...[
+            const SizedBox.shrink(),
             const Text(
               'Devices',
               style: TextStyle(
@@ -73,6 +158,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               ),
             ),
             const SizedBox(height: 18),
+            ],
             _buildStatusCard(snapshot),
             const SizedBox(height: 18),
             if (isLoading && snapshot == null)
@@ -101,16 +187,15 @@ class _DevicesScreenState extends State<DevicesScreen> {
         : isOnline
             ? const Color(0xFFE5F4EB)
             : const Color(0xFFFFECEF);
-    final title = hasError ? 'Connection issue' : isOnline ? 'Online' : 'Offline';
+    final title = hasError ? 'การเชื่อมต่อขัดข้อง' : isOnline ? 'ออนไลน์' : 'ออฟไลน์';
     final subtitle = hasError
         ? errorMessage
         : isOnline
             ? 'อุปกรณ์กำลังรายงานสถานะอย่างปกติ'
             : 'อุปกรณ์ไม่ได้รายงานสถานะในขณะนี้';
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: DashboardRuntimeTheme.cardDecoration(emphasize: true),
+    return _buildGlassSection(
+      emphasized: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -163,12 +248,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              _RefreshButton(
-                isRefreshing: false,
-                onPressed: () =>
-                    unawaited(_runtimeController.refreshSnapshotFromServer()),
-              ),
             ],
           ),
           const SizedBox(height: 18),
@@ -188,12 +267,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 background: DashboardRuntimeTheme.surfaceColor,
                 foreground: DashboardRuntimeTheme.labelTextColor,
               ),
-              _StatusPill(
-                label: 'Polling',
-                value: 'Shared 2s',
-                background: DashboardRuntimeTheme.surfaceColor,
-                foreground: DashboardRuntimeTheme.labelTextColor,
-              ),
             ],
           ),
         ],
@@ -206,9 +279,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
         <MapEntry<String, dynamic>>[];
     virtualPins.sort((left, right) => left.key.compareTo(right.key));
 
-    return Container(
+    return _buildGlassSection(
       padding: const EdgeInsets.all(18),
-      decoration: DashboardRuntimeTheme.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -234,10 +306,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: DashboardRuntimeTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: DashboardRuntimeTheme.surfaceBorderColor),
+              decoration: AppGlassTheme.surfaceDecoration(
+                radius: 16,
+                borderAlpha: 0.38,
+                colors: <Color>[
+                  const Color(0xFFFFFFFF).withValues(alpha: 0.58),
+                  const Color(0xFFF7FBFF).withValues(alpha: 0.32),
+                ],
+                shadows: AppGlassTheme.shadowSm,
               ),
               child: const Text(
                 'ยังไม่มีข้อมูลค่าพินเสมือนในขณะนี้',
@@ -296,16 +372,27 @@ class _RefreshButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Ink(
           padding: const EdgeInsets.all(12),
-          decoration: DashboardRuntimeTheme.insetSurfaceDecoration(radius: 18),
+          decoration: AppGlassTheme.accentDecoration(
+            radius: 18,
+            colors: const <Color>[
+              Color(0xFFB6D2F5),
+              Color(0xFF82AEE8),
+            ],
+            borderColor: const Color(0xFF9EC3F0),
+            glowColor: const Color(0xFF82AEE8),
+          ),
           child: isRefreshing
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
                 )
               : const Icon(
                   Icons.refresh_rounded,
-                  color: DashboardRuntimeTheme.labelTextColor,
+                  color: Colors.white,
                 ),
         ),
       ),
@@ -330,9 +417,14 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(16),
+      decoration: AppGlassTheme.surfaceDecoration(
+        radius: 16,
+        borderAlpha: 0.36,
+        colors: <Color>[
+          Color.alphaBlend(Colors.white.withValues(alpha: 0.18), background),
+          Color.alphaBlend(Colors.white.withValues(alpha: 0.05), background),
+        ],
+        shadows: AppGlassTheme.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,10 +466,14 @@ class _PinChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: DashboardRuntimeTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DashboardRuntimeTheme.surfaceBorderColor),
+      decoration: AppGlassTheme.surfaceDecoration(
+        radius: 14,
+        borderAlpha: 0.32,
+        colors: <Color>[
+          const Color(0xFFFFFFFF).withValues(alpha: 0.62),
+          const Color(0xFFF7FBFF).withValues(alpha: 0.28),
+        ],
+        shadows: AppGlassTheme.shadowSm,
       ),
       child: RichText(
         text: TextSpan(
@@ -409,26 +505,40 @@ class _LoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(26),
-      decoration: DashboardRuntimeTheme.cardDecoration(),
-      child: const Center(
-        child: Column(
-          children: [
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(strokeWidth: 2.6),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.all(26),
+          decoration: AppGlassTheme.surfaceDecoration(
+            radius: 24,
+            borderAlpha: 0.5,
+            colors: <Color>[
+              Color(0xFFFFFFFF).withValues(alpha: 0.76),
+              Color(0xFFF5FBFF).withValues(alpha: 0.38),
+            ],
+            shadows: AppGlassTheme.shadowSm,
+          ),
+          child: const Center(
+            child: Column(
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.6),
+                ),
+                SizedBox(height: 14),
+                Text(
+                  'Loading device status...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: DashboardRuntimeTheme.mutedTextColor,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 14),
-            Text(
-              'Loading device status...',
-              style: TextStyle(
-                fontSize: 14,
-                color: DashboardRuntimeTheme.mutedTextColor,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

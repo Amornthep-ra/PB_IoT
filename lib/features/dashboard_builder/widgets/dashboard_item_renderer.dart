@@ -88,12 +88,7 @@ Color _titleTextColor(Color baseColor) {
 }
 
 List<Shadow> _titleShadows(Color baseColor) {
-  return [
-    Shadow(
-      color: Colors.white.withValues(alpha: 0.7),
-      blurRadius: 8,
-    ),
-  ];
+  return [Shadow(color: Colors.white.withValues(alpha: 0.7), blurRadius: 8)];
 }
 
 Color _shellBorderColor(Color baseColor) {
@@ -195,15 +190,15 @@ class DashboardItemRenderer extends StatelessWidget {
             onValueChanged: onItemChanged == null
                 ? null
                 : (value) => onItemChanged!(
-                      item.copyWith(
-                        value: _snapToStep(
-                          value: value,
-                          min: item.minValue,
-                          max: item.maxValue,
-                          step: item.stepValue,
-                        ),
+                    item.copyWith(
+                      value: _snapToStep(
+                        value: value,
+                        min: item.minValue,
+                        max: item.maxValue,
+                        step: item.stepValue,
                       ),
                     ),
+                  ),
           ),
         );
       case DashboardItemType.gauge:
@@ -225,11 +220,8 @@ class DashboardItemRenderer extends StatelessWidget {
             onChanged: onItemChanged == null
                 ? null
                 : (enabled) => onItemChanged!(
-                      item.copyWith(
-                        enabled: enabled,
-                        value: enabled ? 1.0 : 0.0,
-                      ),
-                    ),
+                    item.copyWith(enabled: enabled, value: enabled ? 1.0 : 0.0),
+                  ),
           ),
         );
       case DashboardItemType.valueLabel:
@@ -267,8 +259,7 @@ class _ButtonTileShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleColor =
-        item.titleColor ?? _defaultWidgetTitleColor;
+    final titleColor = item.titleColor ?? _defaultWidgetTitleColor;
     final titleFontSize = _resolvedTitleFontSize(
       item: item,
       fallbackSize: 10,
@@ -294,31 +285,28 @@ class _ButtonTileShell extends StatelessWidget {
                 innerBaseColor: item.buttonInnerColor,
                 shellBorderColor: item.buttonBorderColor,
                 shellBorderWidth: item.buttonBorderWidth,
+                glowColor: item.glowColor,
+                glowStrength: item.glowStrength,
+                glowBlur: item.glowBlur,
                 isMomentary: _isMomentaryButton,
                 onTap: onItemChanged == null
                     ? () {}
                     : () => onItemChanged!(
-                          item.copyWith(
-                            enabled: !item.enabled,
-                            value: item.enabled ? 0.0 : 1.0,
-                          ),
+                        item.copyWith(
+                          enabled: !item.enabled,
+                          value: item.enabled ? 0.0 : 1.0,
                         ),
+                      ),
                 onPressStart: onItemChanged == null
                     ? null
                     : () => onItemChanged!(
-                          item.copyWith(
-                            enabled: true,
-                            value: 1.0,
-                          ),
-                        ),
+                        item.copyWith(enabled: true, value: 1.0),
+                      ),
                 onPressEnd: onItemChanged == null
                     ? null
                     : () => onItemChanged!(
-                          item.copyWith(
-                            enabled: false,
-                            value: 0.0,
-                          ),
-                        ),
+                        item.copyWith(enabled: false, value: 0.0),
+                      ),
                 enableInteraction: enableInteraction,
               ),
             ),
@@ -712,15 +700,16 @@ class _DashboardTileShell extends StatelessWidget {
         : item.type == DashboardItemType.toggle
         ? (item.buttonInnerColor ?? DashboardRuntimeTheme.cardColor)
         : null;
-    final valueLabelBorderBaseColor =
-        item.buttonShellColor ?? accentColor;
+    final valueLabelBorderBaseColor = item.buttonShellColor ?? accentColor;
     final gaugeBorderBaseColor =
         item.buttonShellColor ?? _shellBorderColor(accentColor);
     final toggleBorderBaseColor =
         item.buttonShellColor ?? _shellBorderColor(accentColor);
     final valueLabelBorderWidth =
-        (item.valueLabelBorderWidth ?? _defaultValueLabelBorderWidth)
-            .clamp(0.0, 4.0);
+        (item.valueLabelBorderWidth ?? _defaultValueLabelBorderWidth).clamp(
+          0.0,
+          4.0,
+        );
     final gaugeBorderWidth = (item.gaugeBorderWidth ?? _defaultGaugeBorderWidth)
         .clamp(0.0, 4.0);
     final sliderBorderWidth =
@@ -740,17 +729,45 @@ class _DashboardTileShell extends StatelessWidget {
             Color.lerp(customSurfaceColor, accentColor, 0.35) ?? accentColor,
           )
         : _shellBorderColor(accentColor);
-    final accentShadowAlpha = item.type == DashboardItemType.slider ? 0.08 : 0.12;
+    final defaultGlowStrength = item.type == DashboardItemType.valueLabel
+        ? 0.0
+        : item.type == DashboardItemType.slider
+        ? 0.08
+        : 0.12;
+    final glowColor = item.glowColor ?? accentColor;
+    final glowStrength = (item.glowStrength ?? defaultGlowStrength)
+        .clamp(0.0, 0.35)
+        .toDouble();
+    final glowBlur = (item.glowBlur ?? 18.0).clamp(0.0, 40.0).toDouble();
+    final baseShadows = item.type == DashboardItemType.valueLabel
+        ? const <BoxShadow>[]
+        : const <BoxShadow>[
+            BoxShadow(
+              color: DashboardRuntimeTheme.shadowLightColor,
+              blurRadius: 12,
+              offset: Offset(-6, -6),
+            ),
+            BoxShadow(
+              color: DashboardRuntimeTheme.shadowDarkColor,
+              blurRadius: 18,
+              offset: Offset(8, 10),
+            ),
+          ];
     final shellRadius = item.type == DashboardItemType.toggle ? 999.0 : 24.0;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: item.type == DashboardItemType.valueLabel || item.type == DashboardItemType.toggle
+        color:
+            item.type == DashboardItemType.valueLabel ||
+                item.type == DashboardItemType.toggle
             ? customSurfaceColor
             : null,
-        gradient: item.type == DashboardItemType.valueLabel || item.type == DashboardItemType.toggle
+        gradient:
+            item.type == DashboardItemType.valueLabel ||
+                item.type == DashboardItemType.toggle
             ? null
-            : item.type == DashboardItemType.slider && customSurfaceColor != null
+            : item.type == DashboardItemType.slider &&
+                  customSurfaceColor != null
             ? LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -774,25 +791,15 @@ class _DashboardTileShell extends StatelessWidget {
               ? toggleBorderWidth
               : 1.0,
         ),
-        boxShadow: item.type == DashboardItemType.valueLabel
-            ? const []
-            : [
-                BoxShadow(
-                  color: DashboardRuntimeTheme.shadowLightColor,
-                  blurRadius: 12,
-                  offset: const Offset(-6, -6),
-                ),
-                BoxShadow(
-                  color: DashboardRuntimeTheme.shadowDarkColor,
-                  blurRadius: 18,
-                  offset: const Offset(8, 10),
-                ),
-                BoxShadow(
-                  color: accentColor.withValues(alpha: accentShadowAlpha),
-                  blurRadius: 18,
-                  spreadRadius: -2,
-                ),
-              ],
+        boxShadow: [
+          ...baseShadows,
+          if (glowStrength > 0 && glowBlur > 0)
+            BoxShadow(
+              color: glowColor.withValues(alpha: glowStrength),
+              blurRadius: glowBlur,
+              spreadRadius: -2,
+            ),
+        ],
       ),
       child: Padding(
         padding: EdgeInsets.all(_padding),
@@ -833,7 +840,8 @@ class _GaugeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final useTinyGaugeFallback = metrics.isTiny && (metrics.w <= 6 || metrics.h <= 4);
+    final useTinyGaugeFallback =
+        metrics.isTiny && (metrics.w <= 6 || metrics.h <= 4);
     if (useTinyGaugeFallback) {
       return Align(
         alignment: Alignment.centerLeft,
@@ -877,7 +885,10 @@ class _GaugeContent extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final shortestSide = math.min(constraints.maxWidth, constraints.maxHeight);
+        final shortestSide = math.min(
+          constraints.maxWidth,
+          constraints.maxHeight,
+        );
         final controlInset = shortestSide >= 56
             ? 11.0
             : (shortestSide * 0.18).clamp(4.0, 11.0).toDouble();
@@ -960,13 +971,25 @@ class _ToggleContent extends StatelessWidget {
     final activeColor = item.enabled ? onColor : offColor;
     final offTextColor = DashboardRuntimeTheme.errorTextColor;
     final labelFontSize = metrics.isTiny ? 11.0 : 12.0;
-    final showKnobLabel = !metrics.isTiny && !metrics.isVeryShort && !metrics.isVeryNarrow;
+    final showKnobLabel =
+        !metrics.isTiny && !metrics.isVeryShort && !metrics.isVeryNarrow;
+    final glowColor = item.glowColor ?? activeColor;
+    final glowStrength = (item.glowStrength ?? 0.12)
+        .clamp(0.0, 0.35)
+        .toDouble();
+    final glowBlur = (item.glowBlur ?? 18.0).clamp(0.0, 40.0).toDouble();
+    final hasGlow = glowStrength > 0 && glowBlur > 0;
+    final trackGlowAlpha = (glowStrength * 0.78).clamp(0.0, 0.30).toDouble();
+    final knobGlowAlpha = (glowStrength * 0.92).clamp(0.0, 0.34).toDouble();
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final shellGap = _ToggleVisualSpec.shellTrackGap;
         final trackWidth = math.max(0.0, constraints.maxWidth - (shellGap * 2));
-        final trackHeight = math.max(0.0, constraints.maxHeight - (shellGap * 2));
+        final trackHeight = math.max(
+          0.0,
+          constraints.maxHeight - (shellGap * 2),
+        );
         final knobSize = math.min(
           math.max(0.0, trackHeight - 6),
           math.max(0.0, trackWidth * 0.42),
@@ -1007,11 +1030,12 @@ class _ToggleContent extends StatelessWidget {
                         : offColor.withValues(alpha: 0.70),
                   ),
                   boxShadow: [
-                    BoxShadow(
-                      color: activeColor.withValues(alpha: item.enabled ? 0.20 : 0.16),
-                      blurRadius: 12,
-                      spreadRadius: 0.2,
-                    ),
+                    if (hasGlow)
+                      BoxShadow(
+                        color: glowColor.withValues(alpha: trackGlowAlpha),
+                        blurRadius: math.max(12.0, glowBlur * 0.70),
+                        spreadRadius: 0.2,
+                      ),
                   ],
                 ),
                 child: Padding(
@@ -1038,10 +1062,14 @@ class _ToggleContent extends StatelessWidget {
                               ],
                             ),
                             boxShadow: [
-                              BoxShadow(
-                                color: activeColor.withValues(alpha: 0.28),
-                                blurRadius: 6,
-                              ),
+                              if (hasGlow)
+                                BoxShadow(
+                                  color: glowColor.withValues(
+                                    alpha: knobGlowAlpha,
+                                  ),
+                                  blurRadius: math.max(6.0, glowBlur * 0.34),
+                                  spreadRadius: 0.1,
+                                ),
                               const BoxShadow(
                                 color: DashboardRuntimeTheme.shadowLightColor,
                                 blurRadius: 4,
@@ -1169,7 +1197,9 @@ class _GaugePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
-      ..color = DashboardRuntimeTheme.surfaceBorderColor.withValues(alpha: 0.82);
+      ..color = DashboardRuntimeTheme.surfaceBorderColor.withValues(
+        alpha: 0.82,
+      );
     final glow = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth + 1.2
@@ -1236,10 +1266,7 @@ class _GaugePainter extends CustomPainter {
   }
 }
 
-enum _ResolvedTitlePosition {
-  topOutside,
-  bottomOutside,
-}
+enum _ResolvedTitlePosition { topOutside, bottomOutside }
 
 class _WidgetTitleOverlay extends StatelessWidget {
   const _WidgetTitleOverlay({
@@ -1251,6 +1278,7 @@ class _WidgetTitleOverlay extends StatelessWidget {
   final DashboardItem item;
   final WidgetShellLayoutSpec layout;
   final TextStyle style;
+  static const double _topTitleLift = 6.0;
 
   _ResolvedTitlePosition _resolvePosition(String raw) {
     final normalized = raw.trim().toLowerCase();
@@ -1270,7 +1298,7 @@ class _WidgetTitleOverlay extends StatelessWidget {
         return Positioned(
           left: 0,
           right: 0,
-          top: layout.titleTop,
+          top: layout.titleTop - _topTitleLift,
           child: IgnorePointer(
             child: _FloatingWidgetTitle(text: title, style: style),
           ),
@@ -1279,7 +1307,7 @@ class _WidgetTitleOverlay extends StatelessWidget {
         return Positioned(
           left: 0,
           right: 0,
-          bottom: -14,
+          bottom: layout.titleTop - _topTitleLift,
           child: IgnorePointer(
             child: _FloatingWidgetTitle(text: title, style: style),
           ),
@@ -1289,10 +1317,7 @@ class _WidgetTitleOverlay extends StatelessWidget {
 }
 
 class _FloatingWidgetTitle extends StatelessWidget {
-  const _FloatingWidgetTitle({
-    required this.text,
-    required this.style,
-  });
+  const _FloatingWidgetTitle({required this.text, required this.style});
 
   final String text;
   final TextStyle style;

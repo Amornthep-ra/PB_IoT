@@ -52,7 +52,9 @@ class _AddWidgetGridMetrics {
 }
 
 class AddWidgetSheet extends StatelessWidget {
-  const AddWidgetSheet({super.key});
+  const AddWidgetSheet({super.key, required this.scrollController});
+
+  final ScrollController? scrollController;
 
   static const List<DashboardItemType> _orderedTypes = [
     DashboardItemType.button,
@@ -107,22 +109,76 @@ class AddWidgetSheet extends StatelessWidget {
     }
   }
 
+  Widget _buildMascotGuideCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.86),
+          width: 1,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 78,
+            height: 78,
+            child: Image.asset(
+              'assets/icons/mascot/mascot_add_widget.png',
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'เลือกตัวช่วยให้เหมาะกับงาน',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: DashboardRuntimeTheme.headlineColor,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Button ใช้สั่งงานอุปกรณ์\nToggle ใช้เปิดหรือปิดสถานะ\nSlider ใช้ปรับค่าที่ต้องการ\nGauge ใช้ดูค่าจากเซนเซอร์\nValue Label ใช้แสดงค่าตัวเลขหรือข้อความ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: DashboardRuntimeTheme.mutedTextColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final screenHeight = mediaQuery.size.height;
     final shortestSide = mediaQuery.size.shortestSide;
-    final usableHeight =
-        screenHeight - mediaQuery.viewPadding.top - mediaQuery.viewInsets.bottom;
-    final heightFactor = shortestSide >= 600 ? 0.68 : 0.74;
-    final maxSheetHeight =
-        (usableHeight * heightFactor).clamp(320.0, 560.0).toDouble();
 
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxSheetHeight),
-        child: Material(
+    return Material(
           color: DashboardRuntimeTheme.cardColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
           child: DecoratedBox(
@@ -158,8 +214,9 @@ class AddWidgetSheet extends StatelessWidget {
             child: SafeArea(
               top: false,
               child: SingleChildScrollView(
+                controller: scrollController,
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
-                physics: const BouncingScrollPhysics(),
+                physics: const ClampingScrollPhysics(),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -182,17 +239,9 @@ class AddWidgetSheet extends StatelessWidget {
                         letterSpacing: -0.4,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'เลือกวิดเจ็ตเพื่อวางบนแดชบอร์ด',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: DashboardRuntimeTheme.mutedTextColor,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
+                    _buildMascotGuideCard(),
+                    const SizedBox(height: 18),
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final gridMetrics = _AddWidgetGridMetrics.resolve(
@@ -244,8 +293,6 @@ class AddWidgetSheet extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
     );
   }
 }

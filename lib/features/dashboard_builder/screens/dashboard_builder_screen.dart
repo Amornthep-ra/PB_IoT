@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../../theme/app_theme.dart';
 import '../../dashboard/models/widget_binding_model.dart';
@@ -12,6 +13,7 @@ import '../../dashboard/services/dashboard_runtime_value_storage.dart';
 import '../../dashboard/widgets/dashboard_runtime_theme.dart';
 import '../models/dashboard_builder_interaction_state.dart';
 import '../models/dashboard_item.dart';
+import '../models/dashboard_theme_preset.dart';
 import '../models/widget_settings_result.dart';
 import '../services/dashboard_add_widget_service.dart';
 import '../services/dashboard_builder_layout_storage_service.dart';
@@ -120,6 +122,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   static const double _targetCellSize = 14;
   static const int _minColumns = 18;
   static const int _maxColumns = 26;
+  static const int _maxHistoryEntries = 60;
   static const int _buttonMinW = 3;
   static const int _buttonMaxW = 32;
   static const int _buttonMinH = 3;
@@ -151,6 +154,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   final Set<String> _controlWriteInFlight = <String>{};
   final Map<String, _QueuedControlWrite> _queuedControlWrites =
       <String, _QueuedControlWrite>{};
+  Future<void> _historyPersistQueue = Future<void>.value();
+  Future<void> _draftPersistQueue = Future<void>.value();
   Timer? _snapshotPollTimer;
   Timer? _dragAutoScrollTimer;
   bool _isSnapshotRefreshing = false;
@@ -158,6 +163,9 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   bool _isLayoutLoading = true;
   bool _isLayoutSaving = false;
   String _savedLayoutSignature = '[]';
+  DashboardThemePreset _themePreset = dashboardThemePresets.first;
+  List<DashboardItem>? _pendingDraftItems;
+  DashboardBuilderHistoryState? _pendingDraftHistory;
   double _gestureStartScrollOffset = 0;
   Offset? _lastGestureGlobalPosition;
   int _latestCanvasColumns = _minColumns;
@@ -330,6 +338,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   Future<void> _loadLayoutFromStorage() async {
     try {
       final storedItems = await _layoutStorage.loadItems();
+      final storedThemePreset = await _layoutStorage.loadDashboardThemePreset();
+      final storedDraft = await _layoutStorage.loadBuilderDraft();
       if (!mounted) {
         return;
       }
@@ -337,14 +347,44 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       final runtimeResolvedItems = await _runtimeValueStorage.applyToItems(
         storedItems ?? _buildInitialItems(),
       );
+      final storedHistory = await _layoutStorage.loadBuilderHistory();
       await _runtimeValueStorage.pruneForItems(runtimeResolvedItems);
       final resolvedItems = _normalizeItems(runtimeResolvedItems);
+      final currentSignature = _layoutStorage.layoutSignature(resolvedItems);
+      final restoredHistory = storedHistory?.currentSignature == currentSignature
+          ? storedHistory
+          : null;
+      final draftItems = storedDraft == null
+          ? null
+          : _normalizeItems(List<DashboardItem>.from(storedDraft.items));
+      final hasRestorableDraft =
+          storedDraft != null &&
+          draftItems != null &&
+          storedDraft.currentSignature != currentSignature &&
+          storedDraft.currentSignature ==
+              _layoutStorage.layoutSignature(draftItems);
       setState(() {
         _items = resolvedItems;
+        _themePreset = storedThemePreset;
+        _restoreHistoryStacks(restoredHistory);
+        _pendingDraftItems = hasRestorableDraft ? draftItems : null;
+        _pendingDraftHistory = hasRestorableDraft
+            ? (storedHistory?.currentSignature == storedDraft.currentSignature
+                  ? storedHistory
+                  : null)
+            : null;
         _isLayoutLoading = false;
-        _savedLayoutSignature = _layoutStorage.layoutSignature(_items);
+        _savedLayoutSignature = currentSignature;
         _syncItemSeedFromItems();
       });
+      if (hasRestorableDraft) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(_promptRestoreDraft());
+        });
+      } else if (storedDraft != null) {
+        unawaited(_layoutStorage.clearBuilderDraft());
+        unawaited(_layoutStorage.clearBuilderHistory());
+      }
     } catch (_) {
       if (!mounted) {
         return;
@@ -369,10 +409,14 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
     try {
       await _layoutStorage.saveItems(_items);
+      await _draftPersistQueue.catchError((_) {});
+      await _layoutStorage.clearBuilderDraft();
       if (!mounted) {
         return;
       }
       setState(() {
+        _pendingDraftItems = null;
+        _pendingDraftHistory = null;
         _savedLayoutSignature = _layoutStorage.layoutSignature(_items);
       });
       if (showFeedback) {
@@ -526,6 +570,9 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         await _saveLayout(showFeedback: false);
         return !_hasUnsavedChanges;
       case _LeaveAction.discard:
+        await _draftPersistQueue.catchError((_) {});
+        await _layoutStorage.clearBuilderDraft();
+        await _layoutStorage.clearBuilderHistory();
         return true;
       case _LeaveAction.cancel:
       case null:
@@ -542,6 +589,91 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       return;
     }
     Navigator.of(context).pop();
+  }
+
+  Future<void> _promptRestoreDraft() async {
+    final draftItems = _pendingDraftItems;
+    if (!mounted || draftItems == null || _isLayoutLoading) {
+      return;
+    }
+
+    final restoreDraft = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: DashboardRuntimeTheme.cardColor,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.78)),
+          ),
+          title: const Text(
+            'Restore draft?',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: DashboardRuntimeTheme.headlineColor,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: const Text(
+            'An autosaved dashboard draft was found. Restore it or discard the draft and keep the saved layout.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: DashboardRuntimeTheme.labelTextColor,
+              height: 1.35,
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text(
+                'Discard',
+                style: TextStyle(color: Color(0xFFC96C78)),
+              ),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: DashboardRuntimeTheme.buttonStartColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              child: const Text(
+                'Restore',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (restoreDraft == true) {
+      setState(() {
+        _items = _normalizeItems(draftItems);
+        _restoreHistoryStacks(_pendingDraftHistory);
+        _pendingDraftItems = null;
+        _pendingDraftHistory = null;
+        _syncItemSeedFromItems();
+      });
+      _queuePersistBuilderDraft();
+      _queuePersistBuilderHistory();
+      return;
+    }
+
+    setState(() {
+      _pendingDraftItems = null;
+      _pendingDraftHistory = null;
+    });
+    await _layoutStorage.clearBuilderDraft();
+    await _layoutStorage.clearBuilderHistory();
   }
 
   void _syncItemSeedFromItems() {
@@ -591,9 +723,106 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     );
   }
 
+  _DashboardBuilderSnapshot _snapshotFromHistoryEntry(
+    DashboardBuilderHistoryEntry entry,
+  ) {
+    final items = _normalizeItems(List<DashboardItem>.from(entry.items));
+    final itemIds = items.map((item) => item.id).toSet();
+    final selectedIds = entry.selectedIds
+        .where((id) => itemIds.contains(id))
+        .toSet();
+    final selectedId =
+        entry.selectedId != null && itemIds.contains(entry.selectedId)
+        ? entry.selectedId
+        : (selectedIds.isEmpty ? null : selectedIds.last);
+
+    return _DashboardBuilderSnapshot(
+      items: items,
+      selectedId: selectedId,
+      selectedIds: selectedIds,
+      isMultiSelectMode: entry.isMultiSelectMode && selectedIds.length > 1,
+    );
+  }
+
+  DashboardBuilderHistoryEntry _snapshotToHistoryEntry(
+    _DashboardBuilderSnapshot snapshot,
+  ) {
+    return DashboardBuilderHistoryEntry(
+      items: List<DashboardItem>.from(snapshot.items),
+      selectedId: snapshot.selectedId,
+      selectedIds: Set<String>.from(snapshot.selectedIds),
+      isMultiSelectMode: snapshot.isMultiSelectMode,
+    );
+  }
+
+  void _restoreHistoryStacks(DashboardBuilderHistoryState? history) {
+    _undoStack
+      ..clear()
+      ..addAll(
+        (history?.undoStack ?? const <DashboardBuilderHistoryEntry>[]).map(
+          _snapshotFromHistoryEntry,
+        ),
+      );
+    _redoStack
+      ..clear()
+      ..addAll(
+        (history?.redoStack ?? const <DashboardBuilderHistoryEntry>[]).map(
+          _snapshotFromHistoryEntry,
+        ),
+      );
+  }
+
+  void _trimHistoryStack(List<_DashboardBuilderSnapshot> stack) {
+    if (stack.length <= _maxHistoryEntries) {
+      return;
+    }
+    stack.removeRange(0, stack.length - _maxHistoryEntries);
+  }
+
+  void _queuePersistBuilderHistory() {
+    if (_isLayoutLoading) {
+      return;
+    }
+
+    final currentSignature = _layoutStorage.layoutSignature(_items);
+    final undoStack = _undoStack.map(_snapshotToHistoryEntry).toList();
+    final redoStack = _redoStack.map(_snapshotToHistoryEntry).toList();
+    _historyPersistQueue = _historyPersistQueue
+        .catchError((_) {})
+        .then(
+          (_) => _layoutStorage.saveBuilderHistory(
+            currentSignature: currentSignature,
+            undoStack: undoStack,
+            redoStack: redoStack,
+          ),
+        )
+        .catchError((_) {
+          // Silent: history persistence should never block editing.
+    });
+    unawaited(_historyPersistQueue);
+  }
+
+  void _queuePersistBuilderDraft() {
+    if (_isLayoutLoading) {
+      return;
+    }
+
+    final items = List<DashboardItem>.from(_items);
+    _draftPersistQueue = _draftPersistQueue
+        .catchError((_) {})
+        .then((_) => _layoutStorage.saveBuilderDraft(items))
+        .catchError((_) {
+          // Silent: draft persistence should never interrupt editing.
+        });
+    unawaited(_draftPersistQueue);
+  }
+
   void _pushUndoSnapshot() {
     _undoStack.add(_captureSnapshot());
+    _trimHistoryStack(_undoStack);
     _redoStack.clear();
+    unawaited(Future<void>.microtask(_queuePersistBuilderHistory));
+    unawaited(Future<void>.microtask(_queuePersistBuilderDraft));
   }
 
   void _restoreSnapshot(_DashboardBuilderSnapshot snapshot) {
@@ -613,8 +842,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
     setState(() {
       _redoStack.add(_captureSnapshot());
+      _trimHistoryStack(_redoStack);
       _restoreSnapshot(_undoStack.removeLast());
     });
+    _queuePersistBuilderHistory();
+    _queuePersistBuilderDraft();
   }
 
   void _redo() {
@@ -624,8 +856,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
     setState(() {
       _undoStack.add(_captureSnapshot());
+      _trimHistoryStack(_undoStack);
       _restoreSnapshot(_redoStack.removeLast());
     });
+    _queuePersistBuilderHistory();
+    _queuePersistBuilderDraft();
   }
 
   void _setSingleSelection(String id) {
@@ -652,22 +887,18 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
   bool _canResizeVertically(DashboardItem item) => item.minH != item.maxH;
 
-  BoxDecoration get _pageDecoration => const BoxDecoration(
+  BoxDecoration get _pageDecoration => BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [DashboardRuntimeTheme.backgroundColor, Color(0xFFF8FBF8)],
+      colors: <Color>[_themePreset.pageStart, _themePreset.pageEnd],
     ),
   );
 
   BoxDecoration get _canvasDecoration => AppGlassTheme.surfaceDecoration(
     radius: 34,
     borderAlpha: 0.62,
-    colors: <Color>[
-      const Color(0xFFFFFFFF).withValues(alpha: 0.56),
-      const Color(0xFFF2F8FB).withValues(alpha: 0.34),
-      const Color(0xFFEAF3F8).withValues(alpha: 0.26),
-    ],
+    colors: _themePreset.canvasColors,
     shadows: AppGlassTheme.shadowLg,
   );
 
@@ -1724,6 +1955,620 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     );
   }
 
+  Future<void> _openThemeAction() async {
+    final selectedPresetName = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const outerHorizontalPadding = 28.0;
+              const sheetHorizontalPadding = 36.0;
+              const tileGap = 8.0;
+              final tileWidth =
+                  (constraints.maxWidth -
+                      outerHorizontalPadding -
+                      sheetHorizontalPadding -
+                      (tileGap * 2)) /
+                  3;
+
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                child: DecoratedBox(
+                  decoration: DashboardRuntimeTheme.cardDecoration(radius: 28),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(15),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 10,
+                                  sigmaY: 10,
+                                ),
+                                child: Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: AppGlassTheme.surfaceDecoration(
+                                    radius: 15,
+                                    borderAlpha: 0.34,
+                                    colors: <Color>[
+                                      Colors.white.withValues(alpha: 0.62),
+                                      const Color(
+                                        0xFFEAF3FF,
+                                      ).withValues(alpha: 0.26),
+                                    ],
+                                    shadows: const <BoxShadow>[],
+                                  ),
+                                  child: const Icon(
+                                    Icons.palette_rounded,
+                                    color: DashboardRuntimeTheme.labelTextColor,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'Dashboard Theme',
+                                style: TextStyle(
+                                  color: DashboardRuntimeTheme.headlineColor,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.close_rounded),
+                              color: DashboardRuntimeTheme.labelTextColor,
+                              tooltip: 'Close',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: tileGap,
+                          runSpacing: tileGap,
+                          children: [
+                            for (final preset in dashboardThemePresets)
+                              _buildThemePresetTile(
+                                context,
+                                preset,
+                                width: tileWidth,
+                              ),
+                            _buildCustomThemeTile(context, width: tileWidth),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selectedPresetName == null) {
+      return;
+    }
+
+    final selectedPreset = selectedPresetName == customDashboardThemeName
+        ? await _openCustomThemeEditor()
+        : dashboardThemePresetByName(selectedPresetName);
+    if (!mounted || selectedPreset == null) {
+      return;
+    }
+
+    setState(() {
+      _themePreset = selectedPreset;
+    });
+
+    try {
+      await _layoutStorage.saveDashboardThemePreset(selectedPreset);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save dashboard theme.')),
+      );
+    }
+  }
+
+  Widget _buildThemeAction() {
+    final canOpenTheme = _isEditMode && !_isLayoutLoading;
+    return DecoratedBox(
+      decoration: AppGlassTheme.surfaceDecoration(
+        radius: 999,
+        borderAlpha: canOpenTheme ? 0.66 : 0.56,
+        colors: <Color>[
+          const Color(0xFFFFFFFF).withValues(alpha: canOpenTheme ? 0.62 : 0.46),
+          const Color(0xFFEAF2F8).withValues(alpha: canOpenTheme ? 0.34 : 0.22),
+        ],
+        shadows: const <BoxShadow>[],
+      ),
+      child: IconButton(
+        onPressed: canOpenTheme ? _openThemeAction : null,
+        icon: Icon(
+          Icons.palette_rounded,
+          size: 17,
+          color: canOpenTheme
+              ? DashboardRuntimeTheme.headlineColor
+              : DashboardRuntimeTheme.mutedTextColor,
+        ),
+        padding: const EdgeInsets.all(7),
+        constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+        splashRadius: 18,
+        tooltip: 'Theme',
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemePresetTile(
+    BuildContext context,
+    DashboardThemePreset preset, {
+    required double width,
+  }) {
+    final isSelected = preset.name == _themePreset.name;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => Navigator.of(context).pop(preset.name),
+        child: Container(
+          width: width,
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isSelected
+                  ? DashboardRuntimeTheme.surfaceBorderFocusColor
+                  : DashboardRuntimeTheme.surfaceBorderColor,
+              width: isSelected ? 1.6 : 1,
+            ),
+            color: DashboardRuntimeTheme.surfaceColor,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(13),
+                child: SizedBox(
+                  height: 46,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: <Color>[preset.pageStart, preset.pageEnd],
+                            ),
+                          ),
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                      Expanded(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: preset.canvasColors,
+                            ),
+                          ),
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      preset.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: DashboardRuntimeTheme.headlineColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 15,
+                      color: DashboardRuntimeTheme.surfaceBorderFocusColor,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomThemeTile(BuildContext context, {required double width}) {
+    final isSelected = _themePreset.name == customDashboardThemeName;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => Navigator.of(context).pop(customDashboardThemeName),
+        child: Container(
+          width: width,
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isSelected
+                  ? DashboardRuntimeTheme.surfaceBorderFocusColor
+                  : DashboardRuntimeTheme.surfaceBorderColor,
+              width: isSelected ? 1.6 : 1,
+            ),
+            color: DashboardRuntimeTheme.surfaceColor,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(13),
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      _themePreset.canvasColors.first,
+                      _themePreset.gridColor.withValues(alpha: 0.78),
+                    ],
+                  ),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.tune_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      customDashboardThemeName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: DashboardRuntimeTheme.headlineColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 15,
+                      color: DashboardRuntimeTheme.surfaceBorderFocusColor,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<DashboardThemePreset?> _openCustomThemeEditor() async {
+    var canvasColor = _themePreset.canvasColors.first.withAlpha(255);
+    var gridColor = _themePreset.gridColor.withAlpha(255);
+
+    return showModalBottomSheet<DashboardThemePreset>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final draftPreset = dashboardCustomThemePreset(
+              canvasColor: canvasColor,
+              gridColor: gridColor,
+            );
+
+            Future<void> pickColor({
+              required String title,
+              required Color initialColor,
+              required ValueChanged<Color> onPicked,
+            }) async {
+              final nextColor = await _openThemeColorPicker(
+                context: context,
+                title: title,
+                initialColor: initialColor,
+              );
+              if (nextColor == null) {
+                return;
+              }
+              setSheetState(() => onPicked(nextColor));
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  14,
+                  12,
+                  14,
+                  MediaQuery.of(context).viewInsets.bottom + 18,
+                ),
+                child: DecoratedBox(
+                  decoration: DashboardRuntimeTheme.cardDecoration(radius: 28),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Custom Theme',
+                                style: TextStyle(
+                                  color: DashboardRuntimeTheme.headlineColor,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.close_rounded),
+                              color: DashboardRuntimeTheme.labelTextColor,
+                              tooltip: 'Close',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: SizedBox(
+                            height: 96,
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: draftPreset.canvasColors,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned.fill(
+                                  child: CustomPaint(
+                                    painter: DashboardGridPainter(
+                                      columns: 8,
+                                      rows: 4,
+                                      gap: 0,
+                                      lineColor: draftPreset.gridColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _buildCustomColorRow(
+                          label: 'Canvas',
+                          color: canvasColor,
+                          onTap: () => pickColor(
+                            title: 'Canvas Color',
+                            initialColor: canvasColor,
+                            onPicked: (color) => canvasColor = color,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildCustomColorRow(
+                          label: 'Grid',
+                          color: gridColor,
+                          onTap: () => pickColor(
+                            title: 'Grid Color',
+                            initialColor: gridColor,
+                            onPicked: (color) => gridColor = color,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: DecoratedBox(
+                            decoration: AppGlassTheme.accentDecoration(
+                              radius: 16,
+                              borderColor:
+                                  DashboardRuntimeTheme.surfaceBorderFocusColor,
+                              colors: const <Color>[
+                                DashboardRuntimeTheme.buttonStartColor,
+                                DashboardRuntimeTheme.buttonEndColor,
+                              ],
+                              glowColor: DashboardRuntimeTheme.buttonGlowColor,
+                            ),
+                            child: TextButton(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(draftPreset),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                backgroundColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: const Text(
+                                'Apply',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCustomColorRow({
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: DashboardRuntimeTheme.surfaceBorderColor),
+            color: DashboardRuntimeTheme.surfaceColor,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: DashboardRuntimeTheme.headlineColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: DashboardRuntimeTheme.labelTextColor,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<Color?> _openThemeColorPicker({
+    required BuildContext context,
+    required String title,
+    required Color initialColor,
+  }) async {
+    var draftColor = initialColor;
+    return showModalBottomSheet<Color>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  14,
+                  12,
+                  14,
+                  MediaQuery.of(context).viewInsets.bottom + 18,
+                ),
+                child: DecoratedBox(
+                  decoration: DashboardRuntimeTheme.cardDecoration(radius: 28),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: DashboardRuntimeTheme.headlineColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: ColorPicker(
+                            pickerColor: draftColor,
+                            onColorChanged: (color) {
+                              setSheetState(() {
+                                draftColor = color.withAlpha(255);
+                              });
+                            },
+                            enableAlpha: false,
+                            displayThumbColor: true,
+                            portraitOnly: true,
+                            labelTypes: const <ColorLabelType>[],
+                            pickerAreaHeightPercent: 0.72,
+                            hexInputBar: false,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(draftColor),
+                            child: const Text('Done'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildInfoAction() {
     final canOpenInfo = _isEditMode;
     return DecoratedBox(
@@ -1736,23 +2581,23 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         ],
         shadows: const <BoxShadow>[],
       ),
-      child: TextButton.icon(
+      child: IconButton(
         onPressed: canOpenInfo ? _openEditModeInfoSheet : null,
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          foregroundColor: canOpenInfo
+        icon: Icon(
+          Icons.info_outline_rounded,
+          size: 17,
+          color: canOpenInfo
               ? DashboardRuntimeTheme.headlineColor
               : DashboardRuntimeTheme.mutedTextColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
-          ),
-          backgroundColor: Colors.transparent,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        icon: const Icon(Icons.info_outline_rounded, size: 13),
-        label: const Text(
-          'Info',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+        padding: const EdgeInsets.all(7),
+        constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+        splashRadius: 18,
+        tooltip: 'Info',
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ),
     );
@@ -1829,7 +2674,6 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                             BoxShadow(
                               color: DashboardRuntimeTheme.shadowLightColor,
                               blurRadius: 12,
-                              offset: const Offset(-6, -6),
                             ),
                             BoxShadow(
                               color: accentLineColor.withValues(alpha: 0.14),
@@ -1853,7 +2697,6 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                             BoxShadow(
                               color: DashboardRuntimeTheme.shadowLightColor,
                               blurRadius: 6,
-                              offset: Offset(-3, -3),
                             ),
                             BoxShadow(
                               color: DashboardRuntimeTheme.shadowDarkColor,
@@ -2101,7 +2944,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         final bodyFontSize = maxWidth < 360 ? 13.0 : 14.0;
         final topBottomPadding = maxHeight < 560 ? 20.0 : 30.0;
 
-        return Center(
+        return Align(
+          alignment: const Alignment(0, 0.78),
           child: SingleChildScrollView(
             physics: const NeverScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
@@ -2110,9 +2954,12 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
               30,
               topBottomPadding,
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: BackdropFilter(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 360),
@@ -2129,25 +2976,6 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: AppGlassTheme.accentDecoration(
-                          radius: 999,
-                          borderColor: const Color(0xFF9EC3F0),
-                          colors: const <Color>[
-                            Color(0xFFB6D2F5),
-                            Color(0xFF82AEE8),
-                          ],
-                          glowColor: const Color(0xFF82AEE8),
-                        ),
-                        child: const Icon(
-                          Icons.dashboard_customize_outlined,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
                       Text(
                         'เริ่มจัดวางวิดเจ็ตใน Edit Mode',
                         textAlign: TextAlign.center,
@@ -2171,7 +2999,39 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                     ],
                   ),
                 ),
-              ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: 116,
+                  child: Stack(
+                    children: [
+                      Align(
+                        alignment: const Alignment(-0.58, 0),
+                        child: SizedBox(
+                          width: 116,
+                          height: 116,
+                          child: Image.asset(
+                            'assets/icons/mascot/mascot_editMode.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: const Alignment(0.58, 0),
+                        child: SizedBox(
+                          width: 116,
+                          height: 116,
+                          child: Image.asset(
+                            'assets/icons/mascot/mascot_editMode2.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -2224,7 +3084,21 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => const AddWidgetSheet(),
+      builder: (context) {
+        final mediaQuery = MediaQuery.of(context);
+        final shortestSide = mediaQuery.size.shortestSide;
+        final initialChildSize = shortestSide >= 600 ? 0.56 : 0.62;
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: initialChildSize,
+          minChildSize: 0.32,
+          maxChildSize: initialChildSize,
+          builder: (context, scrollController) {
+            return AddWidgetSheet(scrollController: scrollController);
+          },
+        );
+      },
     );
 
     if (!mounted || type == null) {
@@ -2270,7 +3144,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   }
 
   void _startMove(DashboardItem item, Offset globalPosition) {
-    if (!_isEditMode) {
+    if (!_isEditMode || item.locked) {
       return;
     }
 
@@ -2293,6 +3167,10 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     required double stepX,
     required double stepY,
   }) {
+    if (item.locked) {
+      return;
+    }
+
     final startGlobal = _gestureStartGlobal;
     final startRect = _gestureStartRect;
     if (startGlobal == null || startRect == null) {
@@ -2319,7 +3197,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     Offset globalPosition, {
     required DashboardBuilderResizeHandlePosition handle,
   }) {
-    if (!_isEditMode) {
+    if (!_isEditMode || item.locked) {
       return;
     }
 
@@ -2342,6 +3220,10 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     required double stepX,
     required double stepY,
   }) {
+    if (item.locked) {
+      return;
+    }
+
     final startGlobal = _gestureStartGlobal;
     final startRect = _gestureStartRect;
     final handle = _activeResizeHandle;
@@ -2738,6 +3620,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
           actions: [
             _buildSaveAction(),
             const SizedBox(width: 5),
+            _buildThemeAction(),
+            const SizedBox(width: 5),
             _buildInfoAction(),
             const SizedBox(width: 8),
           ],
@@ -2875,6 +3759,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                                   columns: columns,
                                                   rows: rows,
                                                   gap: _gridGap,
+                                                  lineColor:
+                                                      _themePreset.gridColor,
                                                 ),
                                               ),
                                             ),
@@ -2943,13 +3829,15 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     final isActiveGestureItem = _activeGestureItemId == item.id;
     final isBeingResized = isActiveGestureItem && _activeResizeHandle != null;
     final isBeingDragged = isActiveGestureItem;
+    final isLocked = item.locked;
     final showSelectionChrome = _isEditMode && isSelected;
     final showHandles =
         _isEditMode &&
         isSelected &&
         _hasSingleSelection &&
         !_isMultiSelectMode &&
-        !isBeingDragged;
+        !isBeingDragged &&
+        !isLocked;
     final canResizeHorizontally = _canResizeHorizontally(item);
     final canResizeVertically = _canResizeVertically(item);
     final showTopHandle = showHandles && canResizeVertically;
@@ -3106,18 +3994,22 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                     bottom: 0,
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
-                      onLongPressStart: (details) {
-                        _startMove(item, details.globalPosition);
-                      },
-                      onLongPressMoveUpdate: (details) => _updateMove(
-                        item: item,
-                        globalPosition: details.globalPosition,
-                        columns: columns,
-                        stepX: stepX,
-                        stepY: stepY,
-                      ),
-                      onLongPressEnd: (_) => _finishGesture(),
-                      onLongPressCancel: _finishGesture,
+                      onLongPressStart: isLocked
+                          ? null
+                          : (details) {
+                              _startMove(item, details.globalPosition);
+                            },
+                      onLongPressMoveUpdate: isLocked
+                          ? null
+                          : (details) => _updateMove(
+                              item: item,
+                              globalPosition: details.globalPosition,
+                              columns: columns,
+                              stepX: stepX,
+                              stepY: stepY,
+                            ),
+                      onLongPressEnd: isLocked ? null : (_) => _finishGesture(),
+                      onLongPressCancel: isLocked ? null : _finishGesture,
                     ),
                   ),
                 Positioned.fill(
@@ -3134,12 +4026,12 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                             });
                           }
                         : null,
-                    onLongPressStart: _isEditMode
+                    onLongPressStart: _isEditMode && !isLocked
                         ? (details) {
                             _startMove(item, details.globalPosition);
                           }
                         : null,
-                    onLongPressMoveUpdate: _isEditMode
+                    onLongPressMoveUpdate: _isEditMode && !isLocked
                         ? (details) => _updateMove(
                             item: item,
                             globalPosition: details.globalPosition,
@@ -3148,10 +4040,12 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                             stepY: stepY,
                           )
                         : null,
-                    onLongPressEnd: _isEditMode
+                    onLongPressEnd: _isEditMode && !isLocked
                         ? (_) => _finishGesture()
                         : null,
-                    onLongPressCancel: _isEditMode ? _finishGesture : null,
+                    onLongPressCancel: _isEditMode && !isLocked
+                        ? _finishGesture
+                        : null,
                     child: AnimatedScale(
                       duration: positionAnimationDuration,
                       curve: positionAnimationCurve,
@@ -3205,6 +4099,14 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                 ),
                               ),
                             ),
+                            if (_isEditMode && isLocked)
+                              Positioned(
+                                right: -5,
+                                top: -5,
+                                child: _LockedWidgetBadge(
+                                  compact: width < 54 || height < 54,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -3779,6 +4681,45 @@ class _ResizeHandle extends StatelessWidget {
   }
 }
 
+class _LockedWidgetBadge extends StatelessWidget {
+  const _LockedWidgetBadge({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 13.0 : 16.0;
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: DashboardRuntimeTheme.cardColor.withValues(alpha: 0.88),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.82),
+            width: 1,
+          ),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: DashboardRuntimeTheme.shadowDarkColor,
+              blurRadius: 5,
+              offset: Offset(1, 2),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Icon(
+            Icons.lock_rounded,
+            size: compact ? 7.5 : 9,
+            color: DashboardRuntimeTheme.labelTextColor,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BuilderActionButton extends StatelessWidget {
   const _BuilderActionButton({
     required this.icon,
@@ -3823,7 +4764,6 @@ class _BuilderActionButton extends StatelessWidget {
               const BoxShadow(
                 color: DashboardRuntimeTheme.shadowLightColor,
                 blurRadius: 6,
-                offset: Offset(-3, -3),
               ),
               BoxShadow(
                 color: (glowColor ?? foregroundColor).withValues(

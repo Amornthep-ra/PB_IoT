@@ -10,7 +10,6 @@ import '../../dashboard/services/dashboard_runtime_controller.dart';
 import '../../dashboard/services/dashboard_service.dart';
 import '../../dashboard/widgets/dashboard_runtime_theme.dart';
 import '../models/dashboard_item.dart';
-import '../services/dashboard_builder_layout_storage_service.dart';
 import 'dashboard_item_renderer.dart';
 
 class _QueuedControlWrite {
@@ -18,11 +17,28 @@ class _QueuedControlWrite {
     required this.pin,
     required this.value,
     required this.valueType,
+    required this.rollbackItems,
+    required this.rollbackRevision,
   });
 
   final String pin;
   final Object value;
   final WidgetBindingValueType valueType;
+  final List<DashboardItem> rollbackItems;
+  final int rollbackRevision;
+
+  _QueuedControlWrite copyWith({
+    List<DashboardItem>? rollbackItems,
+    int? rollbackRevision,
+  }) {
+    return _QueuedControlWrite(
+      pin: pin,
+      value: value,
+      valueType: valueType,
+      rollbackItems: rollbackItems ?? this.rollbackItems,
+      rollbackRevision: rollbackRevision ?? this.rollbackRevision,
+    );
+  }
 }
 
 class DashboardHomeView extends StatefulWidget {
@@ -42,32 +58,37 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   static const double _targetCellSize = 14;
   static const int _minColumns = 18;
   static const int _maxColumns = 26;
-  static const Duration _controlTapCooldown = Duration(seconds: 3);
-  static const String _cooldownStatusKey = 'control-cooldown';
+  static const Duration _controlTapCooldown = Duration(milliseconds: 1500);
 
   final DashboardService _dashboardService = DashboardService();
   final Map<String, Timer> _controlWriteDebounceTimers = <String, Timer>{};
   final Set<String> _controlWriteInFlight = <String>{};
+  final Map<String, _QueuedControlWrite> _controlWriteInFlightPayloads =
+      <String, _QueuedControlWrite>{};
   final Map<String, _QueuedControlWrite> _queuedControlWrites =
       <String, _QueuedControlWrite>{};
   final Map<String, DateTime> _recentControlInteractions = <String, DateTime>{};
-  ValueNotifier<String>? _statusTextNotifierCache;
-  final ValueNotifier<Color> _statusColorNotifier = ValueNotifier<Color>(
-    DashboardRuntimeTheme.buttonEndColor,
-  );
-  final ValueNotifier<IconData> _statusIconNotifier = ValueNotifier<IconData>(
-    Icons.schedule_rounded,
-  );
-  Timer? _cooldownStatusTimer;
-  String? _activeStatusKey;
+  int _controlWriteRevision = 0;
+  bool _runtimeRefreshFrameScheduled = false;
 
   DashboardRuntimeController get _runtimeController => widget.runtimeController;
   List<DashboardItem> get _items => _runtimeController.items;
   bool get _isLoading => _runtimeController.isLoading;
   String? get _errorText => _runtimeController.errorText;
   String get _dashboardTitle => _runtimeController.dashboardTitle;
-  ValueNotifier<String> get _statusTextNotifier =>
-      _statusTextNotifierCache ??= ValueNotifier<String>('');
+  BoxDecoration get _pageDecoration => const BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: <Color>[DashboardRuntimeTheme.backgroundColor, Color(0xFFF8FBF8)],
+    ),
+  );
+  BoxDecoration get _canvasDecoration => AppGlassTheme.surfaceDecoration(
+    radius: 28,
+    borderAlpha: 0.58,
+    colors: _runtimeController.themePreset.canvasColors,
+    shadows: AppGlassTheme.shadowSm,
+  );
 
   @override
   void initState() {
@@ -83,11 +104,8 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       timer.cancel();
     }
     _controlWriteDebounceTimers.clear();
+    _controlWriteInFlightPayloads.clear();
     _queuedControlWrites.clear();
-    _cooldownStatusTimer?.cancel();
-    _statusTextNotifierCache?.dispose();
-    _statusColorNotifier.dispose();
-    _statusIconNotifier.dispose();
     super.dispose();
   }
 
@@ -95,222 +113,37 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     if (!mounted) {
       return;
     }
-    setState(() {});
+    _setStateSafely(() {});
+  }
+
+  void _setStateSafely(VoidCallback update) {
+    if (!mounted) {
+      return;
+    }
+
+    void applyUpdate() {
+      if (!mounted) {
+        return;
+      }
+      setState(update);
+    }
+
+    try {
+      applyUpdate();
+    } on FlutterError {
+      if (_runtimeRefreshFrameScheduled) {
+        return;
+      }
+      _runtimeRefreshFrameScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _runtimeRefreshFrameScheduled = false;
+        applyUpdate();
+      });
+    }
   }
 
   Future<void> _reloadDashboardDataAfterBuilder() async {
     await _runtimeController.reloadFromStorageAndSnapshot();
-  }
-
-  Future<void> _renameDashboardTitle() async {
-    final controller = TextEditingController(text: _dashboardTitle);
-    final nextTitle = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        final mediaQuery = MediaQuery.of(context);
-        final maxDialogHeight =
-            (mediaQuery.size.height - mediaQuery.viewInsets.bottom - 48).clamp(
-              220.0,
-              mediaQuery.size.height * 0.8,
-            );
-
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxDialogHeight),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-                  decoration: AppGlassTheme.surfaceDecoration(
-                    radius: 22,
-                    borderAlpha: 0.60,
-                    colors: <Color>[
-                      const Color(0xFFFFFFFF).withValues(alpha: 0.70),
-                      const Color(0xFFF4FBF7).withValues(alpha: 0.46),
-                    ],
-                    shadows: const <BoxShadow>[
-                      BoxShadow(
-                        color: Color(0x120F172A),
-                        blurRadius: 18,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Rename Dashboard',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: DashboardRuntimeTheme.headlineColor,
-                            letterSpacing: -0.1,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Project Name',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: DashboardRuntimeTheme.labelTextColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                            child: DecoratedBox(
-                              decoration: AppGlassTheme.surfaceDecoration(
-                                radius: 18,
-                                borderAlpha: 0.76,
-                                colors: <Color>[
-                                  const Color(
-                                    0xFFFFFFFF,
-                                  ).withValues(alpha: 0.68),
-                                  const Color(
-                                    0xFFEAF7F1,
-                                  ).withValues(alpha: 0.38),
-                                ],
-                                shadows: const <BoxShadow>[],
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                ),
-                                child: TextField(
-                                  controller: controller,
-                                  autofocus: true,
-                                  textInputAction: TextInputAction.done,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: DashboardRuntimeTheme.fieldTextColor,
-                                  ),
-                                  decoration: const InputDecoration(
-                                    hintText: 'Enter project name',
-                                    hintStyle: TextStyle(
-                                      color:
-                                          DashboardRuntimeTheme.mutedTextColor,
-                                    ),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                  ),
-                                  onSubmitted: (value) {
-                                    Navigator.of(context).pop(value);
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            DecoratedBox(
-                              decoration: AppGlassTheme.accentDecoration(
-                                radius: 16,
-                                borderColor: const Color(0xFFF1A6A1),
-                                colors: const <Color>[
-                                  Color(0xFFF3B0AA),
-                                  Color(0xFFE58983),
-                                ],
-                                glowColor: const Color(0xFFE58983),
-                              ),
-                              child: TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  minimumSize: const Size(84, 42),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  textStyle: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  backgroundColor: Colors.transparent,
-                                ),
-                                child: const Text('Cancel'),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            DecoratedBox(
-                              decoration: AppGlassTheme.accentDecoration(
-                                radius: 16,
-                                borderColor: const Color(0xFF9BD0AE),
-                                colors: const <Color>[
-                                  Color(0xFFA6D9B7),
-                                  Color(0xFF79BE93),
-                                ],
-                                glowColor: const Color(0xFF79BE93),
-                              ),
-                              child: FilledButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(controller.text),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  foregroundColor: Colors.white,
-                                  minimumSize: const Size(88, 42),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  textStyle: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                                child: const Text('Save'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    if (nextTitle == null) {
-      return;
-    }
-
-    final normalizedTitle = nextTitle.trim().isEmpty
-        ? DashboardBuilderLayoutStorageService.defaultDashboardTitle
-        : nextTitle.trim();
-
-    if (normalizedTitle == _dashboardTitle) {
-      return;
-    }
-
-    await _runtimeController.saveDashboardTitle(normalizedTitle);
   }
 
   void _updateItemFromRenderer(DashboardItem nextItem) {
@@ -322,6 +155,8 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       return;
     }
 
+    final rollbackItems = List<DashboardItem>.unmodifiable(_items);
+    final rollbackRevision = ++_controlWriteRevision;
     final nextItems = _syncItemsForSharedBinding(
       source: nextItem,
       items: _items,
@@ -330,7 +165,12 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     unawaited(_runtimeController.updateRuntimeItems(nextItems));
 
     unawaited(
-      _writeControlValueIfNeeded(previous: previousItem, next: nextItem),
+      _writeControlValueIfNeeded(
+        previous: previousItem,
+        next: nextItem,
+        rollbackItems: rollbackItems,
+        rollbackRevision: rollbackRevision,
+      ),
     );
   }
 
@@ -446,9 +286,16 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         type == DashboardItemType.slider;
   }
 
+  bool _isMomentaryButton(DashboardItem item) {
+    return item.type == DashboardItemType.button &&
+        item.sendBehavior.trim().toLowerCase() == 'push';
+  }
+
   Future<void> _writeControlValueIfNeeded({
     required DashboardItem previous,
     required DashboardItem next,
+    required List<DashboardItem> rollbackItems,
+    required int rollbackRevision,
   }) async {
     if (!_isControlWidget(next.type)) {
       return;
@@ -477,6 +324,8 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       pin: pin,
       value: value,
       valueType: _resolveBindingValueType(next),
+      rollbackItems: rollbackItems,
+      rollbackRevision: rollbackRevision,
     );
 
     final sendBehavior = next.sendBehavior.trim().toLowerCase();
@@ -518,12 +367,16 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       return false;
     }
 
+    final isMomentaryButtonPress =
+        _isMomentaryButton(previous) && !previous.enabled && next.enabled;
+    if (isMomentaryButtonPress) {
+      return true;
+    }
+
     final isMomentaryButtonRelease =
-        previous.type == DashboardItemType.button &&
-        previous.sendBehavior.trim().toLowerCase() == 'push' &&
-        previous.enabled &&
-        !next.enabled;
+        _isMomentaryButton(previous) && previous.enabled && !next.enabled;
     if (isMomentaryButtonRelease) {
+      _markControlInteraction(next);
       return true;
     }
 
@@ -531,27 +384,34 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       return true;
     }
 
-    final interactionKey = '${next.id}:${next.type.name}';
+    final interactionKey = _interactionKey(next);
     final now = DateTime.now();
     final previousAt = _recentControlInteractions[interactionKey];
     if (previousAt != null &&
         now.difference(previousAt) < _controlTapCooldown) {
-      _showCooldownStatus(previousAt);
       return false;
     }
-    _recentControlInteractions[interactionKey] = now;
+    _markControlInteraction(next);
+    return true;
+  }
+
+  String _interactionKey(DashboardItem item) => '${item.id}:${item.type.name}';
+
+  void _markControlInteraction(DashboardItem item) {
+    _recentControlInteractions[_interactionKey(item)] = DateTime.now();
     unawaited(
       Future<void>.delayed(_controlTapCooldown, () {
-        if (mounted) {
-          setState(() {});
-        }
+        _setStateSafely(() {});
       }),
     );
-    return true;
   }
 
   bool _isItemInteractionLocked(DashboardItem item) {
     if (!_isControlWidget(item.type)) {
+      return false;
+    }
+
+    if (_isMomentaryButton(item) && item.enabled) {
       return false;
     }
 
@@ -568,24 +428,12 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       return false;
     }
 
-    final interactionKey = '${item.id}:${item.type.name}';
+    final interactionKey = _interactionKey(item);
     final previousAt = _recentControlInteractions[interactionKey];
     if (previousAt == null) {
       return false;
     }
     return DateTime.now().difference(previousAt) < _controlTapCooldown;
-  }
-
-  void _showLockedInteractionNotice(DashboardItem item) {
-    if (!_isControlWidget(item.type) || !_isItemInteractionLocked(item)) {
-      return;
-    }
-    final interactionKey = '${item.id}:${item.type.name}';
-    final previousAt = _recentControlInteractions[interactionKey];
-    if (previousAt == null) {
-      return;
-    }
-    _showCooldownStatus(previousAt);
   }
 
   bool _isWritableBindingMode(String mode) {
@@ -651,7 +499,10 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     required _QueuedControlWrite payload,
   }) {
     if (_controlWriteInFlight.contains(writeKey)) {
-      _queuedControlWrites[writeKey] = payload;
+      final activePayload = _controlWriteInFlightPayloads[writeKey];
+      _queuedControlWrites[writeKey] = activePayload == null
+          ? payload
+          : payload.copyWith(rollbackItems: activePayload.rollbackItems);
       return;
     }
     unawaited(_sendControlWrite(writeKey: writeKey, payload: payload));
@@ -662,9 +513,9 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     required _QueuedControlWrite payload,
   }) async {
     _controlWriteInFlight.add(writeKey);
-    if (mounted) {
-      setState(() {});
-    }
+    _controlWriteInFlightPayloads[writeKey] = payload;
+    _setStateSafely(() {});
+    var shouldRollback = false;
     try {
       await _dashboardService.writeBindingValue(
         binding: WidgetBindingModel(
@@ -678,6 +529,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       if (!mounted) {
         return;
       }
+      shouldRollback = true;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
@@ -685,6 +537,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       if (!mounted) {
         return;
       }
+      shouldRollback = true;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -694,9 +547,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       );
     } finally {
       _controlWriteInFlight.remove(writeKey);
+      _controlWriteInFlightPayloads.remove(writeKey);
       final queued = _queuedControlWrites.remove(writeKey);
-      if (mounted) {
-        setState(() {});
+      _setStateSafely(() {});
+      if (shouldRollback && queued == null) {
+        await _rollbackControlWriteIfCurrent(payload);
       }
       if (queued != null) {
         _enqueueOrSendControlWrite(writeKey: writeKey, payload: queued);
@@ -704,181 +559,14 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     }
   }
 
-  int _remainingCooldownSeconds(DateTime startedAt) {
-    final remaining =
-        _controlTapCooldown - DateTime.now().difference(startedAt);
-    final milliseconds = remaining.inMilliseconds;
-    if (milliseconds <= 0) {
-      return 0;
-    }
-    return ((milliseconds + 999) ~/ 1000)
-        .clamp(1, _controlTapCooldown.inSeconds)
-        .toInt();
-  }
-
-  String _cooldownStatusMessage(int seconds) {
-    return 'รออีก $seconds วินาที';
-  }
-
-  void _setCooldownStatus(int seconds) {
-    _statusTextNotifier.value = _cooldownStatusMessage(seconds);
-    _statusColorNotifier.value = DashboardRuntimeTheme.errorTextColor;
-    _statusIconNotifier.value = Icons.schedule_rounded;
-  }
-
-  void _setReadyStatus() {
-    _statusTextNotifier.value = 'พร้อมกดอีกครั้ง';
-    _statusColorNotifier.value = DashboardRuntimeTheme.buttonEndColor;
-    _statusIconNotifier.value = Icons.check_circle_rounded;
-  }
-
-  void _showCooldownStatus(DateTime startedAt) {
-    if (!mounted) {
+  Future<void> _rollbackControlWriteIfCurrent(
+    _QueuedControlWrite payload,
+  ) async {
+    if (!mounted || payload.rollbackRevision != _controlWriteRevision) {
       return;
     }
-    final remainingSeconds = _remainingCooldownSeconds(startedAt);
-    if (remainingSeconds <= 0) {
-      return;
-    }
-
-    _showStatusSnackBar(
-      statusKey: _cooldownStatusKey,
-      message: _cooldownStatusMessage(remainingSeconds),
-      color: DashboardRuntimeTheme.errorTextColor,
-      icon: Icons.schedule_rounded,
-      duration: const Duration(days: 1),
-    );
-    _cooldownStatusTimer?.cancel();
-    _cooldownStatusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      final nextSeconds = _remainingCooldownSeconds(startedAt);
-      if (nextSeconds <= 0) {
-        timer.cancel();
-        if (_activeStatusKey == _cooldownStatusKey) {
-          _setReadyStatus();
-          Future<void>.delayed(const Duration(milliseconds: 450), () {
-            if (mounted && _activeStatusKey == _cooldownStatusKey) {
-              ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
-            }
-          });
-        }
-        return;
-      }
-
-      _setCooldownStatus(nextSeconds);
-    });
-  }
-
-  void _showStatusSnackBar({
-    required String statusKey,
-    required String message,
-    required Color color,
-    required IconData icon,
-    required Duration duration,
-  }) {
-    if (!mounted) {
-      return;
-    }
-    final statusTextNotifier = _statusTextNotifier;
-    statusTextNotifier.value = message;
-    _statusColorNotifier.value = color;
-    _statusIconNotifier.value = icon;
-    if (_activeStatusKey == statusKey) {
-      return;
-    }
-    _activeStatusKey = statusKey;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    final controller = messenger?.showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        content: Container(
-          decoration: DashboardRuntimeTheme.cardDecoration(
-            radius: 18,
-            emphasize: true,
-            color: DashboardRuntimeTheme.surfaceColor,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 34,
-                height: 34,
-                child: AnimatedBuilder(
-                  animation: Listenable.merge(<Listenable>[
-                    _statusColorNotifier,
-                    _statusIconNotifier,
-                  ]),
-                  builder: (context, child) {
-                    final color = _statusColorNotifier.value;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color.lerp(color, Colors.white, 0.22) ?? color,
-                            color,
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.24),
-                            blurRadius: 12,
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        _statusIconNotifier.value,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AnimatedBuilder(
-                  animation: Listenable.merge(<Listenable>[
-                    statusTextNotifier,
-                    _statusColorNotifier,
-                  ]),
-                  builder: (context, child) {
-                    return AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 180),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _statusColorNotifier.value,
-                        letterSpacing: 0.1,
-                      ),
-                      child: Text(statusTextNotifier.value),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: duration,
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      ),
-    );
-    controller?.closed.then((_) {
-      if (_activeStatusKey == statusKey) {
-        _activeStatusKey = null;
-      }
-    });
+    _controlWriteRevision += 1;
+    await _runtimeController.updateRuntimeItems(payload.rollbackItems);
   }
 
   String? _extractVirtualPin(String? rawKey) {
@@ -963,9 +651,21 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 156,
+                height: 156,
+                child: Image.asset(
+                  'assets/icons/mascot/mascot_default.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
@@ -978,30 +678,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   ],
                   shadows: AppGlassTheme.shadowMd,
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFFCBE1FA), Color(0xFFA4C7F4)],
-                        ),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(14),
-                        child: Icon(
-                          Icons.dashboard_customize_outlined,
-                          size: 24,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 14),
-                    Text(
-                      'No widgets on this dashboard yet',
+                    const Text(
+                      'ยินดีต้อนรับสู่แดชบอร์ดของคุณ',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16,
@@ -1009,9 +690,9 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                         color: DashboardRuntimeTheme.headlineColor,
                       ),
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      'ไปที่ Edit Mode เพื่อเริ่มเพิ่มและจัดวางวิดเจ็ตตามต้องการ',
+                    const SizedBox(height: 8),
+                    const Text(
+                      'เริ่มจาก Edit Mode แล้วเพิ่มวิดเจ็ตตัวแรกของคุณได้เลย',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
@@ -1022,7 +703,9 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   ],
                 ),
               ),
-            ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1040,13 +723,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     }
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [DashboardRuntimeTheme.backgroundColor, Color(0xFFF8FBF8)],
-        ),
-      ),
+      decoration: _pageDecoration,
       child: SafeArea(
         bottom: false,
         right: false,
@@ -1108,45 +785,24 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
                           child: LayoutBuilder(
                             builder: (context, headerConstraints) {
-                              final titleWidget = Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: _renameDashboardTitle,
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 6,
-                                        horizontal: 4,
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              _dashboardTitle,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              softWrap: false,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w800,
-                                                height: 1.1,
-                                                color: DashboardRuntimeTheme
-                                                    .fieldTextColor,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          const Icon(
-                                            Icons.edit_outlined,
-                                            size: 14,
-                                            color: DashboardRuntimeTheme
-                                                .labelTextColor,
-                                          ),
-                                        ],
-                                      ),
+                              final titleWidget = Align(
+                                alignment: Alignment.centerLeft,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                    horizontal: 4,
+                                  ),
+                                  child: Text(
+                                    _dashboardTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    softWrap: false,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.1,
+                                      color:
+                                          DashboardRuntimeTheme.fieldTextColor,
                                     ),
                                   ),
                                 ),
@@ -1241,15 +897,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                         child: Container(
-                          decoration: AppGlassTheme.surfaceDecoration(
-                            radius: 28,
-                            borderAlpha: 0.58,
-                            colors: <Color>[
-                              const Color(0xFFFFFFFF).withValues(alpha: 0.48),
-                              const Color(0xFFF4FBF7).withValues(alpha: 0.30),
-                            ],
-                            shadows: AppGlassTheme.shadowSm,
-                          ),
+                          decoration: _canvasDecoration,
                           child: SizedBox(
                             height: canvasHeight,
                             child: _items.isEmpty
@@ -1297,13 +945,9 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                                                   item,
                                                 ))
                                                   Positioned.fill(
-                                                    child: GestureDetector(
-                                                      behavior: HitTestBehavior
-                                                          .opaque,
-                                                      onTap: () =>
-                                                          _showLockedInteractionNotice(
-                                                            item,
-                                                          ),
+                                                    child: AbsorbPointer(
+                                                      child:
+                                                          SizedBox.expand(),
                                                     ),
                                                   ),
                                               ],

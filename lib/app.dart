@@ -6,24 +6,22 @@ import 'features/dashboard_builder/screens/dashboard_builder_screen.dart';
 import 'features/projects/services/project_storage_service.dart';
 import 'screens/account_session_screen.dart';
 import 'screens/dashboard_screen.dart';
-import 'screens/forgot_token_screen.dart';
 import 'screens/project_select_screen.dart';
-import 'screens/request_token_screen.dart';
 import 'screens/token_login_screen.dart';
 import 'services/auth_service.dart';
 import 'features/dashboard/services/dashboard_runtime_value_storage.dart';
-import 'services/profile_image_cache_storage.dart';
+import 'services/profile_avatar_preset_storage.dart';
 import 'services/session_cookie_storage.dart';
 import 'services/session_snapshot_storage.dart';
 import 'services/session_state.dart';
 
-class PrinceBotApp extends StatelessWidget {
-  const PrinceBotApp({super.key});
+class PbIotApp extends StatelessWidget {
+  const PbIotApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PrinceBot Smart Farm',
+      title: 'PB IoT',
       debugShowCheckedModeBanner: false,
       home: const _StartupSessionGate(),
       routes: {
@@ -31,8 +29,6 @@ class PrinceBotApp extends StatelessWidget {
         '/projects': (_) => const ProjectSelectScreen(),
         '/dashboard': (_) => const DashboardScreen(),
         '/dashboard-builder': (_) => const DashboardBuilderScreen(),
-        '/request-token': (_) => const RequestTokenScreen(),
-        '/forgot-token': (_) => const ForgotTokenScreen(),
         '/account-session': (_) => const AccountSessionScreen(),
       },
     );
@@ -74,12 +70,10 @@ class _StartupSessionGateState extends State<_StartupSessionGate> {
         _goToLogin(sessionExpired: true);
         return;
       } else {
-        var synchronizedSession =
-            await ProfileImageCacheStorage.synchronizeSession(restoredSession);
-        synchronizedSession = await ProfileImageCacheStorage.refreshFromNetwork(
-          synchronizedSession,
-        );
-        synchronizedSession = synchronizedSession.copyWith(
+        final restoredWithAvatar =
+            await ProfileAvatarPresetStorage.applyStoredAvatar(restoredSession);
+        final synchronizedSession = restoredWithAvatar.copyWith(
+          cachedProfileImagePath: '',
           isOfflineMode: false,
         );
         await SessionSnapshotStorage.save(synchronizedSession);
@@ -112,10 +106,10 @@ class _StartupSessionGateState extends State<_StartupSessionGate> {
       return;
     }
 
-    final synchronizedSession =
-        await ProfileImageCacheStorage.synchronizeSession(
-          snapshot.copyWith(isOfflineMode: true),
-        );
+    final synchronizedSession = snapshot.copyWith(
+      cachedProfileImagePath: '',
+      isOfflineMode: true,
+    );
     SessionState.current = synchronizedSession;
 
     if (!mounted) {
@@ -152,9 +146,14 @@ class _StartupSessionGateState extends State<_StartupSessionGate> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF10162B),
-      body: SizedBox.expand(),
+    return Scaffold(
+      backgroundColor: const Color(0xFF10162B),
+      body: SizedBox.expand(
+        child: Image.asset(
+          'assets/icons/logo/Princebot_IoT_splash.png',
+          fit: BoxFit.cover,
+        ),
+      ),
     );
   }
 }

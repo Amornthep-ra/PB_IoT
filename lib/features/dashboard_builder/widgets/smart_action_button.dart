@@ -200,6 +200,29 @@ class _SmartActionButtonState extends State<SmartActionButton> {
     widget.onPressEnd?.call();
   }
 
+  void _setPressed(bool value) {
+    if (!mounted || _isPressed == value) {
+      return;
+    }
+
+    void applyPressedState() {
+      if (!mounted || _isPressed == value) {
+        return;
+      }
+      setState(() {
+        _isPressed = value;
+      });
+    }
+
+    try {
+      applyPressedState();
+    } on FlutterError {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        applyPressedState();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -595,21 +618,15 @@ class _SmartActionButtonState extends State<SmartActionButton> {
               ? GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTapDown: (_) {
-                    setState(() {
-                      _isPressed = true;
-                    });
+                    _setPressed(true);
                     _handlePressStart();
                   },
                   onTapUp: (_) {
-                    setState(() {
-                      _isPressed = false;
-                    });
+                    _setPressed(false);
                     _handlePressEnd();
                   },
                   onTapCancel: () {
-                    setState(() {
-                      _isPressed = false;
-                    });
+                    _setPressed(false);
                     _handlePressEnd();
                   },
                   onTap: widget.isMomentary ? null : _handleTap,

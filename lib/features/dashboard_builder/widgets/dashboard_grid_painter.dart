@@ -5,16 +5,18 @@ class DashboardGridPainter extends CustomPainter {
     required this.columns,
     required this.rows,
     required this.gap,
+    required this.lineColor,
   });
 
   final int columns;
   final int rows;
   final double gap;
+  final Color lineColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
-      ..color = const Color(0x229FB2A6)
+      ..color = lineColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.68;
 
@@ -52,6 +54,7 @@ class DashboardGridPainter extends CustomPainter {
   bool shouldRepaint(covariant DashboardGridPainter oldDelegate) {
     return oldDelegate.columns != columns ||
         oldDelegate.rows != rows ||
-        oldDelegate.gap != gap;
+        oldDelegate.gap != gap ||
+        oldDelegate.lineColor != lineColor;
   }
 }

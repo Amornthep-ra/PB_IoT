@@ -76,7 +76,7 @@ class DashboardRuntimeValueStorage {
     }
 
     final activeIds = items.map((item) => item.id).toSet();
-    final filteredEntries = <String, _StoredRuntimeValue>{};
+    final filteredEntries = <String, StoredRuntimeValue>{};
     for (final entry in storedValues.entries) {
       if (activeIds.contains(entry.key)) {
         filteredEntries[entry.key] = entry.value;
@@ -105,19 +105,19 @@ class DashboardRuntimeValueStorage {
     await preferences.remove(_effectiveStorageKey);
   }
 
-  Future<Map<String, _StoredRuntimeValue>> loadValues() async {
+  Future<Map<String, StoredRuntimeValue>> loadValues() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     final raw = preferences.getString(_effectiveStorageKey);
     if (raw == null || raw.trim().isEmpty) {
-      return const <String, _StoredRuntimeValue>{};
+      return const <String, StoredRuntimeValue>{};
     }
 
     final decoded = jsonDecode(raw);
     if (decoded is! Map<String, dynamic>) {
-      return const <String, _StoredRuntimeValue>{};
+      return const <String, StoredRuntimeValue>{};
     }
 
-    final values = <String, _StoredRuntimeValue>{};
+    final values = <String, StoredRuntimeValue>{};
     for (final entry in decoded.entries) {
       final value = entry.value;
       if (value is! Map<String, dynamic>) {
@@ -132,7 +132,7 @@ class DashboardRuntimeValueStorage {
         continue;
       }
 
-      values[entry.key] = _StoredRuntimeValue(
+      values[entry.key] = StoredRuntimeValue(
         type: type.first,
         value: (value['value'] as num?)?.toDouble() ?? 0,
         enabled: value['enabled'] == true,
@@ -157,8 +157,8 @@ class DashboardRuntimeValueStorage {
   }
 }
 
-class _StoredRuntimeValue {
-  const _StoredRuntimeValue({
+class StoredRuntimeValue {
+  const StoredRuntimeValue({
     required this.type,
     required this.value,
     required this.enabled,

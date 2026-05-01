@@ -1,4 +1,4 @@
-package com.example.princebot_smartfarm
+package com.princebot.iot
 
 import io.flutter.embedding.android.FlutterActivity
 

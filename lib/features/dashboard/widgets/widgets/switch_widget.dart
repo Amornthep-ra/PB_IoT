@@ -113,23 +113,23 @@ class SwitchWidget extends StatelessWidget {
             ),
             child: SwitchTheme(
               data: SwitchThemeData(
-                trackColor: MaterialStateProperty.resolveWith((states) {
-                  if (states.contains(MaterialState.selected)) {
+                trackColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
                     return DashboardRuntimeTheme.buttonStartColor
                         .withValues(alpha: 0.90);
                   }
                   return const Color(0xFFD6DEE7);
                 }),
-                thumbColor: MaterialStateProperty.resolveWith((states) {
-                  if (states.contains(MaterialState.selected)) {
+                thumbColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
                     return DashboardRuntimeTheme.cardHighlightColor;
                   }
                   return const Color(0xFFF8FBFD);
                 }),
-                overlayColor: MaterialStateProperty.all(
+                overlayColor: WidgetStateProperty.all(
                   DashboardRuntimeTheme.buttonGlowColor.withValues(alpha: 0.14),
                 ),
-                trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
+                trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
               ),
               child: Switch(
                 value: currentValue,

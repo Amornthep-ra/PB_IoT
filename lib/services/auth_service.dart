@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
-import 'dart:typed_data';
 
 import '../models/session_model.dart';
 import 'api_request_support.dart';
@@ -18,11 +16,8 @@ class AuthService {
       'https://console.princebot.co.th/api/public/login';
   static const String _logoutUrl =
       'https://console.princebot.co.th/api/public/logout';
-  static const String _profilePhotoUrl =
-      'https://console.princebot.co.th/api/public/profile-photo';
   static const String _sessionUrl =
       'https://console.princebot.co.th/api/public/session';
-  static const String _serverBaseUrl = 'https://console.princebot.co.th';
 
   final HttpClient _httpClient;
 
@@ -92,7 +87,6 @@ class AuthService {
       await SessionCookieStorage.clearRememberedLogin();
     }
 
-    // TODO: Persist any additional server session metadata here if backend session requirements expand.
     return SessionModel.fromLoginResponse(
       token: token,
       displayName: displayName,
@@ -167,137 +161,6 @@ class AuthService {
     return SessionModel.fromSessionResponse(responseJson);
   }
 
-  Future<String> uploadProfilePhoto({required String filePath}) async {
-    final storedCookie = await SessionCookieStorage.loadCookieHeader();
-    if (storedCookie == null || storedCookie.isEmpty) {
-      throw const AuthException(
-        'Your session has expired. Please login again.',
-      );
-    }
-
-    final file = File(filePath);
-    if (!await file.exists()) {
-      throw const AuthException('Selected photo could not be found.');
-    }
-
-    final boundary =
-        '----princebot-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 32)}';
-    final fileName = file.uri.pathSegments.isNotEmpty
-        ? file.uri.pathSegments.last
-        : 'profile.jpg';
-    final mimeType = _detectMimeType(fileName);
-    final fileBytes = await file.readAsBytes();
-
-    final request = await _httpClient
-        .postUrl(Uri.parse(_profilePhotoUrl))
-        .timeout(const Duration(seconds: 15));
-
-    ApiRequestSupport.applyDefaultHeaders(request, cookieHeader: storedCookie);
-    request.headers.set(
-      HttpHeaders.contentTypeHeader,
-      'multipart/form-data; boundary=$boundary',
-    );
-
-    final builder = BytesBuilder();
-    builder.add(utf8.encode('--$boundary\r\n'));
-    builder.add(
-      utf8.encode(
-        'Content-Disposition: form-data; name="photo"; filename="$fileName"\r\n',
-      ),
-    );
-    builder.add(utf8.encode('Content-Type: $mimeType\r\n\r\n'));
-    builder.add(fileBytes);
-    builder.add(utf8.encode('\r\n--$boundary--\r\n'));
-
-    request.add(builder.takeBytes());
-
-    final response = await request.close().timeout(const Duration(seconds: 15));
-    final responseBody = await response
-        .transform(utf8.decoder)
-        .join()
-        .timeout(const Duration(seconds: 15));
-    final responseJson = _tryDecodeJson(
-      responseBody,
-      statusCode: response.statusCode,
-      contentType: response.headers.contentType?.mimeType,
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AuthException(
-        _extractErrorMessage(responseJson) ??
-            'Unable to upload profile photo right now.',
-        statusCode: response.statusCode,
-      );
-    }
-
-    if (responseJson['success'] != true) {
-      throw AuthException(
-        _extractErrorMessage(responseJson) ??
-            'Unable to upload profile photo right now.',
-      );
-    }
-
-    final photo = responseJson['photo'] is Map<String, dynamic>
-        ? responseJson['photo'] as Map<String, dynamic>
-        : const <String, dynamic>{};
-    final rawPath = photo['path']?.toString() ?? '';
-    if (rawPath.isEmpty) {
-      throw const AuthException('Invalid server response. Please try again.');
-    }
-
-    return _resolveProfilePhotoUrl(rawPath);
-  }
-
-  Future<void> deleteProfilePhoto({required String photoUrl}) async {
-    final storedCookie = await SessionCookieStorage.loadCookieHeader();
-    if (storedCookie == null || storedCookie.isEmpty) {
-      throw const AuthException(
-        'Your session has expired. Please login again.',
-      );
-    }
-
-    final filename = _extractFileName(photoUrl);
-    if (filename == null || filename.isEmpty) {
-      throw const AuthException('Invalid profile photo path.');
-    }
-
-    final request = await _httpClient
-        .deleteUrl(
-          Uri.parse(
-            _profilePhotoUrl,
-          ).replace(queryParameters: <String, String>{'filename': filename}),
-        )
-        .timeout(const Duration(seconds: 10));
-
-    ApiRequestSupport.applyDefaultHeaders(request, cookieHeader: storedCookie);
-
-    final response = await request.close().timeout(const Duration(seconds: 10));
-    final responseBody = await response
-        .transform(utf8.decoder)
-        .join()
-        .timeout(const Duration(seconds: 10));
-    final responseJson = _tryDecodeJson(
-      responseBody,
-      statusCode: response.statusCode,
-      contentType: response.headers.contentType?.mimeType,
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AuthException(
-        _extractErrorMessage(responseJson) ??
-            'Unable to remove profile photo right now.',
-        statusCode: response.statusCode,
-      );
-    }
-
-    if (responseJson['success'] != true) {
-      throw AuthException(
-        _extractErrorMessage(responseJson) ??
-            'Unable to remove profile photo right now.',
-      );
-    }
-  }
-
   Map<String, dynamic> _tryDecodeJson(
     String responseBody, {
     required int statusCode,
@@ -318,33 +181,6 @@ class AuthService {
     return (json['error'] ?? json['message'] ?? json['detail'])?.toString();
   }
 
-  String _detectMimeType(String fileName) {
-    final normalized = fileName.toLowerCase();
-    if (normalized.endsWith('.png')) {
-      return 'image/png';
-    }
-    if (normalized.endsWith('.webp')) {
-      return 'image/webp';
-    }
-    return 'image/jpeg';
-  }
-
-  String _resolveProfilePhotoUrl(String rawPath) {
-    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
-      return rawPath;
-    }
-
-    final normalizedPath = rawPath.startsWith('/') ? rawPath : '/$rawPath';
-    return '$_serverBaseUrl$normalizedPath';
-  }
-
-  String? _extractFileName(String photoUrl) {
-    final uri = Uri.tryParse(photoUrl);
-    if (uri == null || uri.pathSegments.isEmpty) {
-      return null;
-    }
-    return uri.pathSegments.last;
-  }
 }
 
 class AuthException implements Exception {

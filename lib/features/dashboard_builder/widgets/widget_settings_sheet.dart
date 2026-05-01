@@ -336,6 +336,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   double _glowBlur = _defaultGlowBlur;
   double _titleFontSize = _minTileTitleFontSize;
   bool _buttonEnabled = false;
+  bool _locked = false;
   String? _selectedUnit;
   String _selectedBindingKey = '';
   String? _selectedBindingName;
@@ -757,6 +758,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     _secondaryAccentColor =
         widget.item.secondaryAccentColor ?? _defaultButtonOffColor;
     _buttonEnabled = widget.item.enabled;
+    _locked = widget.item.locked;
     _buttonShellColor =
         widget.item.buttonShellColor ??
         (_isValueLabelWidget
@@ -2713,6 +2715,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           titleColor: _titleColor,
           titleFontSize: _titleFontSize,
           titlePosition: _selectedTitlePosition,
+          locked: _locked,
           secondaryAccentColor: (_isButtonWidget || _isToggleWidget)
               ? _secondaryAccentColor
               : null,
@@ -3448,7 +3451,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(child: SizedBox.shrink()),
+                  Expanded(child: _buildTitleColorTile()),
                 ],
               ),
             ],
@@ -3506,7 +3509,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(child: SizedBox.shrink()),
+                  Expanded(child: _buildTitleColorTile()),
                 ],
               ),
             ],
@@ -3597,7 +3600,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(child: SizedBox.shrink()),
+                  Expanded(child: _buildTitleColorTile()),
                 ],
               ),
             ],
@@ -3664,7 +3667,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(child: SizedBox.shrink()),
+                  Expanded(child: _buildTitleColorTile()),
                 ],
               ),
             ],
@@ -3722,24 +3725,86 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(child: SizedBox.shrink()),
+                  Expanded(child: _buildTitleColorTile()),
                 ],
               ),
             ],
           )
         else
-          _buildColorTile(
-            title: 'Accent',
-            badge: 'MAIN',
-            label: 'Accent color',
-            color: _accentColor,
-            onTap: () => _openColorPicker(
-              title: 'Custom Accent Color',
-              initialColor: _accentColor,
-              onColorPicked: (color) => _accentColor = color,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _buildColorTile(
+                  title: 'Accent',
+                  badge: 'MAIN',
+                  label: 'Accent color',
+                  color: _accentColor,
+                  onTap: () => _openColorPicker(
+                    title: 'Custom Accent Color',
+                    initialColor: _accentColor,
+                    onColorPicked: (color) => _accentColor = color,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: _buildTitleColorTile()),
+            ],
           ),
       ],
+    );
+  }
+
+  Widget _buildTitleColorTile() {
+    return _buildColorTile(
+      title: 'Title Color',
+      badge: 'TEXT',
+      label: 'Title text',
+      color: _titleColor,
+      onTap: () => _openColorPicker(
+        title: 'Custom Title Color',
+        initialColor: _titleColor,
+        onColorPicked: (color) => _titleColor = color,
+      ),
+    );
+  }
+
+  Widget _buildLockWidgetControl() {
+    return _buildFieldShell(
+      child: SwitchListTile(
+        value: _locked,
+        onChanged: (value) {
+          setState(() {
+            _locked = value;
+          });
+        },
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        dense: true,
+        secondary: Icon(
+          _locked ? Icons.lock_rounded : Icons.lock_open_rounded,
+          color: _locked
+              ? DashboardRuntimeTheme.surfaceBorderFocusColor
+              : DashboardRuntimeTheme.labelTextColor,
+          size: 18,
+        ),
+        title: const Text(
+          'Lock Widget',
+          style: TextStyle(
+            color: DashboardRuntimeTheme.headlineColor,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        subtitle: const Text(
+          'ล็อกตำแหน่งและขนาดในโหมดแก้ไข',
+          style: TextStyle(
+            color: DashboardRuntimeTheme.mutedTextColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        activeThumbColor: DashboardRuntimeTheme.surfaceBorderFocusColor,
+      ),
     );
   }
 
@@ -4451,52 +4516,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           const SizedBox(height: 12),
           _buildGlowSection(),
           const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isCompactWidth = constraints.maxWidth < 360;
-
-              if (isCompactWidth) {
-                return Column(
-                  children: [
-                    _buildColorTile(
-                      title: 'Title Color',
-                      badge: 'TEXT',
-                      label: 'Text color',
-                      color: _titleColor,
-                      onTap: () => _openColorPicker(
-                        title: 'Custom Title Color',
-                        initialColor: _titleColor,
-                        onColorPicked: (color) => _titleColor = color,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _buildTitleSizeControl(compact: true),
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildColorTile(
-                      title: 'Title Color',
-                      badge: 'TEXT',
-                      label: 'Text color',
-                      color: _titleColor,
-                      onTap: () => _openColorPicker(
-                        title: 'Custom Title Color',
-                        initialColor: _titleColor,
-                        onColorPicked: (color) => _titleColor = color,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: _buildTitleSizeControl(compact: true)),
-                ],
-              );
-            },
-          ),
+          _buildTitleSizeControl(compact: true),
         ],
       ],
     );
@@ -5068,6 +5088,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                             includeStyle: true,
                             includeTitleField: false,
                           ),
+                          const SizedBox(height: 14),
+                          const _SettingsLabel('Layout Lock'),
+                          const SizedBox(height: 8),
+                          _buildLockWidgetControl(),
                           const SizedBox(height: 14),
                           const _SettingsLabel('Title Position'),
                           const SizedBox(height: 8),

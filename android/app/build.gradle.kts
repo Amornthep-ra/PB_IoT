@@ -1,3 +1,7 @@
+import org.gradle.api.GradleException
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,8 +9,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    namespace = "com.example.princebot_smartfarm"
+    namespace = "com.princebot.iot"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,13 +26,24 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFilePath = keystoreProperties.getProperty("storeFile")
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+            }
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+        }
+    }
+
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.princebot_smartfarm"
+        applicationId = "com.princebot.iot"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -33,11 +54,50 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
+}
+
+tasks.register("validateReleaseSigning") {
+    doLast {
+        if (!keystorePropertiesFile.exists()) {
+            throw GradleException(
+                "Missing android/key.properties. Create it from android/key.properties.example before building release."
+            )
+        }
+
+        val missingProperties = listOf(
+            "storePassword",
+            "keyPassword",
+            "keyAlias",
+            "storeFile",
+        ).filter { keystoreProperties.getProperty(it).isNullOrBlank() }
+
+        if (missingProperties.isNotEmpty()) {
+            throw GradleException(
+                "Missing release signing properties in android/key.properties: ${missingProperties.joinToString(", ")}"
+            )
+        }
+
+        val releaseStoreFile = file(keystoreProperties.getProperty("storeFile"))
+        if (!releaseStoreFile.exists()) {
+            throw GradleException(
+                "Release keystore not found: ${releaseStoreFile.path}"
+            )
+        }
+    }
+}
+
+tasks.matching {
+    it.name in listOf(
+        "assembleRelease",
+        "bundleRelease",
+        "packageRelease",
+        "validateSigningRelease",
+    )
+}.configureEach {
+    dependsOn("validateReleaseSigning")
 }
 
 dependencies {

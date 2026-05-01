@@ -6,6 +6,7 @@ import '../../dashboard_builder/models/dashboard_item.dart';
 import '../../dashboard_builder/services/dashboard_builder_layout_storage_service.dart';
 import '../../../theme/app_theme.dart';
 import '../models/alert_rule_model.dart';
+import '../services/local_alert_notification_service.dart';
 import '../services/notification_service.dart';
 
 class AlertRuleEditorScreen extends StatefulWidget {
@@ -37,6 +38,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isTestingAlert = false;
   List<DashboardItem> _availableItems = const <DashboardItem>[];
   String? _selectedWidgetId;
   AlertRuleCondition? _selectedCondition;
@@ -93,10 +95,20 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
 
     setState(() {
       _availableItems = availableItems;
-      if (_selectedItem == null) {
-        _selectedWidgetId = availableItems.isNotEmpty
-            ? availableItems.first.id
-            : null;
+      final hasMatchingItem = _selectedWidgetId != null &&
+          availableItems.any((item) => item.id == _selectedWidgetId);
+      if (!hasMatchingItem) {
+        if (widget.initialRule == null) {
+          // New rule: default to the first available widget for convenience.
+          _selectedWidgetId = availableItems.isNotEmpty
+              ? availableItems.first.id
+              : null;
+        } else {
+          // Editing an existing rule whose source widget was deleted.
+          // Force the user to pick a widget explicitly instead of silently
+          // rebinding the rule to an unrelated widget.
+          _selectedWidgetId = null;
+        }
       }
       _selectedCondition = _sanitizeCondition(
         item: _selectedItem,
@@ -104,6 +116,14 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
       );
       _isLoading = false;
     });
+  }
+
+  bool get _sourceWidgetMissing {
+    final initialRule = widget.initialRule;
+    if (initialRule == null || _isLoading) {
+      return false;
+    }
+    return !_availableItems.any((item) => item.id == initialRule.widgetId);
   }
 
   DashboardItem? get _selectedItem {
@@ -125,7 +145,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
       _conditionNeedsThreshold(_selectedCondition!);
 
   Future<void> _saveRule() async {
-    if (_isSaving || _isLoading) {
+    if (_isSaving || _isLoading || _isTestingAlert) {
       return;
     }
     if (!_formKey.currentState!.validate()) {
@@ -139,9 +159,6 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
       return;
     }
 
-    final threshold = _selectedConditionNeedsThreshold
-        ? double.tryParse(_thresholdController.text.trim())
-        : null;
     final now = DateTime.now();
     final currentRule = widget.initialRule;
 
@@ -152,7 +169,39 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
     final allRules = List<AlertRuleModel>.from(
       await _notificationService.loadRules(),
     );
-    final nextRule = AlertRuleModel(
+    final nextRule = _buildRuleFromForm(
+      selectedItem: selectedItem,
+      selectedCondition: selectedCondition,
+      now: now,
+      currentRule: currentRule,
+    );
+
+    final existingIndex = allRules.indexWhere((rule) => rule.id == nextRule.id);
+    if (existingIndex >= 0) {
+      allRules[existingIndex] = nextRule;
+    } else {
+      allRules.insert(0, nextRule);
+    }
+    await _notificationService.saveRules(allRules);
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pop(true);
+  }
+
+  AlertRuleModel _buildRuleFromForm({
+    required DashboardItem selectedItem,
+    required AlertRuleCondition selectedCondition,
+    required DateTime now,
+    AlertRuleModel? currentRule,
+  }) {
+    final threshold = _conditionNeedsThreshold(selectedCondition)
+        ? double.tryParse(_thresholdController.text.trim())
+        : null;
+
+    return AlertRuleModel(
       id: currentRule?.id ?? 'rule_${now.microsecondsSinceEpoch}',
       title: _titleController.text.trim(),
       widgetId: selectedItem.id,
@@ -170,20 +219,73 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
       createdAt: currentRule?.createdAt ?? now,
       updatedAt: currentRule == null ? null : now,
     );
+  }
 
-    final existingIndex = allRules.indexWhere((rule) => rule.id == nextRule.id);
-    if (existingIndex >= 0) {
-      allRules[existingIndex] = nextRule;
-    } else {
-      allRules.insert(0, nextRule);
+  Future<void> _testAlert() async {
+    if (_isSaving || _isLoading || _isTestingAlert) {
+      return;
     }
-    await _notificationService.saveRules(allRules);
-
-    if (!mounted) {
+    if (!_formKey.currentState!.validate()) {
+      await _scrollToFirstInvalidField();
       return;
     }
 
-    Navigator.of(context).pop(true);
+    final selectedItem = _selectedItem;
+    final selectedCondition = _selectedCondition;
+    if (selectedItem == null || selectedCondition == null) {
+      return;
+    }
+
+    setState(() {
+      _isTestingAlert = true;
+    });
+
+    try {
+      final localNotificationService = LocalAlertNotificationService.instance;
+      final notificationsEnabled = await localNotificationService
+          .areNotificationsEnabled();
+      final canNotify = notificationsEnabled
+          ? true
+          : await localNotificationService.requestNotificationsPermission();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!canNotify) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notifications are disabled.')),
+        );
+        return;
+      }
+
+      final draftRule = _buildRuleFromForm(
+        selectedItem: selectedItem,
+        selectedCondition: selectedCondition,
+        now: DateTime.now(),
+        currentRule: widget.initialRule,
+      );
+      final sent = await localNotificationService.showTestAlertNotification(
+        title: 'PB IoT Test Alert',
+        message: draftRule.message,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(sent ? 'Test alert sent.' : 'Unable to send test alert.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTestingAlert = false;
+        });
+      }
+    }
   }
 
   Future<void> _scrollToFirstInvalidField() async {
@@ -422,8 +524,16 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                                       const SizedBox(height: 16),
                                       const _FieldLabel('Widget'),
                                       const SizedBox(height: 8),
+                                      if (_sourceWidgetMissing) ...[
+                                        _SourceMissingBanner(
+                                          widgetTitle: widget
+                                              .initialRule!
+                                              .widgetTitle,
+                                        ),
+                                        const SizedBox(height: 10),
+                                      ],
                                       DropdownButtonFormField<String>(
-                                        value: _selectedWidgetId,
+                                        initialValue: _selectedWidgetId,
                                         isExpanded: true,
                                         decoration: _inputDecoration(),
                                         borderRadius: BorderRadius.circular(22),
@@ -512,7 +622,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                                             DropdownButtonFormField<
                                               AlertRuleCondition
                                             >(
-                                              value: _selectedCondition,
+                                              initialValue: _selectedCondition,
                                               isExpanded: true,
                                               decoration: _inputDecoration(),
                                               borderRadius:
@@ -653,7 +763,46 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                                   width: double.infinity,
                                   child: _buildPreviewCard(selectedItem),
                                 ),
-                                const SizedBox(height: 24),
+                                const SizedBox(height: 18),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        (_isSaving || _isTestingAlert)
+                                        ? null
+                                        : _testAlert,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF4E9070),
+                                      side: const BorderSide(
+                                        color: Color(0xFF8FC8A9),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 15,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                    ),
+                                    icon: _isTestingAlert
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Color(0xFF4E9070),
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.notifications_active_outlined,
+                                          ),
+                                    label: Text(
+                                      _isTestingAlert
+                                          ? 'Sending test...'
+                                          : 'Test alert',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
                                 Container(
                                   width: double.infinity,
                                   decoration: AppGlassTheme.accentDecoration(
@@ -666,7 +815,9 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                                     glowColor: const Color(0xFF82AEE8),
                                   ),
                                   child: FilledButton.icon(
-                                    onPressed: _isSaving ? null : _saveRule,
+                                    onPressed: (_isSaving || _isTestingAlert)
+                                        ? null
+                                        : _saveRule,
                                     style: FilledButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       shadowColor: Colors.transparent,
@@ -1224,6 +1375,61 @@ String _fallbackWidgetTitle(DashboardItem item) {
     return title;
   }
   return item.type.name;
+}
+
+class _SourceMissingBanner extends StatelessWidget {
+  const _SourceMissingBanner({required this.widgetTitle});
+
+  final String widgetTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFCC5A4E);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            color: accent,
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Widget ต้นทางถูกลบแล้ว',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF20303A),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'rule นี้เคยผูกกับ "$widgetTitle" '
+                  'กรุณาเลือก widget ใหม่เพื่อบันทึก',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: Color(0xFF667587),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _WidgetOptionTile extends StatelessWidget {

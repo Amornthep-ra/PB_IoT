@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../../../services/auth_service.dart';
-import '../../../services/profile_image_cache_storage.dart';
+import '../../../services/profile_avatar_preset_storage.dart';
 import '../../../services/session_snapshot_storage.dart';
 import '../../../services/session_state.dart';
 import '../../dashboard_builder/models/dashboard_item.dart';
+import '../../dashboard_builder/models/dashboard_theme_preset.dart';
 import '../../dashboard_builder/services/dashboard_builder_layout_storage_service.dart';
+import '../../projects/services/project_state.dart';
 import '../../notifications/models/alert_event_model.dart';
 import '../../notifications/models/alert_rule_model.dart';
 import '../../notifications/services/local_alert_notification_service.dart';
@@ -48,8 +50,8 @@ class DashboardRuntimeController extends ChangeNotifier
   bool _isDisposed = false;
   bool _isRecoveringSession = false;
   String? _errorText;
-  String _dashboardTitle =
-      DashboardBuilderLayoutStorageService.defaultDashboardTitle;
+  String _dashboardTitle = _resolveDashboardTitle();
+  DashboardThemePreset _themePreset = dashboardThemePresets.first;
   DateTime? _lastSessionRecoveryAttemptAt;
 
   List<DashboardItem> get items => List<DashboardItem>.unmodifiable(_items);
@@ -57,6 +59,22 @@ class DashboardRuntimeController extends ChangeNotifier
   bool get isLoading => _isLoading;
   String? get errorText => _errorText;
   String get dashboardTitle => _dashboardTitle;
+  DashboardThemePreset get themePreset => _themePreset;
+
+  /// Cross-screen signal used to request that the dashboard view scroll to
+  /// and flash-highlight a specific widget (identified by [DashboardItem.id]).
+  /// Consumers call [requestHighlightItem]; listeners on this notifier react
+  /// to the new id and then call [consumeHighlightRequest] once handled.
+  final ValueNotifier<String?> highlightItemIdNotifier =
+      ValueNotifier<String?>(null);
+
+  void requestHighlightItem(String itemId) {
+    highlightItemIdNotifier.value = itemId;
+  }
+
+  void consumeHighlightRequest() {
+    highlightItemIdNotifier.value = null;
+  }
 
   Future<void> initialize() async {
     if (_isInitialized) {
@@ -71,6 +89,7 @@ class DashboardRuntimeController extends ChangeNotifier
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
+    highlightItemIdNotifier.dispose();
     _isDisposed = true;
     super.dispose();
   }
@@ -106,18 +125,6 @@ class DashboardRuntimeController extends ChangeNotifier
 
   Future<void> reloadFromStorageAndSnapshot() async {
     await _loadRuntimeData(initialLoad: false);
-  }
-
-  Future<void> saveDashboardTitle(String title) async {
-    final normalizedTitle = title.trim().isEmpty
-        ? DashboardBuilderLayoutStorageService.defaultDashboardTitle
-        : title.trim();
-    if (normalizedTitle == _dashboardTitle) {
-      return;
-    }
-    await _layoutStorage.saveDashboardTitle(normalizedTitle);
-    _dashboardTitle = normalizedTitle;
-    _notifyIfActive();
   }
 
   Future<void> reloadAlertRules() async {
@@ -162,13 +169,14 @@ class DashboardRuntimeController extends ChangeNotifier
   Future<void> _loadRuntimeData({required bool initialLoad}) async {
     String dashboardTitle =
         DashboardBuilderLayoutStorageService.defaultDashboardTitle;
+    var themePreset = dashboardThemePresets.first;
     if (initialLoad) {
       _isLoading = true;
-      _notifyIfActive();
     }
 
     try {
-      dashboardTitle = await _layoutStorage.loadDashboardTitle();
+      dashboardTitle = _resolveDashboardTitle();
+      themePreset = await _layoutStorage.loadDashboardThemePreset();
       final storedItems = await _layoutStorage.loadItems();
       final alertRules = await _notificationService.loadRules();
       final snapshot = await _dashboardService.fetchRuntimeSnapshot();
@@ -179,6 +187,7 @@ class DashboardRuntimeController extends ChangeNotifier
       await _runtimeValueStorage.pruneForItems(nextItems);
       final hydratedItems = _applySnapshotToItems(nextItems, snapshot);
       _dashboardTitle = dashboardTitle;
+      _themePreset = themePreset;
       _items = hydratedItems;
       _snapshot = snapshot;
       _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
@@ -193,6 +202,7 @@ class DashboardRuntimeController extends ChangeNotifier
         _startPolling();
       }
     } on DashboardServiceException catch (error) {
+      themePreset = await _layoutStorage.loadDashboardThemePreset();
       final storedItems = await _layoutStorage.loadItems();
       final snapshot = _dashboardService.buildMockSnapshot();
       final alertRules = await _notificationService.loadRules();
@@ -202,6 +212,7 @@ class DashboardRuntimeController extends ChangeNotifier
       await _runtimeValueStorage.pruneForItems(nextItems);
       final hydratedItems = _applySnapshotToItems(nextItems, snapshot);
       _dashboardTitle = dashboardTitle;
+      _themePreset = themePreset;
       _items = hydratedItems;
       _snapshot = snapshot;
       _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
@@ -213,6 +224,7 @@ class DashboardRuntimeController extends ChangeNotifier
         nextItems: hydratedItems,
       );
     } catch (_) {
+      themePreset = await _layoutStorage.loadDashboardThemePreset();
       final storedItems = await _layoutStorage.loadItems();
       final snapshot = _dashboardService.buildMockSnapshot();
       final alertRules = await _notificationService.loadRules();
@@ -222,6 +234,7 @@ class DashboardRuntimeController extends ChangeNotifier
       await _runtimeValueStorage.pruneForItems(nextItems);
       final hydratedItems = _applySnapshotToItems(nextItems, snapshot);
       _dashboardTitle = dashboardTitle;
+      _themePreset = themePreset;
       _items = hydratedItems;
       _snapshot = snapshot;
       _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
@@ -235,6 +248,14 @@ class DashboardRuntimeController extends ChangeNotifier
         nextItems: hydratedItems,
       );
     }
+  }
+
+  static String _resolveDashboardTitle() {
+    final projectName = ProjectState.current?.name.trim() ?? '';
+    if (projectName.isNotEmpty) {
+      return projectName;
+    }
+    return DashboardBuilderLayoutStorageService.defaultDashboardTitle;
   }
 
   void _startPolling() {
@@ -294,7 +315,7 @@ class DashboardRuntimeController extends ChangeNotifier
         return false;
       }
 
-      final mergedSession = refreshedSession.copyWith(
+      var mergedSession = refreshedSession.copyWith(
         token: refreshedSession.token.trim().isNotEmpty
             ? refreshedSession.token
             : currentSession?.token,
@@ -302,13 +323,14 @@ class DashboardRuntimeController extends ChangeNotifier
             ? refreshedSession.displayName
             : currentSession?.displayName,
       );
-
-      var synchronizedSession =
-          await ProfileImageCacheStorage.synchronizeSession(mergedSession);
-      synchronizedSession = await ProfileImageCacheStorage.refreshFromNetwork(
-        synchronizedSession,
+      mergedSession = await ProfileAvatarPresetStorage.applyStoredAvatar(
+        mergedSession,
       );
-      synchronizedSession = synchronizedSession.copyWith(isOfflineMode: false);
+
+      final synchronizedSession = mergedSession.copyWith(
+        cachedProfileImagePath: '',
+        isOfflineMode: false,
+      );
       SessionState.current = synchronizedSession;
       await SessionSnapshotStorage.save(synchronizedSession);
 

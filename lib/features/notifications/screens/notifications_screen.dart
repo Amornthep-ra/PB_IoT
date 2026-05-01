@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../dashboard/services/dashboard_runtime_controller.dart';
 import '../../dashboard_builder/models/dashboard_item.dart';
@@ -9,6 +10,7 @@ import '../../dashboard_builder/services/dashboard_builder_layout_storage_servic
 import '../../../theme/app_theme.dart';
 import '../models/alert_event_model.dart';
 import '../models/alert_rule_model.dart';
+import '../services/local_alert_notification_service.dart';
 import '../services/notification_service.dart';
 import 'alert_event_detail_screen.dart';
 import 'alert_rule_editor_screen.dart';
@@ -29,6 +31,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final DashboardBuilderLayoutStorageService _layoutStorage =
       DashboardBuilderLayoutStorageService();
 
+  static const String _notificationPromptSeenKey =
+      'notification_permission_prompt_seen_v1';
   static const String _clearHistoryMessage =
       'ล้างข้อมูลเฉพาะหน้านี้เท่านั้น ประวัติทั้งหมดจะยังคงถูกบันทึกไว้ใน History';
 
@@ -50,6 +54,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _runtimeController.addListener(_handleRuntimeChanged);
     unawaited(_runtimeController.initialize());
     _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeRequestNotificationPermission());
+    });
   }
 
   @override
@@ -110,6 +117,162 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
   }
 
+  Future<void> _maybeRequestNotificationPermission() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (preferences.getBool(_notificationPromptSeenKey) == true) {
+      return;
+    }
+
+    final localNotificationService = LocalAlertNotificationService.instance;
+    final notificationsEnabled = await localNotificationService
+        .areNotificationsEnabled();
+    if (notificationsEnabled || !mounted) {
+      return;
+    }
+
+    final shouldRequest = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF3F8),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.82)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0xF9FFFFFF),
+                  offset: Offset(-8, -8),
+                  blurRadius: 16,
+                ),
+                BoxShadow(
+                  color: Color(0x1D9CA9B5),
+                  offset: Offset(10, 12),
+                  blurRadius: 24,
+                ),
+                BoxShadow(
+                  color: Color(0x14677E92),
+                  offset: Offset(0, 18),
+                  blurRadius: 28,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4E9070).withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.notifications_active_outlined,
+                        color: Color(0xFF4E9070),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Text(
+                        'Enable notifications?',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF20303A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'ให้ PB IoT ส่งการแจ้งเตือนบนมือถือเมื่อมี Alerts ต่างๆ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.45,
+                    color: Color(0xFF667587),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF6E7A86),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      child: const Text('ไม่ใช่ตอนนี้'),
+                    ),
+                    const SizedBox(width: 8),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4E9070),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF4E9070,
+                            ).withValues(alpha: 0.24),
+                            offset: const Offset(0, 8),
+                            blurRadius: 18,
+                          ),
+                        ],
+                      ),
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shadowColor: Colors.transparent,
+                          minimumSize: const Size(88, 44),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        child: const Text('อนุญาต'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    await preferences.setBool(_notificationPromptSeenKey, true);
+    if (shouldRequest == true) {
+      await localNotificationService.requestNotificationsPermission();
+    }
+  }
+
   Future<void> _openRuleEditor({AlertRuleModel? rule}) async {
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
@@ -131,16 +294,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       _isUpdatingEvents = true;
       _events = _events
           .map(
-            (entry) => entry.id == event.id
-                ? entry.copyWith(isRead: true)
-                : entry,
+            (entry) =>
+                entry.id == event.id ? entry.copyWith(isRead: true) : entry,
           )
           .toList(growable: false);
       _historyEvents = _historyEvents
           .map(
-            (entry) => entry.id == event.id
-                ? entry.copyWith(isRead: true)
-                : entry,
+            (entry) =>
+                entry.id == event.id ? entry.copyWith(isRead: true) : entry,
           )
           .toList(growable: false);
     });
@@ -885,10 +1046,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 runSpacing: 8,
                 children: [
                   _StatChip(
-                    label: '${_rules.length} rules',
-                    color: const Color(0xFF4E9070),
-                  ),
-                  _StatChip(
                     label: '${_events.length} current',
                     color: const Color(0xFF4C8BC8),
                   ),
@@ -1161,7 +1318,7 @@ class _RulesSection extends StatelessWidget {
               const SizedBox(width: 8),
               Container(
                 decoration: AppGlassTheme.surfaceDecoration(
-                  radius: 16,
+                  radius: 14,
                   borderAlpha: 0.34,
                   colors: <Color>[
                     Colors.white.withValues(alpha: 0.3),
@@ -1175,25 +1332,26 @@ class _RulesSection extends StatelessWidget {
                       ? 'Collapse alert rules'
                       : 'Expand alert rules',
                   constraints: const BoxConstraints.tightFor(
-                    width: 36,
-                    height: 36,
+                    width: 38,
+                    height: 38,
                   ),
                   padding: EdgeInsets.zero,
                   icon: Icon(
                     isExpanded
                         ? Icons.keyboard_arrow_up_rounded
                         : Icons.keyboard_arrow_down_rounded,
+                    size: 22,
                   ),
                   color: const Color(0xFF4C8BC8),
                   disabledColor: const Color(0xFFB7C0C8),
                   visualDensity: VisualDensity.compact,
-                  splashRadius: 18,
+                  splashRadius: 19,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Container(
                 decoration: AppGlassTheme.accentDecoration(
-                  radius: 16,
+                  radius: 14,
                   colors: const <Color>[Color(0xFFB6D2F5), Color(0xFF82AEE8)],
                   borderColor: const Color(0xFF9EC3F0),
                   glowColor: const Color(0xFF82AEE8),
@@ -1202,20 +1360,20 @@ class _RulesSection extends StatelessWidget {
                   onPressed: onCreateRule,
                   tooltip: 'Create alert rule',
                   constraints: const BoxConstraints.tightFor(
-                    width: 36,
-                    height: 36,
+                    width: 38,
+                    height: 38,
                   ),
                   padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.add_alert_rounded),
+                  icon: const Icon(Icons.add_alert_rounded, size: 20),
                   color: Colors.white,
                   visualDensity: VisualDensity.compact,
-                  splashRadius: 18,
+                  splashRadius: 19,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Container(
                 decoration: AppGlassTheme.surfaceDecoration(
-                  radius: 16,
+                  radius: 14,
                   borderAlpha: 0.34,
                   colors: <Color>[
                     Colors.white.withValues(alpha: 0.3),
@@ -1229,22 +1387,22 @@ class _RulesSection extends StatelessWidget {
                       : () => _openDeleteRulePicker(context),
                   tooltip: 'Delete alert rule',
                   constraints: const BoxConstraints.tightFor(
-                    width: 36,
-                    height: 36,
+                    width: 38,
+                    height: 38,
                   ),
                   padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.delete_outline_rounded),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
                   color: const Color(0xFFCC5A4E),
                   disabledColor: const Color(0xFFB7C0C8),
                   visualDensity: VisualDensity.compact,
-                  splashRadius: 18,
+                  splashRadius: 19,
                 ),
               ),
             ],
           ),
           if (rules.isEmpty) ...[
             const SizedBox(height: 10),
-            _EmptyRulesCard(onCreateRule: onCreateRule)
+            _EmptyRulesCard(onCreateRule: onCreateRule),
           ] else if (isExpanded) ...[
             const SizedBox(height: 10),
             Column(
@@ -1474,12 +1632,26 @@ class _AlertsPageSwitcher extends StatelessWidget {
                 label: 'Event History',
                 isSelected: selectedPage == _AlertsPage.currentEvents,
                 onTap: () => onChanged(_AlertsPage.currentEvents),
+                selectedColors: const <Color>[
+                  Color(0xFFB6D2F5),
+                  Color(0xFF82AEE8),
+                ],
+                selectedBorderColor: const Color(0xFF9EC3F0),
+                selectedGlowColor: const Color(0xFF82AEE8),
+                idleTintColor: const Color(0xFFEEF6FF),
               ),
               const SizedBox(width: 4),
               _SwitcherButton(
                 label: 'All History',
                 isSelected: selectedPage == _AlertsPage.allHistory,
                 onTap: () => onChanged(_AlertsPage.allHistory),
+                selectedColors: const <Color>[
+                  Color(0xFFC7B9F4),
+                  Color(0xFF9B7EE6),
+                ],
+                selectedBorderColor: const Color(0xFFB8A6EE),
+                selectedGlowColor: const Color(0xFF9B7EE6),
+                idleTintColor: const Color(0xFFF6F1FF),
               ),
             ],
           ),
@@ -1494,11 +1666,19 @@ class _SwitcherButton extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
+    required this.selectedColors,
+    required this.selectedBorderColor,
+    required this.selectedGlowColor,
+    required this.idleTintColor,
   });
 
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final List<Color> selectedColors;
+  final Color selectedBorderColor;
+  final Color selectedGlowColor;
+  final Color idleTintColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1512,16 +1692,16 @@ class _SwitcherButton extends StatelessWidget {
           decoration: isSelected
               ? AppGlassTheme.accentDecoration(
                   radius: 12,
-                  colors: const <Color>[Color(0xFFB6D2F5), Color(0xFF82AEE8)],
-                  borderColor: const Color(0xFF9EC3F0),
-                  glowColor: const Color(0xFF82AEE8),
+                  colors: selectedColors,
+                  borderColor: selectedBorderColor,
+                  glowColor: selectedGlowColor,
                 )
               : AppGlassTheme.surfaceDecoration(
                   radius: 12,
                   borderAlpha: 0.22,
                   colors: <Color>[
                     const Color(0xFFFFFFFF).withValues(alpha: 0.28),
-                    const Color(0xFFF7FAFF).withValues(alpha: 0.16),
+                    idleTintColor.withValues(alpha: 0.34),
                   ],
                   shadows: const <BoxShadow>[],
                 ),
@@ -1683,67 +1863,73 @@ class _EmptyRulesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4E9070).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.rule_folder_outlined,
-                  color: Color(0xFF4E9070),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Text(
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF4E9070).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.rule_folder_outlined,
+              color: Color(0xFF4E9070),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
                   'No alert rules yet',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
                     color: Color(0xFF20303A),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'ลองสร้างกฎการแจ้งเตือนจากวิดเจ็ตดูซิ เช่น ตั้งให้เตือนเมื่อดินแห้ง หรือเมื่อปั๊มน้ำเริ่มทำงาน',
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.45,
-              color: Color(0xFF667587),
+                SizedBox(height: 2),
+                Text(
+                  'สร้างกฎแจ้งเตือนจากวิดเจ็ต เช่น เตือนเมื่อดินแห้ง',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: Color(0xFF667587),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(width: 10),
           Container(
             decoration: AppGlassTheme.accentDecoration(
-              radius: 16,
+              radius: 14,
               colors: const <Color>[Color(0xFFB6D2F5), Color(0xFF82AEE8)],
               borderColor: const Color(0xFF9EC3F0),
               glowColor: const Color(0xFF82AEE8),
             ),
             child: TextButton.icon(
               onPressed: onCreateRule,
-              icon: const Icon(Icons.add_alert_rounded),
-              label: const Text('Create alert rule'),
+              icon: const Icon(Icons.add_alert_rounded, size: 16),
+              label: const Text(
+                'Create',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+              ),
               style: TextButton.styleFrom(
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
             ),
@@ -2188,11 +2374,7 @@ class _AlertEventCard extends StatelessWidget {
 }
 
 class _GlassCard extends StatelessWidget {
-  const _GlassCard({
-    required this.child,
-    this.borderAlpha = 0.5,
-    this.colors,
-  });
+  const _GlassCard({required this.child, this.borderAlpha = 0.5, this.colors});
 
   final Widget child;
   final double borderAlpha;

@@ -79,11 +79,13 @@ class DashboardItem {
     double? stepValue,
     String? sendBehavior,
     this.enabled = false,
+    bool? locked,
   }) : titlePosition = titlePosition ?? DashboardItemTitlePosition.auto,
-       bindingMode = bindingMode ?? 'read',
-       dataType = dataType ?? 'number',
-       stepValue = stepValue ?? 1,
-       sendBehavior = sendBehavior ?? 'on_release';
+        bindingMode = bindingMode ?? 'read',
+        dataType = dataType ?? 'number',
+        stepValue = stepValue ?? 1,
+        sendBehavior = sendBehavior ?? 'on_release',
+        _locked = locked;
 
   final String id;
   final DashboardItemType type;
@@ -122,6 +124,8 @@ class DashboardItem {
   final double stepValue;
   final String sendBehavior;
   final bool enabled;
+  final bool? _locked;
+  bool get locked => _locked ?? false;
 
   DashboardItem copyWith({
     String? id,
@@ -179,6 +183,7 @@ class DashboardItem {
     double? stepValue,
     String? sendBehavior,
     bool? enabled,
+    bool? locked,
   }) {
     return DashboardItem(
       id: id ?? this.id,
@@ -242,6 +247,7 @@ class DashboardItem {
       stepValue: stepValue ?? this.stepValue,
       sendBehavior: sendBehavior ?? this.sendBehavior,
       enabled: enabled ?? this.enabled,
+      locked: locked ?? this.locked,
     );
   }
 }

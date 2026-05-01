@@ -15,13 +15,13 @@ class SessionSnapshotStorage {
       'token': session.token,
       'displayName': session.displayName,
       'userId': session.userId,
-      'email': session.email,
       'transport': session.transport,
       'authType': session.authType,
       'authenticated': session.authenticated,
       'mqttDeviceId': session.mqttDeviceId,
       'profileImageUrl': session.profileImageUrl,
       'cachedProfileImagePath': session.cachedProfileImagePath,
+      'profileAvatarId': session.profileAvatarId,
     };
     await preferences.setString(_sessionSnapshotKey, jsonEncode(payload));
   }
@@ -43,13 +43,13 @@ class SessionSnapshotStorage {
         token: decoded['token']?.toString() ?? '',
         displayName: decoded['displayName']?.toString() ?? '',
         userId: decoded['userId']?.toString(),
-        email: decoded['email']?.toString(),
         transport: decoded['transport']?.toString(),
         authType: decoded['authType']?.toString(),
         authenticated: decoded['authenticated'] == true,
         mqttDeviceId: decoded['mqttDeviceId']?.toString(),
         profileImageUrl: decoded['profileImageUrl']?.toString(),
         cachedProfileImagePath: decoded['cachedProfileImagePath']?.toString(),
+        profileAvatarId: decoded['profileAvatarId']?.toString(),
         isOfflineMode: true,
       );
     } catch (_) {

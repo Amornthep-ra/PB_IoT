@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auth_service.dart';
-import '../services/profile_image_cache_storage.dart';
+import '../services/profile_avatar_preset_storage.dart';
 import '../services/session_cookie_storage.dart';
 import '../services/session_snapshot_storage.dart';
 import '../services/session_state.dart';
@@ -29,6 +30,13 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
   bool _obscureToken = true;
   bool _handledRouteError = false;
   _LoginError? _loginError;
+
+  static const _tokenRequestUrl =
+      'https://console.princebot.co.th/token/request';
+  static const _deleteAccountUrl =
+      'https://console.princebot.co.th/delete-account';
+  static const _privacyPolicyUrl =
+      'https://sites.google.com/view/pb-iot-privacy-policy';
 
   static const _backgroundColor = Color(0xFFF2F5FA);
   static const _cardColor = Color(0xFFEFF3F8);
@@ -113,12 +121,12 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
         rememberMe: _rememberMe,
       );
 
-      var synchronizedSession =
-          await ProfileImageCacheStorage.synchronizeSession(session);
-      synchronizedSession = await ProfileImageCacheStorage.refreshFromNetwork(
-        synchronizedSession,
+      final sessionWithAvatar =
+          await ProfileAvatarPresetStorage.applyStoredAvatar(session);
+      final synchronizedSession = sessionWithAvatar.copyWith(
+        cachedProfileImagePath: '',
+        isOfflineMode: false,
       );
-      synchronizedSession = synchronizedSession.copyWith(isOfflineMode: false);
       await SessionSnapshotStorage.save(synchronizedSession);
       SessionState.current = synchronizedSession;
 
@@ -163,12 +171,36 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
     }
   }
 
-  void _onRequestToken() {
-    Navigator.pushNamed(context, '/request-token');
+  Future<void> _onOpenTokenRequest() async {
+    final uri = Uri.parse(_tokenRequestUrl);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่สามารถเปิดเบราว์เซอร์ได้ กรุณาลองอีกครั้ง'),
+        ),
+      );
+    }
   }
 
-  void _onForgotToken() {
-    Navigator.pushNamed(context, '/forgot-token');
+  Future<void> _onOpenPrivacyPolicy() async {
+    final uri = Uri.parse(_privacyPolicyUrl);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open Privacy Policy.')),
+      );
+    }
+  }
+
+  Future<void> _onOpenDeleteAccount() async {
+    final uri = Uri.parse(_deleteAccountUrl);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open Delete Account.')),
+      );
+    }
   }
 
   InputDecoration _inputDecoration({
@@ -224,6 +256,8 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final width = size.width;
     final loginError = _loginError;
+    final hasFieldError =
+        loginError != null && loginError != _LoginError.sessionExpired;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -248,7 +282,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                 );
                 final errorGapHeight = isShortHeight ? 14.0 : 18.0;
                 final buttonTopGap = isShortHeight ? 18.0 : 22.0;
-                final footerTopGap = isShortHeight ? 24.0 : 36.0;
+                final footerTopGap = isShortHeight ? 18.0 : 24.0;
                 final content = Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -258,8 +292,8 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                       ),
                     ),
                     _LogoPlaceholder(
-                      width: metrics.authHeroSize,
-                      height: metrics.authHeroSize,
+                      width: metrics.authHeroSize * 0.68,
+                      height: metrics.authHeroSize * 0.68,
                     ),
                     SizedBox(
                       height: metrics.authResolvedHeroCardGap(
@@ -312,7 +346,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                                 }
                               },
                               decorationBuilder: _inputDecoration,
-                              hasError: _loginError != null,
+                              hasError: hasFieldError,
                               isObscured: _obscureToken,
                               keyboardAppearance: Brightness.light,
                               style: const TextStyle(
@@ -393,9 +427,49 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                     SafeArea(
                       top: false,
                       minimum: EdgeInsets.only(top: footerTopGap, bottom: 20),
-                      child: _BottomActionBar(
-                        onRequestToken: _onRequestToken,
-                        onForgotToken: _onForgotToken,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _LoginFooterLinks(
+                            onTokenRequestTap: _onOpenTokenRequest,
+                          ),
+                          const SizedBox(height: 2),
+                          TextButton(
+                            onPressed: _onOpenDeleteAccount,
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFB24A46),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Delete Account'),
+                          ),
+                          const SizedBox(height: 2),
+                          TextButton(
+                            onPressed: _onOpenPrivacyPolicy,
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF667587),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Privacy Policy'),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -513,14 +587,29 @@ class _LoginErrorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const errorColor = Color(0xFFB24A4A);
+    final isNotice = error == _LoginError.sessionExpired;
+    final accentColor = isNotice
+        ? const Color(0xFF4E9070)
+        : const Color(0xFFB24A4A);
+    final backgroundColor = isNotice
+        ? const Color(0xFFEFF8F3)
+        : const Color(0xFFFFF2F2);
+    final iconBackgroundColor = isNotice
+        ? const Color(0xFFDDF1E6)
+        : const Color(0xFFFFE2E2);
+    final borderColor = isNotice
+        ? const Color(0xFFC7E4D3)
+        : const Color(0xFFF2C8C8);
+    final messageColor = isNotice
+        ? const Color(0xFF4F6F5E)
+        : const Color(0xFF8F4A4A);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF2F2),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFF2C8C8)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,10 +618,10 @@ class _LoginErrorBox extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFE2E2),
+              color: iconBackgroundColor,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(error.icon, size: 18, color: errorColor),
+            child: Icon(error.icon, size: 18, color: accentColor),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -545,9 +634,8 @@ class _LoginErrorBox extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 13.5,
                     height: 1.25,
-                    color: errorColor,
                     fontWeight: FontWeight.w700,
-                  ),
+                  ).copyWith(color: accentColor),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -555,9 +643,8 @@ class _LoginErrorBox extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 12.5,
                     height: 1.35,
-                    color: Color(0xFF8F4A4A),
                     fontWeight: FontWeight.w500,
-                  ),
+                  ).copyWith(color: messageColor),
                 ),
               ],
             ),
@@ -705,12 +792,36 @@ class _LogoPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Image.asset(
-          'assets/icons/logo/Princebot_IoT.png',
-          fit: BoxFit.contain,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF83C8D4).withValues(alpha: 0.20),
+              blurRadius: 26,
+              spreadRadius: 2,
+            ),
+            BoxShadow(
+              color: const Color(0xFF7FC39C).withValues(alpha: 0.12),
+              blurRadius: 20,
+              spreadRadius: 1,
+            ),
+            const BoxShadow(color: Color(0x180F172A), blurRadius: 18),
+            const BoxShadow(color: Color(0xEFFFFFFF), blurRadius: 10),
+          ],
+        ),
+        child: ClipOval(
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Image.asset(
+              'assets/icons/logo/Princebot_IoT_V2C.png',
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
         ),
       ),
     );
@@ -1050,56 +1161,26 @@ class _GlowLoginButton extends StatelessWidget {
   }
 }
 
-class _BottomActionBar extends StatelessWidget {
-  const _BottomActionBar({
-    required this.onRequestToken,
-    required this.onForgotToken,
-  });
+class _LoginFooterLinks extends StatelessWidget {
+  const _LoginFooterLinks({required this.onTokenRequestTap});
 
-  final VoidCallback onRequestToken;
-  final VoidCallback onForgotToken;
+  final VoidCallback onTokenRequestTap;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _FooterLink(label: 'Request Token', onTap: onRequestToken),
-        const Text(
-          '|',
-          style: TextStyle(
-            fontSize: 18,
-            color: Color(0xFF5D6A63),
-            fontWeight: FontWeight.w400,
-          ),
+    return Center(
+      child: TextButton.icon(
+        onPressed: onTokenRequestTap,
+        icon: const Icon(Icons.open_in_new_rounded, size: 16),
+        label: const Text('ขอ Token / ลืม Token? คลิกที่นี่'),
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF4E9070),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        _FooterLink(label: 'Forgot Token', onTap: onForgotToken),
-      ],
-    );
-  }
-}
-
-class _FooterLink extends StatelessWidget {
-  const _FooterLink({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        foregroundColor: const Color(0xFF66788A),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      child: Text(label),
     );
   }
 }

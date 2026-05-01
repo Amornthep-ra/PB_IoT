@@ -1,12 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auth_service.dart';
+import '../services/profile_avatar_preset_storage.dart';
 import '../services/profile_image_cache_storage.dart';
 import '../services/session_cookie_storage.dart';
 import '../services/session_snapshot_storage.dart';
@@ -24,13 +24,10 @@ class AccountSessionScreen extends StatefulWidget {
 
 class _AccountSessionScreenState extends State<AccountSessionScreen> {
   final AuthService _authService = AuthService();
-  final ImagePicker _imagePicker = ImagePicker();
 
   bool _isLoggingOut = false;
-  bool _isUpdatingProfilePhoto = false;
+  bool _isUpdatingProfileAvatar = false;
   bool _isTokenVisible = false;
-  XFile? _localProfilePhoto;
-  String? _profileImageSyncUrl;
   Timer? _tokenVisibilityTimer;
 
   static const _backgroundColor = Color(0xFFF2F5FA);
@@ -40,6 +37,8 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
   static const _dangerStartColor = Color(0xFFF06A62);
   static const _dangerEndColor = Color(0xFFD84840);
   static const _dangerGlowColor = Color(0xFFF0A09B);
+  static const _privacyPolicyUrl =
+      'https://sites.google.com/view/pb-iot-privacy-policy';
 
   Widget _buildGlassHeader() {
     return ClipRRect(
@@ -191,10 +190,7 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     if (!mounted) {
       return;
     }
-    await _syncProfileImageState();
-    if (!mounted) {
-      return;
-    }
+    await ProfileImageCacheStorage.clear();
     await _refreshSessionFromServer();
   }
 
@@ -219,13 +215,14 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     }
   }
 
-  Future<void> _onEditProfilePhotoPressed() async {
-    final selectedAction = await showModalBottomSheet<_ProfilePhotoAction>(
+  Future<void> _onEditProfileAvatarPressed() async {
+    final selectedAction = await showModalBottomSheet<_ProfileAvatarAction>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return _ProfilePhotoSourceSheet(
-          hasProfilePhoto: _resolvedProfileImageUrl != null,
+        return _ProfileAvatarSourceSheet(
+          hasProfileAvatar: _resolvedProfileAvatarId != null,
           onActionSelected: (action) => Navigator.of(context).pop(action),
         );
       },
@@ -235,202 +232,111 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
       return;
     }
 
-    if (selectedAction == _ProfilePhotoAction.remove) {
-      await _removeProfilePhoto();
+    if (selectedAction == _ProfileAvatarAction.remove) {
+      await _removeProfileAvatar();
       return;
     }
 
-    final selectedSource = selectedAction == _ProfilePhotoAction.camera
-        ? ImageSource.camera
-        : ImageSource.gallery;
-
-    try {
-      final pickedFile = await _imagePicker.pickImage(
-        source: selectedSource,
-        imageQuality: 88,
-        maxWidth: 1600,
-      );
-
-      if (pickedFile == null || !mounted) {
-        return;
-      }
-
-      setState(() {
-        _localProfilePhoto = pickedFile;
-        _isUpdatingProfilePhoto = true;
-      });
-
-      final uploadedUrl = await _authService.uploadProfilePhoto(
-        filePath: pickedFile.path,
-      );
-
-      await _updateSessionProfileImage(
-        profileImageUrl: uploadedUrl,
-        localFilePath: pickedFile.path,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _localProfilePhoto = null;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _localProfilePhoto = null;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to update profile photo right now.'),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUpdatingProfilePhoto = false;
-        });
-      }
+    if (selectedAction == _ProfileAvatarAction.avatar) {
+      await _chooseProfileAvatarPreset();
+      return;
     }
   }
 
-  Future<void> _removeProfilePhoto() async {
-    final currentPhotoUrl = _resolvedProfileImageUrl;
-    if (currentPhotoUrl == null || currentPhotoUrl.isEmpty) {
+  Future<void> _removeProfileAvatar() async {
+    if (_resolvedProfileAvatarId == null) {
       return;
     }
 
     setState(() {
-      _isUpdatingProfilePhoto = true;
+      _isUpdatingProfileAvatar = true;
     });
 
     try {
-      await _authService.deleteProfilePhoto(photoUrl: currentPhotoUrl);
-      await _clearCachedProfileImage();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _localProfilePhoto = null;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to remove profile photo right now.'),
-        ),
-      );
+      await _clearProfileAvatarState();
     } finally {
       if (mounted) {
         setState(() {
-          _isUpdatingProfilePhoto = false;
+          _isUpdatingProfileAvatar = false;
         });
       }
     }
   }
 
-  Future<void> _updateSessionProfileImage({
-    required String profileImageUrl,
-    String? localFilePath,
-  }) async {
-    final currentSession = SessionState.current;
-    if (currentSession == null) {
-      return;
-    }
-
-    var updatedSession = currentSession.copyWith(
-      profileImageUrl: profileImageUrl,
-      cachedProfileImagePath: '',
-    );
-
-    updatedSession = await ProfileImageCacheStorage.synchronizeSession(
-      updatedSession,
-    );
-
-    if (localFilePath != null && localFilePath.isNotEmpty) {
-      updatedSession = await ProfileImageCacheStorage.cacheFromFile(
-        session: updatedSession,
-        sourcePath: localFilePath,
-      );
-    }
-
-    SessionState.current = updatedSession;
-    await SessionSnapshotStorage.save(
-      updatedSession.copyWith(isOfflineMode: false),
-    );
-    _profileImageSyncUrl = _resolvedProfileImageUrl;
-  }
-
-  Future<void> _clearCachedProfileImage() async {
+  Future<void> _clearProfileAvatarState() async {
     final currentSession = SessionState.current;
     if (currentSession == null) {
       return;
     }
 
     await ProfileImageCacheStorage.clear();
+    await ProfileAvatarPresetStorage.removeForSession(currentSession);
     await SessionSnapshotStorage.save(
       currentSession.copyWith(
         profileImageUrl: '',
         cachedProfileImagePath: '',
+        profileAvatarId: '',
         isOfflineMode: false,
       ),
     );
     SessionState.current = currentSession.copyWith(
       profileImageUrl: '',
       cachedProfileImagePath: '',
+      profileAvatarId: '',
       isOfflineMode: false,
     );
-    _profileImageSyncUrl = null;
   }
 
-  Future<void> _syncProfileImageState() async {
+  Future<void> _chooseProfileAvatarPreset() async {
+    final currentAvatarId = _resolvedProfileAvatarId;
+    final selectedAvatarId = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return _ProfileAvatarPickerSheet(currentAvatarId: currentAvatarId);
+      },
+    );
+
+    if (selectedAvatarId == null || !mounted) {
+      return;
+    }
+
+    await _selectProfileAvatarPreset(selectedAvatarId);
+  }
+
+  Future<void> _selectProfileAvatarPreset(String avatarId) async {
     final currentSession = SessionState.current;
     if (currentSession == null) {
       return;
     }
 
-    final normalizedUrl = _resolvedProfileImageUrl;
-    if (_profileImageSyncUrl == normalizedUrl) {
-      return;
-    }
+    setState(() {
+      _isUpdatingProfileAvatar = true;
+    });
 
-    _profileImageSyncUrl = normalizedUrl;
+    try {
+      await ProfileAvatarPresetStorage.saveForSession(
+        session: currentSession,
+        avatarId: avatarId,
+      );
+      await ProfileImageCacheStorage.clear();
 
-    var synchronizedSession = await ProfileImageCacheStorage.synchronizeSession(
-      currentSession,
-    );
-    SessionState.current = synchronizedSession;
+      final updatedSession = currentSession.copyWith(
+        profileImageUrl: '',
+        cachedProfileImagePath: '',
+        profileAvatarId: avatarId,
+        isOfflineMode: false,
+      );
 
-    if (normalizedUrl == null) {
+      SessionState.current = updatedSession;
+      await SessionSnapshotStorage.save(updatedSession);
+    } finally {
       if (mounted) {
-        setState(() {});
+        setState(() {
+          _isUpdatingProfileAvatar = false;
+        });
       }
-      return;
-    }
-
-    synchronizedSession = await ProfileImageCacheStorage.refreshFromNetwork(
-      synchronizedSession,
-    );
-
-    if (!mounted) {
-      SessionState.current = synchronizedSession;
-      return;
-    }
-
-    final latestUrl = SessionState.current?.profileImageUrl?.trim();
-    if (latestUrl == normalizedUrl) {
-      SessionState.current = synchronizedSession;
-      setState(() {});
     }
   }
 
@@ -449,20 +355,20 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
           refreshedSession.displayName.trim().isNotEmpty
           ? refreshedSession.displayName
           : currentSession?.displayName;
-      final mergedSession = refreshedSession.copyWith(
+      var mergedSession = refreshedSession.copyWith(
         token: preservedToken,
         displayName: preservedDisplayName,
       );
-
-      var synchronizedSession =
-          await ProfileImageCacheStorage.synchronizeSession(mergedSession);
-      synchronizedSession = await ProfileImageCacheStorage.refreshFromNetwork(
-        synchronizedSession,
+      mergedSession = await ProfileAvatarPresetStorage.applyStoredAvatar(
+        mergedSession,
       );
-      synchronizedSession = synchronizedSession.copyWith(isOfflineMode: false);
+
+      final synchronizedSession = mergedSession.copyWith(
+        cachedProfileImagePath: '',
+        isOfflineMode: false,
+      );
       SessionState.current = synchronizedSession;
       await SessionSnapshotStorage.save(synchronizedSession);
-      _profileImageSyncUrl = null;
 
       if (mounted) {
         setState(() {});
@@ -504,12 +410,21 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     Navigator.pushNamedAndRemoveUntil(context, '/projects', (route) => false);
   }
 
+  Future<void> _onOpenPrivacyPolicy() async {
+    final uri = Uri.parse(_privacyPolicyUrl);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open Privacy Policy.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = SessionState.current;
     final mediaQuery = MediaQuery.of(context);
-    final cachedProfileImagePath = _resolvedCachedProfileImagePath;
-    final profileImageUrl = _resolvedProfileImageUrl;
+    final profileAvatarId = _resolvedProfileAvatarId;
     final displayName = session?.displayName.trim();
     final userName = displayName == null || displayName.isEmpty
         ? 'Farmer John'
@@ -567,11 +482,9 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                     Center(
                       child: _HeroProfileCard(
                         metrics: metrics,
-                        localProfilePhoto: _localProfilePhoto,
-                        cachedProfileImagePath: cachedProfileImagePath,
-                        profileImageUrl: profileImageUrl,
-                        isUpdating: _isUpdatingProfilePhoto,
-                        onEditTap: _onEditProfilePhotoPressed,
+                        profileAvatarId: profileAvatarId,
+                        isUpdating: _isUpdatingProfileAvatar,
+                        onEditTap: _onEditProfileAvatarPressed,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -652,6 +565,13 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                         const _DividerRow(),
                         _MenuRow(
                           metrics: metrics,
+                          icon: Icons.privacy_tip_outlined,
+                          label: 'Privacy Policy',
+                          onTap: _onOpenPrivacyPolicy,
+                        ),
+                        const _DividerRow(),
+                        _MenuRow(
+                          metrics: metrics,
                           icon: Icons.help_outline_rounded,
                           label: 'Help & Support',
                           onTap: () {
@@ -683,18 +603,93 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     );
   }
 
-  String? get _resolvedProfileImageUrl {
-    final session = SessionState.current;
-    final value = session?.profileImageUrl?.trim();
+  String? get _resolvedProfileAvatarId {
+    final value = SessionState.current?.profileAvatarId?.trim();
     return value == null || value.isEmpty ? null : value;
-  }
-
-  String? get _resolvedCachedProfileImagePath {
-    return ProfileImageCacheStorage.resolveCachedPath(SessionState.current);
   }
 }
 
-enum _ProfilePhotoAction { camera, gallery, remove }
+enum _ProfileAvatarAction { avatar, remove }
+
+const List<_ProfileAvatarPreset> _profileAvatarPresets = <_ProfileAvatarPreset>[
+  _ProfileAvatarPreset(
+    id: 'avatar1',
+    assetPath: 'assets/icons/profile/avatar1.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar2',
+    assetPath: 'assets/icons/profile/avatar2.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar3',
+    assetPath: 'assets/icons/profile/avatar3.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar4',
+    assetPath: 'assets/icons/profile/avatar4.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar5',
+    assetPath: 'assets/icons/profile/avatar5.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar6',
+    assetPath: 'assets/icons/profile/avatar6.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar7',
+    assetPath: 'assets/icons/profile/avatar7.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar8',
+    assetPath: 'assets/icons/profile/avatar8.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar9',
+    assetPath: 'assets/icons/profile/avatar9.png',
+  ),
+  _ProfileAvatarPreset(
+    id: 'avatar10',
+    assetPath: 'assets/icons/profile/avatar10.png',
+  ),
+];
+
+_ProfileAvatarPreset _profileAvatarPresetById(String avatarId) {
+  return _profileAvatarPresets.firstWhere(
+    (preset) => preset.id == avatarId,
+    orElse: () => _profileAvatarPresets.first,
+  );
+}
+
+class _ProfileAvatarPreset {
+  const _ProfileAvatarPreset({required this.id, required this.assetPath});
+
+  final String id;
+  final String assetPath;
+}
+
+class _ProfileAvatarPresetImage extends StatelessWidget {
+  const _ProfileAvatarPresetImage({required this.avatarId});
+
+  final String avatarId;
+
+  @override
+  Widget build(BuildContext context) {
+    final preset = _profileAvatarPresetById(avatarId);
+
+    return Image.asset(
+      preset.assetPath,
+      fit: BoxFit.cover,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) {
+        return const Icon(
+          Icons.person_outline_rounded,
+          color: Color(0xFF5A9676),
+        );
+      },
+    );
+  }
+}
 
 class _AccountBackground extends StatelessWidget {
   const _AccountBackground();
@@ -785,17 +780,13 @@ class _GlowOrb extends StatelessWidget {
 class _HeroProfileCard extends StatelessWidget {
   const _HeroProfileCard({
     required this.metrics,
-    required this.localProfilePhoto,
-    required this.cachedProfileImagePath,
-    required this.profileImageUrl,
+    required this.profileAvatarId,
     required this.isUpdating,
     required this.onEditTap,
   });
 
   final AppResponsiveMetrics metrics;
-  final XFile? localProfilePhoto;
-  final String? cachedProfileImagePath;
-  final String? profileImageUrl;
+  final String? profileAvatarId;
   final bool isUpdating;
   final VoidCallback onEditTap;
 
@@ -826,40 +817,8 @@ class _HeroProfileCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    if (localProfilePhoto != null)
-                      Image.file(
-                        File(localProfilePhoto!.path),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return _ProfileAvatarFallback(metrics: metrics);
-                        },
-                      )
-                    else if (cachedProfileImagePath != null)
-                      Image.file(
-                        File(cachedProfileImagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return profileImageUrl != null
-                              ? Image.network(
-                                  profileImageUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return _ProfileAvatarFallback(
-                                      metrics: metrics,
-                                    );
-                                  },
-                                )
-                              : _ProfileAvatarFallback(metrics: metrics);
-                        },
-                      )
-                    else if (profileImageUrl != null)
-                      Image.network(
-                        profileImageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return _ProfileAvatarFallback(metrics: metrics);
-                        },
-                      )
+                    if (profileAvatarId != null)
+                      _ProfileAvatarPresetImage(avatarId: profileAvatarId!)
                     else
                       _ProfileAvatarFallback(metrics: metrics),
                     if (isUpdating)
@@ -906,7 +865,7 @@ class _HeroProfileCard extends StatelessWidget {
                         glowColor: const Color(0xFF6BB38A),
                       ),
                       child: const Icon(
-                        Icons.camera_alt_rounded,
+                        Icons.grid_view_rounded,
                         size: 18,
                         color: Colors.white,
                       ),
@@ -937,82 +896,87 @@ class _ProfileAvatarFallback extends StatelessWidget {
   }
 }
 
-class _ProfilePhotoSourceSheet extends StatelessWidget {
-  const _ProfilePhotoSourceSheet({
-    required this.hasProfilePhoto,
+class _ProfileAvatarSourceSheet extends StatelessWidget {
+  const _ProfileAvatarSourceSheet({
+    required this.hasProfileAvatar,
     required this.onActionSelected,
   });
 
-  final bool hasProfilePhoto;
-  final ValueChanged<_ProfilePhotoAction> onActionSelected;
+  final bool hasProfileAvatar;
+  final ValueChanged<_ProfileAvatarAction> onActionSelected;
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final maxSheetHeight =
+        (mediaQuery.size.height - mediaQuery.padding.vertical - 24)
+            .clamp(0.0, double.infinity)
+            .toDouble();
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              decoration: AppGlassTheme.surfaceDecoration(
-                radius: 24,
-                borderAlpha: 0.5,
-                colors: <Color>[
-                  const Color(0xFFFFFFFF).withValues(alpha: 0.78),
-                  const Color(0xFFF5FBFF).withValues(alpha: 0.38),
-                ],
-                shadows: AppGlassTheme.shadowMd,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Change profile photo',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _AccountSessionScreenState._headlineColor,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Choose where to get your new profile image.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: _AccountSessionScreenState._mutedTextColor,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _SourceActionTile(
-                      icon: Icons.photo_camera_outlined,
-                      label: 'Take photo',
-                      onTap: () => onActionSelected(_ProfilePhotoAction.camera),
-                    ),
-                    const SizedBox(height: 8),
-                    _SourceActionTile(
-                      icon: Icons.photo_library_outlined,
-                      label: 'Choose from gallery',
-                      onTap: () =>
-                          onActionSelected(_ProfilePhotoAction.gallery),
-                    ),
-                    if (hasProfilePhoto) ...[
-                      const SizedBox(height: 8),
-                      _SourceActionTile(
-                        icon: Icons.delete_outline_rounded,
-                        label: 'Remove photo',
-                        iconColor: const Color(0xFFB24A46),
-                        onTap: () =>
-                            onActionSelected(_ProfilePhotoAction.remove),
-                      ),
-                    ],
-                    const SizedBox(height: 6),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxSheetHeight),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                decoration: AppGlassTheme.surfaceDecoration(
+                  radius: 24,
+                  borderAlpha: 0.5,
+                  colors: <Color>[
+                    const Color(0xFFFFFFFF).withValues(alpha: 0.78),
+                    const Color(0xFFF5FBFF).withValues(alpha: 0.38),
                   ],
+                  shadows: AppGlassTheme.shadowMd,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Profile avatar',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: _AccountSessionScreenState._headlineColor,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Choose a built-in avatar for this account.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: _AccountSessionScreenState._mutedTextColor,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _SourceActionTile(
+                          icon: Icons.grid_view_rounded,
+                          label: 'Choose avatar',
+                          onTap: () =>
+                              onActionSelected(_ProfileAvatarAction.avatar),
+                        ),
+                        if (hasProfileAvatar) ...[
+                          const SizedBox(height: 8),
+                          _SourceActionTile(
+                            icon: Icons.delete_outline_rounded,
+                            label: 'Remove avatar',
+                            iconColor: const Color(0xFFB24A46),
+                            onTap: () =>
+                                onActionSelected(_ProfileAvatarAction.remove),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1089,6 +1053,136 @@ class _SourceActionTile extends StatelessWidget {
               Icons.chevron_right_rounded,
               size: 22,
               color: Color(0xFF718093),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileAvatarPickerSheet extends StatelessWidget {
+  const _ProfileAvatarPickerSheet({required this.currentAvatarId});
+
+  final String? currentAvatarId;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final gridHeight = (mediaQuery.size.height * 0.22)
+        .clamp(150.0, 210.0)
+        .toDouble();
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              decoration: AppGlassTheme.surfaceDecoration(
+                radius: 24,
+                borderAlpha: 0.5,
+                colors: <Color>[
+                  const Color(0xFFFFFFFF).withValues(alpha: 0.8),
+                  const Color(0xFFF5FBFF).withValues(alpha: 0.42),
+                ],
+                shadows: AppGlassTheme.shadowMd,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Choose avatar',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _AccountSessionScreenState._headlineColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Pick a built-in avatar for this account.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _AccountSessionScreenState._mutedTextColor,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: gridHeight,
+                      child: GridView.builder(
+                        itemCount: _profileAvatarPresets.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                              childAspectRatio: 1,
+                            ),
+                        itemBuilder: (context, index) {
+                          final preset = _profileAvatarPresets[index];
+                          final isSelected = preset.id == currentAvatarId;
+                          return _ProfileAvatarChoice(
+                            preset: preset,
+                            isSelected: isSelected,
+                            onTap: () => Navigator.of(context).pop(preset.id),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileAvatarChoice extends StatelessWidget {
+  const _ProfileAvatarChoice({
+    required this.preset,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final _ProfileAvatarPreset preset;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        padding: const EdgeInsets.all(6),
+        decoration: AppGlassTheme.surfaceDecoration(
+          radius: 14,
+          borderAlpha: isSelected ? 0.86 : 0.34,
+          colors: <Color>[
+            Colors.white.withValues(alpha: isSelected ? 0.72 : 0.48),
+            const Color(0xFF6BB38A).withValues(alpha: isSelected ? 0.14 : 0.06),
+          ],
+          shadows: const <BoxShadow>[],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: ClipOval(
+                child: _ProfileAvatarPresetImage(avatarId: preset.id),
+              ),
             ),
           ],
         ),

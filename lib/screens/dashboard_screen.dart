@@ -23,12 +23,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _runtimeController = DashboardRuntimeController();
+    _runtimeController.highlightItemIdNotifier.addListener(
+      _handleHighlightRequest,
+    );
   }
 
   @override
   void dispose() {
+    _runtimeController.highlightItemIdNotifier.removeListener(
+      _handleHighlightRequest,
+    );
     _runtimeController.dispose();
     super.dispose();
+  }
+
+  void _handleHighlightRequest() {
+    final requestedId = _runtimeController.highlightItemIdNotifier.value;
+    if (requestedId == null || !mounted) {
+      return;
+    }
+    if (_selectedIndex != 0) {
+      setState(() => _selectedIndex = 0);
+    }
   }
 
   Widget _buildCurrentScreen() {

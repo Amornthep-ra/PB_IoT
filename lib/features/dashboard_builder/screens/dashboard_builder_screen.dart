@@ -11,6 +11,8 @@ import '../../dashboard/models/device_snapshot_model.dart';
 import '../../dashboard/services/dashboard_service.dart';
 import '../../dashboard/services/dashboard_runtime_value_storage.dart';
 import '../../dashboard/widgets/dashboard_runtime_theme.dart';
+import '../../notifications/models/alert_rule_model.dart';
+import '../../notifications/services/notification_service.dart';
 import '../models/dashboard_builder_interaction_state.dart';
 import '../models/dashboard_item.dart';
 import '../models/dashboard_theme_preset.dart';
@@ -25,6 +27,70 @@ import '../widgets/dashboard_item_renderer.dart';
 import '../widgets/smart_slider_widget.dart';
 import '../widgets/widget_shell_layout.dart';
 import '../widgets/widget_settings_sheet.dart';
+
+enum _AlertRuleDeleteChoice { deleteRules, disableRules, cancel }
+
+class _DeleteWithAlertsActionButton extends StatelessWidget {
+  const _DeleteWithAlertsActionButton({
+    required this.label,
+    required this.description,
+    required this.icon,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onPressed,
+  });
+
+  final String label;
+  final String description;
+  final IconData icon;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: foregroundColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: foregroundColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: foregroundColor.withValues(alpha: 0.78),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _DashboardBuilderSnapshot {
   const _DashboardBuilderSnapshot({
@@ -120,6 +186,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   static const double _dragAutoScrollEdgeThreshold = 96;
   static const double _dragAutoScrollMaxStep = 24;
   static const double _targetCellSize = 14;
+  static const double _sliderCompactCollisionCellThreshold = 22;
   static const int _minColumns = 18;
   static const int _maxColumns = 26;
   static const int _maxHistoryEntries = 60;
@@ -145,6 +212,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       DashboardBuilderInteractionState();
   final DashboardBuilderLayoutStorageService _layoutStorage =
       DashboardBuilderLayoutStorageService();
+  final NotificationService _notificationService = NotificationService();
   final DashboardRuntimeValueStorage _runtimeValueStorage =
       DashboardRuntimeValueStorage();
   final DashboardService _dashboardService = DashboardService();
@@ -351,7 +419,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       await _runtimeValueStorage.pruneForItems(runtimeResolvedItems);
       final resolvedItems = _normalizeItems(runtimeResolvedItems);
       final currentSignature = _layoutStorage.layoutSignature(resolvedItems);
-      final restoredHistory = storedHistory?.currentSignature == currentSignature
+      final restoredHistory =
+          storedHistory?.currentSignature == currentSignature
           ? storedHistory
           : null;
       final draftItems = storedDraft == null
@@ -698,6 +767,64 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     return rawColumns.clamp(_minColumns, _maxColumns);
   }
 
+  GridRect _effectiveCollisionRect({
+    required DashboardItem item,
+    required GridRect rect,
+    required double rowHeight,
+  }) {
+    if (item.type != DashboardItemType.slider ||
+        rowHeight < _sliderCompactCollisionCellThreshold ||
+        rect.h <= 1) {
+      return rect;
+    }
+
+    const itemVisualInset = 2.0;
+    final pixelWidth = (rect.w * rowHeight) + ((rect.w - 1) * _gridGap);
+    final pixelHeight = (rect.h * rowHeight) + ((rect.h - 1) * _gridGap);
+    final contentWidth = math.max(0.0, pixelWidth - (itemVisualInset * 2));
+    final contentHeight = math.max(0.0, pixelHeight - (itemVisualInset * 2));
+    final layout = buildSliderShellLayout(
+      width: contentWidth,
+      height: contentHeight,
+      desiredShellHeight: SmartSliderVisualSpec.desiredShellHeight,
+      shellBottomInsetFor: SmartSliderVisualSpec.shellBottomInsetFor,
+    );
+    final topInset = itemVisualInset + layout.shellTopInset;
+    final compactTopRows = (topInset / rowHeight)
+        .floor()
+        .clamp(0, rect.h - 1)
+        .toInt();
+    if (compactTopRows <= 0) {
+      return rect;
+    }
+
+    return rect.copyWith(
+      y: rect.y + compactTopRows,
+      h: rect.h - compactTopRows,
+    );
+  }
+
+  bool _visualCollisionOverlaps({
+    required DashboardItem leftItem,
+    required GridRect leftRect,
+    required DashboardItem rightItem,
+    required GridRect rightRect,
+    required double rowHeight,
+  }) {
+    return DashboardLayoutEngine.overlaps(
+      _effectiveCollisionRect(
+        item: leftItem,
+        rect: leftRect,
+        rowHeight: rowHeight,
+      ),
+      _effectiveCollisionRect(
+        item: rightItem,
+        rect: rightRect,
+        rowHeight: rowHeight,
+      ),
+    );
+  }
+
   DashboardItem? _findItemById(String? id, List<DashboardItem> items) {
     if (id == null) {
       return null;
@@ -798,7 +925,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         )
         .catchError((_) {
           // Silent: history persistence should never block editing.
-    });
+        });
     unawaited(_historyPersistQueue);
   }
 
@@ -1303,8 +1430,75 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     if (_selectedIds.isEmpty) {
       return;
     }
+    unawaited(_removeSelectedItemAsync());
+  }
+
+  Future<void> _removeSelectedItemAsync() async {
+    if (_selectedIds.isEmpty) {
+      return;
+    }
 
     final selectedIds = Set<String>.from(_selectedIds);
+
+    List<AlertRuleModel> allRules = const <AlertRuleModel>[];
+    List<AlertRuleModel> dependentRules = const <AlertRuleModel>[];
+    try {
+      allRules = await _notificationService.loadRules();
+      dependentRules = allRules
+          .where((rule) => selectedIds.contains(rule.widgetId))
+          .toList(growable: false);
+    } catch (_) {
+      // If alert rule storage is unavailable, fall back to plain deletion.
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _AlertRuleDeleteChoice? choice;
+    if (dependentRules.isNotEmpty) {
+      choice = await _confirmWidgetDeletionWithAlerts(dependentRules);
+      if (choice == null || choice == _AlertRuleDeleteChoice.cancel) {
+        return;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (choice != null) {
+      final dependentRuleIds = dependentRules.map((rule) => rule.id).toSet();
+      List<AlertRuleModel> nextRules;
+      switch (choice) {
+        case _AlertRuleDeleteChoice.deleteRules:
+          nextRules = allRules
+              .where((rule) => !dependentRuleIds.contains(rule.id))
+              .toList(growable: false);
+          break;
+        case _AlertRuleDeleteChoice.disableRules:
+          nextRules = allRules
+              .map(
+                (rule) => dependentRuleIds.contains(rule.id) && rule.enabled
+                    ? rule.copyWith(enabled: false, updatedAt: DateTime.now())
+                    : rule,
+              )
+              .toList(growable: false);
+          break;
+        case _AlertRuleDeleteChoice.cancel:
+          return;
+      }
+      try {
+        await _notificationService.saveRules(nextRules);
+      } catch (_) {
+        // Non-fatal; widget deletion still proceeds.
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
       _pushUndoSnapshot();
       _items = _items
@@ -1313,6 +1507,198 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       _exitSelectMode();
       _resetInteractionState();
     });
+  }
+
+  Future<_AlertRuleDeleteChoice?> _confirmWidgetDeletionWithAlerts(
+    List<AlertRuleModel> affectedRules,
+  ) {
+    const accentColor = Color(0xFFCC5A4E);
+    return showDialog<_AlertRuleDeleteChoice>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF3F8),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.82)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0xF9FFFFFF),
+                  offset: Offset(-8, -8),
+                  blurRadius: 16,
+                ),
+                BoxShadow(
+                  color: Color(0x1D9CA9B5),
+                  offset: Offset(10, 12),
+                  blurRadius: 24,
+                ),
+                BoxShadow(
+                  color: Color(0x14677E92),
+                  offset: Offset(0, 18),
+                  blurRadius: 28,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.notifications_active_outlined,
+                        color: accentColor,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Text(
+                        'Widget มี Alert ผูกอยู่',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF20303A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Widget ที่เลือกถูกใช้โดย ${affectedRules.length} alert rule'
+                  '${affectedRules.length > 1 ? 's' : ''} ด้านล่าง '
+                  'เลือกวิธีจัดการก่อนลบ widget:',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.45,
+                    color: Color(0xFF667587),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final rule in affectedRules)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 6),
+                                  child: Icon(
+                                    Icons.fiber_manual_record,
+                                    size: 8,
+                                    color: Color(0xFF97A3AF),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        rule.title.isEmpty
+                                            ? 'Untitled rule'
+                                            : rule.title,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF20303A),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        '${rule.widgetTitle}'
+                                        '${rule.enabled ? '' : ' • disabled'}',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: Color(0xFF7B8895),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _DeleteWithAlertsActionButton(
+                  label: 'ลบ widget และ alert rule ทั้งหมด',
+                  description: 'ไม่มี rule ค้างในระบบ',
+                  icon: Icons.delete_sweep_rounded,
+                  backgroundColor: accentColor,
+                  foregroundColor: Colors.white,
+                  onPressed: () => Navigator.of(
+                    dialogContext,
+                  ).pop(_AlertRuleDeleteChoice.deleteRules),
+                ),
+                const SizedBox(height: 10),
+                _DeleteWithAlertsActionButton(
+                  label: 'ลบ widget แต่เก็บ rule ไว้ (ปิดการทำงาน)',
+                  description: 'เปิดใช้ใหม่ทีหลังได้จากหน้า Notifications',
+                  icon: Icons.notifications_paused_outlined,
+                  backgroundColor: const Color(0xFFE8EEF6),
+                  foregroundColor: const Color(0xFF20303A),
+                  onPressed: () => Navigator.of(
+                    dialogContext,
+                  ).pop(_AlertRuleDeleteChoice.disableRules),
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_AlertRuleDeleteChoice.cancel),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF6E7A86),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    child: const Text('ยกเลิก'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _updateItemFromRenderer(DashboardItem nextItem) {
@@ -1762,9 +2148,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   }
 
   bool _canPlaceDuplicateRect({
+    required DashboardItem item,
     required GridRect rect,
     required List<DashboardItem> items,
     required int columns,
+    required double rowHeight,
   }) {
     if (rect.x < 0 || rect.y < 0) {
       return false;
@@ -1774,7 +2162,13 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     }
 
     return !items.any(
-      (other) => DashboardLayoutEngine.overlaps(rect, other.rect),
+      (other) => _visualCollisionOverlaps(
+        leftItem: item,
+        leftRect: rect,
+        rightItem: other,
+        rightRect: other.rect,
+        rowHeight: rowHeight,
+      ),
     );
   }
 
@@ -1782,6 +2176,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     required DashboardItem item,
     required List<DashboardItem> occupiedItems,
     required int columns,
+    required double rowHeight,
   }) {
     final sourceRect = item.rect;
 
@@ -1813,9 +2208,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
       for (final candidate in immediateCandidates) {
         if (_canPlaceDuplicateRect(
+          item: item,
           rect: candidate,
           items: occupiedItems,
           columns: columns,
+          rowHeight: rowHeight,
         )) {
           found = candidate;
           break;
@@ -1833,9 +2230,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       for (var x = 0; x <= columns - sourceRect.w; x++) {
         final candidate = sourceRect.copyWith(x: x, y: y);
         if (!_canPlaceDuplicateRect(
+          item: item,
           rect: candidate,
           items: occupiedItems,
           columns: columns,
+          rowHeight: rowHeight,
         )) {
           continue;
         }
@@ -1860,6 +2259,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
     final canvasWidth = MediaQuery.of(context).size.width - 32;
     final columns = _columnsForWidth(canvasWidth);
+    final rowHeight = (canvasWidth - (_gridGap * (columns - 1))) / columns;
     final selectedItems = _selectedItems(_items)
       ..sort((left, right) {
         final byY = left.rect.y.compareTo(right.rect.y);
@@ -1877,6 +2277,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         item: duplicate,
         occupiedItems: [...nextItems, ...duplicates],
         columns: columns,
+        rowHeight: rowHeight,
       );
       if (freeRect == null) {
         continue;
@@ -2603,6 +3004,101 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     );
   }
 
+  Widget _buildSelectedWidgetInspector(DashboardItem item) {
+    final pin = item.dataKey?.trim();
+
+    return IgnorePointer(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: AppGlassTheme.surfaceDecoration(
+                    radius: 22,
+                    borderAlpha: 0.54,
+                    colors: <Color>[
+                      const Color(0xFFFFFFFF).withValues(alpha: 0.74),
+                      const Color(0xFFF3FAF7).withValues(alpha: 0.42),
+                    ],
+                    shadows: AppGlassTheme.shadowSm,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 5,
+                          children: [
+                            _InspectorPill(
+                              label: pin == null || pin.isEmpty
+                                  ? 'V Pin: No pin'
+                                  : 'V Pin: $pin',
+                              muted: pin == null || pin.isEmpty,
+                            ),
+                            _InspectorPill(
+                              label: 'Size: ${item.rect.w}x${item.rect.h}',
+                            ),
+                            _InspectorPill(
+                              label: 'x:${item.rect.x} y:${item.rect.y}',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedWidgetInspectorSlot(DashboardItem? item) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 210),
+      reverseDuration: const Duration(milliseconds: 140),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return ClipRect(
+          child: SizeTransition(
+            sizeFactor: curvedAnimation,
+            axisAlignment: -1,
+            child: FadeTransition(
+              opacity: curvedAnimation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, -0.08),
+                  end: Offset.zero,
+                ).animate(curvedAnimation),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+      child: item == null
+          ? const SizedBox.shrink(key: ValueKey('empty-inspector'))
+          : KeyedSubtree(
+              key: const ValueKey('visible-inspector'),
+              child: _buildSelectedWidgetInspector(item),
+            ),
+    );
+  }
+
   Widget _buildFloatingControls() {
     const accentLineColor = DashboardRuntimeTheme.surfaceBorderFocusColor;
     const outerRingColor = DashboardRuntimeTheme.cardColor;
@@ -2613,12 +3109,12 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     final mediaQuery = MediaQuery.of(context);
     final availableWidth =
         mediaQuery.size.width - mediaQuery.padding.horizontal - 24;
-    final baseButtonCount = _hasSelection ? 7 : 3;
-    final baseGapCount = _hasSelection ? 4 : 2;
+    const baseButtonCount = 7;
+    const baseGapCount = 4;
     final baseRequiredWidth =
         baseAddButtonSize +
         (baseSecondaryButtonSize * (baseButtonCount - 1)) +
-        (baseSecondaryGap * (_hasSelection ? 2 : 0)) +
+        (baseSecondaryGap * 2) +
         (baseGroupGap * baseGapCount);
     final controlsScale = (availableWidth / baseRequiredWidth)
         .clamp(0.78, 1.0)
@@ -2640,10 +3136,10 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         groupGap + (secondaryButtonSize * 1) + (secondaryGap * 0);
     final selectionReserve =
         groupGap + (secondaryButtonSize * 2) + secondaryGap;
-    final leftReserve =
-        baseAlwaysVisibleReserve + (_hasSelection ? selectionReserve : 0);
-    final rightReserve =
-        baseAlwaysVisibleReserve + (_hasSelection ? selectionReserve : 0);
+    final leftReserve = baseAlwaysVisibleReserve + selectionReserve;
+    final rightReserve = baseAlwaysVisibleReserve + selectionReserve;
+    final contextActionOpacity = _hasSelection ? 1.0 : 0.0;
+    final contextActionScale = _hasSelection ? 1.0 : 0.88;
 
     return Transform.translate(
       offset: const Offset(0, 6),
@@ -2783,94 +3279,120 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                 glowScale: _canRedo ? 1.1 : 0.7,
               ),
             ),
-            if (_hasSelection)
-              Positioned(
-                right:
-                    ((addButtonSize + (leftReserve + rightReserve)) / 2) +
-                    (addButtonSize / 2) +
-                    groupGap +
-                    secondaryButtonSize +
-                    secondaryGap,
-                bottom: 8,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _BuilderActionButton(
-                      icon: Icons.copy_all_rounded,
-                      onPressed: _duplicateSelectedItems,
-                      tooltip: 'Duplicate',
-                      backgroundColor: _duplicateActionTone.background,
-                      foregroundColor: _duplicateActionTone.foreground,
-                      size: secondaryButtonSize,
-                      iconSize: actionIconSize,
-                      glowColor: _duplicateActionTone.glow,
+            Positioned(
+              right:
+                  ((addButtonSize + (leftReserve + rightReserve)) / 2) +
+                  (addButtonSize / 2) +
+                  groupGap +
+                  secondaryButtonSize +
+                  secondaryGap,
+              bottom: 8,
+              child: IgnorePointer(
+                ignoring: !_hasSelection,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  opacity: contextActionOpacity,
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOutCubic,
+                    scale: contextActionScale,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _BuilderActionButton(
+                          icon: Icons.copy_all_rounded,
+                          onPressed: _duplicateSelectedItems,
+                          tooltip: 'Duplicate',
+                          backgroundColor: _duplicateActionTone.background,
+                          foregroundColor: _duplicateActionTone.foreground,
+                          size: secondaryButtonSize,
+                          iconSize: actionIconSize,
+                          glowColor: _duplicateActionTone.glow,
+                        ),
+                        SizedBox(width: secondaryGap),
+                        _BuilderActionButton(
+                          icon: _isMultiSelectMode
+                              ? Icons.library_add_check_rounded
+                              : Icons.select_all_rounded,
+                          onPressed: _toggleMultiSelectMode,
+                          tooltip: _isMultiSelectMode ? 'Selecting' : 'Select',
+                          backgroundColor: _isMultiSelectMode
+                              ? _selectionActionTone.background
+                              : const Color(0xFFF0F8F8),
+                          foregroundColor: _isMultiSelectMode
+                              ? _selectionActionTone.foreground
+                              : const Color(0xFF789C98),
+                          size: secondaryButtonSize,
+                          iconSize: actionIconSize,
+                          glowColor: _isMultiSelectMode
+                              ? _selectionActionTone.glow
+                              : DashboardRuntimeTheme.surfaceBorderColor,
+                        ),
+                      ],
                     ),
-                    SizedBox(width: secondaryGap),
-                    _BuilderActionButton(
-                      icon: _isMultiSelectMode
-                          ? Icons.library_add_check_rounded
-                          : Icons.select_all_rounded,
-                      onPressed: _toggleMultiSelectMode,
-                      tooltip: _isMultiSelectMode ? 'Selecting' : 'Select',
-                      backgroundColor: _isMultiSelectMode
-                          ? _selectionActionTone.background
-                          : const Color(0xFFF0F8F8),
-                      foregroundColor: _isMultiSelectMode
-                          ? _selectionActionTone.foreground
-                          : const Color(0xFF789C98),
-                      size: secondaryButtonSize,
-                      iconSize: actionIconSize,
-                      glowColor: _isMultiSelectMode
-                          ? _selectionActionTone.glow
-                          : DashboardRuntimeTheme.surfaceBorderColor,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            if (_hasSelection)
-              Positioned(
-                left:
-                    ((addButtonSize + (leftReserve + rightReserve)) / 2) +
-                    (addButtonSize / 2) +
-                    groupGap +
-                    secondaryButtonSize +
-                    secondaryGap,
-                bottom: 8,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _BuilderActionButton(
-                      icon: Icons.settings_rounded,
-                      onPressed: _hasSingleSelection
-                          ? _openSelectedItemSettings
-                          : () {},
-                      tooltip: 'Settings',
-                      backgroundColor: _hasSingleSelection
-                          ? _settingsActionTone.background
-                          : const Color(0xFFFBF4EA),
-                      foregroundColor: _hasSingleSelection
-                          ? _settingsActionTone.foreground
-                          : const Color(0xFF9D8961),
-                      size: secondaryButtonSize,
-                      iconSize: actionIconSize,
-                      glowColor: _hasSingleSelection
-                          ? _settingsActionTone.glow
-                          : DashboardRuntimeTheme.surfaceBorderColor,
+            ),
+            Positioned(
+              left:
+                  ((addButtonSize + (leftReserve + rightReserve)) / 2) +
+                  (addButtonSize / 2) +
+                  groupGap +
+                  secondaryButtonSize +
+                  secondaryGap,
+              bottom: 8,
+              child: IgnorePointer(
+                ignoring: !_hasSelection,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  opacity: contextActionOpacity,
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOutCubic,
+                    scale: contextActionScale,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _BuilderActionButton(
+                          icon: Icons.settings_rounded,
+                          onPressed: _hasSingleSelection
+                              ? _openSelectedItemSettings
+                              : () {},
+                          tooltip: 'Settings',
+                          backgroundColor: _hasSingleSelection
+                              ? _settingsActionTone.background
+                              : const Color(0xFFFBF4EA),
+                          foregroundColor: _hasSingleSelection
+                              ? _settingsActionTone.foreground
+                              : const Color(0xFF9D8961),
+                          size: secondaryButtonSize,
+                          iconSize: actionIconSize,
+                          glowColor: _hasSingleSelection
+                              ? _settingsActionTone.glow
+                              : DashboardRuntimeTheme.surfaceBorderColor,
+                        ),
+                        SizedBox(width: secondaryGap),
+                        _BuilderActionButton(
+                          icon: Icons.delete_outline_rounded,
+                          onPressed: _removeSelectedItem,
+                          tooltip: 'Delete',
+                          backgroundColor: _deleteActionTone.background,
+                          foregroundColor: _deleteActionTone.foreground,
+                          size: secondaryButtonSize,
+                          iconSize: actionIconSize,
+                          glowColor: _deleteActionTone.glow,
+                        ),
+                      ],
                     ),
-                    SizedBox(width: secondaryGap),
-                    _BuilderActionButton(
-                      icon: Icons.delete_outline_rounded,
-                      onPressed: _removeSelectedItem,
-                      tooltip: 'Delete',
-                      backgroundColor: _deleteActionTone.background,
-                      foregroundColor: _deleteActionTone.foreground,
-                      size: secondaryButtonSize,
-                      iconSize: actionIconSize,
-                      glowColor: _deleteActionTone.glow,
-                    ),
-                  ],
+                  ),
                 ),
               ),
+            ),
           ],
         ),
       ),
@@ -2960,45 +3482,45 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(28),
                   child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
-                  decoration: AppGlassTheme.surfaceDecoration(
-                    radius: 28,
-                    borderAlpha: 0.64,
-                    colors: <Color>[
-                      const Color(0xFFFFFFFF).withValues(alpha: 0.78),
-                      const Color(0xFFF4FBF7).withValues(alpha: 0.42),
-                    ],
-                    shadows: AppGlassTheme.shadowMd,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'เริ่มจัดวางวิดเจ็ตใน Edit Mode',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          height: 1.18,
-                          fontWeight: FontWeight.w800,
-                          color: DashboardRuntimeTheme.headlineColor,
-                        ),
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+                      decoration: AppGlassTheme.surfaceDecoration(
+                        radius: 28,
+                        borderAlpha: 0.64,
+                        colors: <Color>[
+                          const Color(0xFFFFFFFF).withValues(alpha: 0.78),
+                          const Color(0xFFF4FBF7).withValues(alpha: 0.42),
+                        ],
+                        shadows: AppGlassTheme.shadowMd,
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'แตะปุ่ม + เพื่อเพิ่มวิดเจ็ต หรือแตะพื้นที่ว่างเพื่อเริ่มจัดการเลย์เอาต์ของแดชบอร์ดนี้',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: bodyFontSize,
-                          height: 1.35,
-                          color: DashboardRuntimeTheme.mutedTextColor,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'เริ่มจัดวางวิดเจ็ตใน Edit Mode',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: titleFontSize,
+                              height: 1.18,
+                              fontWeight: FontWeight.w800,
+                              color: DashboardRuntimeTheme.headlineColor,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'แตะปุ่ม + เพื่อเพิ่มวิดเจ็ต หรือแตะพื้นที่ว่างเพื่อเริ่มจัดการเลย์เอาต์ของแดชบอร์ดนี้',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: bodyFontSize,
+                              height: 1.35,
+                              color: DashboardRuntimeTheme.mutedTextColor,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -3189,7 +3711,12 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       y: startRect.y + (delta.dy / stepY).round(),
     );
 
-    _applyPreview(item: item, candidate: candidate, columns: columns);
+    _applyPreview(
+      item: item,
+      candidate: candidate,
+      columns: columns,
+      rowHeight: stepY,
+    );
   }
 
   void _startResize(
@@ -3356,13 +3883,19 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       h: nextH,
     );
 
-    _applyPreview(item: item, candidate: candidate, columns: columns);
+    _applyPreview(
+      item: item,
+      candidate: candidate,
+      columns: columns,
+      rowHeight: stepY,
+    );
   }
 
   void _applyPreview({
     required DashboardItem item,
     required GridRect candidate,
     required int columns,
+    required double rowHeight,
   }) {
     final constrainedCandidate = switch (item.type) {
       DashboardItemType.gauge => _clampGaugeRectToAspect(
@@ -3394,7 +3927,13 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     final hasOverlap = _items.any(
       (other) =>
           other.id != item.id &&
-          DashboardLayoutEngine.overlaps(previewRect, other.rect),
+          _visualCollisionOverlaps(
+            leftItem: item,
+            leftRect: previewRect,
+            rightItem: other,
+            rightRect: other.rect,
+            rowHeight: rowHeight,
+          ),
     );
 
     if (hasOverlap) {
@@ -3704,10 +4243,18 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                         : contentHeight;
                     final hasItems = activeItems.isNotEmpty;
                     final showEmptyState = !hasItems;
+                    final selectedInspectorItem =
+                        _isEditMode &&
+                            _hasSingleSelection &&
+                            !_isMultiSelectMode &&
+                            _activeGestureItemId == null &&
+                            _previewRect == null
+                        ? _findItemById(_selectedId, _items)
+                        : null;
 
-                    return Column(
+                    return Stack(
                       children: [
-                        Expanded(
+                        Positioned.fill(
                           child: SingleChildScrollView(
                             key: _canvasViewportKey,
                             controller: _canvasScrollController,
@@ -3799,6 +4346,14 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                             ),
                           ),
                         ),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: _buildSelectedWidgetInspectorSlot(
+                            selectedInspectorItem,
+                          ),
+                        ),
                       ],
                     );
                   },
@@ -3868,6 +4423,9 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         ? const Color(0xFFE59D9D)
         : const Color(0xFFA8DCC4);
     final usesSliderShellHighlight = item.type == DashboardItemType.slider;
+    final usesCompactSliderHitbox =
+        usesSliderShellHighlight &&
+        rowHeight >= _sliderCompactCollisionCellThreshold;
     final sliderLayout = usesSliderShellHighlight
         ? buildSliderShellLayout(
             width: contentWidth,
@@ -3986,7 +4544,9 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                if (_isEditMode && usesSliderShellHighlight)
+                if (_isEditMode &&
+                    usesSliderShellHighlight &&
+                    !usesCompactSliderHitbox)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -4013,106 +4573,227 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                     ),
                   ),
                 Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _isEditMode
-                        ? () {
-                            setState(() {
-                              if (_isMultiSelectMode) {
-                                _toggleItemSelection(item.id);
-                              } else {
-                                _setSingleSelection(item.id);
-                              }
-                            });
-                          }
-                        : null,
-                    onLongPressStart: _isEditMode && !isLocked
-                        ? (details) {
-                            _startMove(item, details.globalPosition);
-                          }
-                        : null,
-                    onLongPressMoveUpdate: _isEditMode && !isLocked
-                        ? (details) => _updateMove(
-                            item: item,
-                            globalPosition: details.globalPosition,
-                            columns: columns,
-                            stepX: stepX,
-                            stepY: stepY,
-                          )
-                        : null,
-                    onLongPressEnd: _isEditMode && !isLocked
-                        ? (_) => _finishGesture()
-                        : null,
-                    onLongPressCancel: _isEditMode && !isLocked
-                        ? _finishGesture
-                        : null,
-                    child: AnimatedScale(
-                      duration: positionAnimationDuration,
-                      curve: positionAnimationCurve,
-                      scale: isBeingResized ? 1.0 : dragScale,
-                      child: AnimatedContainer(
-                        duration: isBeingResized
-                            ? Duration.zero
-                            : const Duration(milliseconds: 140),
-                        curve: isBeingResized ? Curves.linear : Curves.easeOut,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(highlightRadius),
-                          border: null,
-                          boxShadow: showSelectionChrome
-                              ? (usesSliderShellHighlight ||
-                                        item.type == DashboardItemType.button)
-                                    ? null
-                                    : (dragGlowShadows.isEmpty
-                                          ? null
-                                          : dragGlowShadows)
-                              : null,
-                        ),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned.fill(
-                              child: Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: AnimatedOpacity(
-                                  duration: isBeingResized
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 120),
-                                  opacity: isBeingResized
-                                      ? 1
-                                      : isBeingDragged
-                                      ? 0.92
-                                      : 1,
-                                  child: RepaintBoundary(
-                                    child: isBeingResized
-                                        ? _buildResizePlaceholder(
-                                            item: item,
-                                            borderRadius: highlightRadius,
-                                          )
-                                        : DashboardItemRenderer(
-                                            item: item,
-                                            enableInteraction: !_isEditMode,
-                                            onItemChanged: !_isEditMode
-                                                ? _updateItemFromRenderer
-                                                : null,
-                                          ),
-                                  ),
+                  child: usesCompactSliderHitbox
+                      ? IgnorePointer(
+                          child: AnimatedScale(
+                            duration: positionAnimationDuration,
+                            curve: positionAnimationCurve,
+                            scale: isBeingResized ? 1.0 : dragScale,
+                            child: AnimatedContainer(
+                              duration: isBeingResized
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 140),
+                              curve: isBeingResized
+                                  ? Curves.linear
+                                  : Curves.easeOut,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                  highlightRadius,
                                 ),
+                                border: null,
+                                boxShadow: showSelectionChrome
+                                    ? (usesSliderShellHighlight ||
+                                              item.type ==
+                                                  DashboardItemType.button)
+                                          ? null
+                                          : (dragGlowShadows.isEmpty
+                                                ? null
+                                                : dragGlowShadows)
+                                    : null,
+                              ),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Positioned.fill(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(2),
+                                      child: AnimatedOpacity(
+                                        duration: isBeingResized
+                                            ? Duration.zero
+                                            : const Duration(milliseconds: 120),
+                                        opacity: isBeingResized
+                                            ? 1
+                                            : isBeingDragged
+                                            ? 0.92
+                                            : 1,
+                                        child: RepaintBoundary(
+                                          child: isBeingResized
+                                              ? _buildResizePlaceholder(
+                                                  item: item,
+                                                  borderRadius: highlightRadius,
+                                                )
+                                              : DashboardItemRenderer(
+                                                  item: item,
+                                                  enableInteraction:
+                                                      !_isEditMode,
+                                                  onItemChanged: !_isEditMode
+                                                      ? _updateItemFromRenderer
+                                                      : null,
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_isEditMode && isLocked)
+                                    Positioned(
+                                      right: -5,
+                                      top: -5,
+                                      child: _LockedWidgetBadge(
+                                        compact: width < 54 || height < 54,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (_isEditMode && isLocked)
-                              Positioned(
-                                right: -5,
-                                top: -5,
-                                child: _LockedWidgetBadge(
-                                  compact: width < 54 || height < 54,
+                          ),
+                        )
+                      : GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _isEditMode
+                              ? () {
+                                  setState(() {
+                                    if (_isMultiSelectMode) {
+                                      _toggleItemSelection(item.id);
+                                    } else {
+                                      _setSingleSelection(item.id);
+                                    }
+                                  });
+                                }
+                              : null,
+                          onLongPressStart: _isEditMode && !isLocked
+                              ? (details) {
+                                  _startMove(item, details.globalPosition);
+                                }
+                              : null,
+                          onLongPressMoveUpdate: _isEditMode && !isLocked
+                              ? (details) => _updateMove(
+                                  item: item,
+                                  globalPosition: details.globalPosition,
+                                  columns: columns,
+                                  stepX: stepX,
+                                  stepY: stepY,
+                                )
+                              : null,
+                          onLongPressEnd: _isEditMode && !isLocked
+                              ? (_) => _finishGesture()
+                              : null,
+                          onLongPressCancel: _isEditMode && !isLocked
+                              ? _finishGesture
+                              : null,
+                          child: AnimatedScale(
+                            duration: positionAnimationDuration,
+                            curve: positionAnimationCurve,
+                            scale: isBeingResized ? 1.0 : dragScale,
+                            child: AnimatedContainer(
+                              duration: isBeingResized
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 140),
+                              curve: isBeingResized
+                                  ? Curves.linear
+                                  : Curves.easeOut,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                  highlightRadius,
                                 ),
+                                border: null,
+                                boxShadow: showSelectionChrome
+                                    ? (usesSliderShellHighlight ||
+                                              item.type ==
+                                                  DashboardItemType.button)
+                                          ? null
+                                          : (dragGlowShadows.isEmpty
+                                                ? null
+                                                : dragGlowShadows)
+                                    : null,
                               ),
-                          ],
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Positioned.fill(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(2),
+                                      child: AnimatedOpacity(
+                                        duration: isBeingResized
+                                            ? Duration.zero
+                                            : const Duration(milliseconds: 120),
+                                        opacity: isBeingResized
+                                            ? 1
+                                            : isBeingDragged
+                                            ? 0.92
+                                            : 1,
+                                        child: RepaintBoundary(
+                                          child: isBeingResized
+                                              ? _buildResizePlaceholder(
+                                                  item: item,
+                                                  borderRadius: highlightRadius,
+                                                )
+                                              : DashboardItemRenderer(
+                                                  item: item,
+                                                  enableInteraction:
+                                                      !_isEditMode,
+                                                  onItemChanged: !_isEditMode
+                                                      ? _updateItemFromRenderer
+                                                      : null,
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_isEditMode && isLocked)
+                                    Positioned(
+                                      right: -5,
+                                      top: -5,
+                                      child: _LockedWidgetBadge(
+                                        compact: width < 54 || height < 54,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                ),
+                if (usesCompactSliderHitbox)
+                  Positioned(
+                    left: selectionHorizontalInset,
+                    top: selectionTopInset,
+                    width: selectionWidth,
+                    height: selectionHeight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _isEditMode
+                          ? () {
+                              setState(() {
+                                if (_isMultiSelectMode) {
+                                  _toggleItemSelection(item.id);
+                                } else {
+                                  _setSingleSelection(item.id);
+                                }
+                              });
+                            }
+                          : null,
+                      onLongPressStart: _isEditMode && !isLocked
+                          ? (details) {
+                              _startMove(item, details.globalPosition);
+                            }
+                          : null,
+                      onLongPressMoveUpdate: _isEditMode && !isLocked
+                          ? (details) => _updateMove(
+                              item: item,
+                              globalPosition: details.globalPosition,
+                              columns: columns,
+                              stepX: stepX,
+                              stepY: stepY,
+                            )
+                          : null,
+                      onLongPressEnd: _isEditMode && !isLocked
+                          ? (_) => _finishGesture()
+                          : null,
+                      onLongPressCancel: _isEditMode && !isLocked
+                          ? _finishGesture
+                          : null,
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -4481,6 +5162,75 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       );
     }
 
+    if (item.type == DashboardItemType.slider) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = buildSliderShellLayout(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            desiredShellHeight: SmartSliderVisualSpec.desiredShellHeight,
+            shellBottomInsetFor: SmartSliderVisualSpec.shellBottomInsetFor,
+          );
+          final titleTop = math.max(0.0, layout.titleTop);
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: layout.shellTopInset,
+                bottom: layout.shellBottomInset,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    borderRadius: shapeRadius,
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.42),
+                      width: 1.1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        height: 10,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 8,
+                right: 8,
+                top: titleTop,
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
     final hasEnoughHeightForTitle = item.rect.h >= 3;
     final indicatorHeight = item.type == DashboardItemType.toggle ? 18.0 : 10.0;
     final canShowBottomIndicator = item.rect.h >= 2;
@@ -4715,6 +5465,45 @@ class _LockedWidgetBadge extends StatelessWidget {
             color: DashboardRuntimeTheme.labelTextColor,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _InspectorPill extends StatelessWidget {
+  const _InspectorPill({required this.label, this.muted = false});
+
+  final String label;
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = muted
+        ? DashboardRuntimeTheme.mutedTextColor
+        : DashboardRuntimeTheme.labelTextColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: muted ? 0.34 : 0.52),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: const Color(0xFFD7E1E8).withValues(alpha: 0.62),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

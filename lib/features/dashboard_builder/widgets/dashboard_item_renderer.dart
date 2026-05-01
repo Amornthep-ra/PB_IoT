@@ -835,6 +835,9 @@ class _DashboardTileShell extends StatelessWidget {
 class _GaugeContent extends StatelessWidget {
   const _GaugeContent({required this.item, required this.metrics});
 
+  static const Duration _valueAnimationDuration = Duration(milliseconds: 450);
+  static const Curve _valueAnimationCurve = Curves.easeOutCubic;
+
   final DashboardItem item;
   final _TileMetrics metrics;
 
@@ -843,34 +846,42 @@ class _GaugeContent extends StatelessWidget {
     final useTinyGaugeFallback =
         metrics.isTiny && (metrics.w <= 6 || metrics.h <= 4);
     if (useTinyGaugeFallback) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: item.accentColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                metrics.formatPrimaryValue(item),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _emphasizedTextColor(item.accentColor),
+      return TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: item.value, end: item.value),
+        duration: _valueAnimationDuration,
+        curve: _valueAnimationCurve,
+        builder: (context, animatedValue, child) {
+          final animatedItem = item.copyWith(value: animatedValue);
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: item.accentColor,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    metrics.formatPrimaryValue(animatedItem),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _emphasizedTextColor(item.accentColor),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
@@ -910,41 +921,49 @@ class _GaugeContent extends StatelessWidget {
             (gaugeSize * 0.035).clamp(1.5, 4.0).toDouble() +
             (gaugeSize < 92 ? 1.0 : 0.0);
 
-        return Align(
-          alignment: Alignment.center,
-          child: Padding(
-            padding: EdgeInsets.all(controlInset),
-            child: Transform.translate(
-              offset: Offset(0, opticalOffsetY),
-              child: SizedBox.square(
-                dimension: gaugeSize,
-                child: CustomPaint(
-                  painter: _GaugePainter(
-                    value: item.value,
-                    minValue: item.minValue,
-                    maxValue: item.maxValue,
-                    color: item.accentColor,
-                    strokeWidth: strokeWidth,
-                  ),
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        metrics.formatPrimaryValue(item),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: valueFont,
-                          fontWeight: FontWeight.w700,
-                          color: _emphasizedTextColor(item.accentColor),
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: item.value, end: item.value),
+          duration: _valueAnimationDuration,
+          curve: _valueAnimationCurve,
+          builder: (context, animatedValue, child) {
+            final animatedItem = item.copyWith(value: animatedValue);
+            return Align(
+              alignment: Alignment.center,
+              child: Padding(
+                padding: EdgeInsets.all(controlInset),
+                child: Transform.translate(
+                  offset: Offset(0, opticalOffsetY),
+                  child: SizedBox.square(
+                    dimension: gaugeSize,
+                    child: CustomPaint(
+                      painter: _GaugePainter(
+                        value: animatedValue,
+                        minValue: item.minValue,
+                        maxValue: item.maxValue,
+                        color: item.accentColor,
+                        strokeWidth: strokeWidth,
+                      ),
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            metrics.formatPrimaryValue(animatedItem),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: valueFont,
+                              fontWeight: FontWeight.w700,
+                              color: _emphasizedTextColor(item.accentColor),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );

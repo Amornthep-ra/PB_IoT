@@ -11,6 +11,8 @@ import '../../dashboard/services/dashboard_service.dart';
 import '../../dashboard/widgets/dashboard_runtime_theme.dart';
 import '../models/dashboard_item.dart';
 import 'dashboard_item_renderer.dart';
+import 'smart_slider_widget.dart';
+import 'widget_shell_layout.dart';
 
 class _QueuedControlWrite {
   const _QueuedControlWrite({
@@ -50,7 +52,8 @@ class DashboardHomeView extends StatefulWidget {
   State<DashboardHomeView> createState() => _DashboardHomeViewState();
 }
 
-class _DashboardHomeViewState extends State<DashboardHomeView> {
+class _DashboardHomeViewState extends State<DashboardHomeView>
+    with SingleTickerProviderStateMixin {
   static const double _gridGap = 0;
   static const double _canvasHorizontalPadding = 0;
   static const double _canvasTopPadding = 0;
@@ -59,6 +62,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   static const int _minColumns = 18;
   static const int _maxColumns = 26;
   static const Duration _controlTapCooldown = Duration(milliseconds: 1500);
+  static const Duration _highlightDuration = Duration(milliseconds: 1800);
 
   final DashboardService _dashboardService = DashboardService();
   final Map<String, Timer> _controlWriteDebounceTimers = <String, Timer>{};
@@ -68,6 +72,10 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   final Map<String, _QueuedControlWrite> _queuedControlWrites =
       <String, _QueuedControlWrite>{};
   final Map<String, DateTime> _recentControlInteractions = <String, DateTime>{};
+  final Map<String, GlobalKey> _itemHighlightKeys = <String, GlobalKey>{};
+  late final AnimationController _highlightController;
+  late final Animation<double> _highlightAlpha;
+  String? _highlightedItemId;
   int _controlWriteRevision = 0;
   bool _runtimeRefreshFrameScheduled = false;
 
@@ -93,13 +101,53 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   @override
   void initState() {
     super.initState();
+    _highlightController = AnimationController(
+      vsync: this,
+      duration: _highlightDuration,
+    );
+    _highlightAlpha = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 20,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(1), weight: 25),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1,
+          end: 0,
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
+        weight: 55,
+      ),
+    ]).animate(_highlightController);
     _runtimeController.addListener(_handleRuntimeChanged);
+    _runtimeController.highlightItemIdNotifier.addListener(
+      _handleHighlightRequest,
+    );
     unawaited(_runtimeController.initialize());
+
+    // If a highlight was requested before this view mounted (e.g. user tapped
+    // from the Devices tab while the Dashboard tab was not yet built), react
+    // to the pending request once the first layout settles.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_runtimeController.highlightItemIdNotifier.value != null) {
+        _handleHighlightRequest();
+      }
+    });
   }
 
   @override
   void dispose() {
     _runtimeController.removeListener(_handleRuntimeChanged);
+    _runtimeController.highlightItemIdNotifier.removeListener(
+      _handleHighlightRequest,
+    );
+    _highlightController.dispose();
     for (final timer in _controlWriteDebounceTimers.values) {
       timer.cancel();
     }
@@ -107,6 +155,55 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     _controlWriteInFlightPayloads.clear();
     _queuedControlWrites.clear();
     super.dispose();
+  }
+
+  void _handleHighlightRequest() {
+    final targetId = _runtimeController.highlightItemIdNotifier.value;
+    if (targetId == null || !mounted) {
+      return;
+    }
+
+    // Wait until the target widget has been laid out so that
+    // Scrollable.ensureVisible can compute its final offset.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      final key = _itemHighlightKeys[targetId];
+      final context = key?.currentContext;
+      if (context != null) {
+        await Scrollable.ensureVisible(
+          context,
+          alignment: 0.35,
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _highlightedItemId = targetId;
+      });
+      _highlightController
+        ..stop()
+        ..reset();
+      unawaited(_highlightController.forward());
+      Future<void>.delayed(
+        _highlightDuration + const Duration(milliseconds: 80),
+        () {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _highlightedItemId = null;
+          });
+        },
+      );
+
+      _runtimeController.consumeHighlightRequest();
+    });
   }
 
   void _handleRuntimeChanged() {
@@ -666,43 +763,43 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(24),
                 child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-                decoration: AppGlassTheme.surfaceDecoration(
-                  radius: 24,
-                  borderAlpha: 0.60,
-                  colors: <Color>[
-                    const Color(0xFFFFFFFF).withValues(alpha: 0.78),
-                    const Color(0xFFF4FBF7).withValues(alpha: 0.44),
-                  ],
-                  shadows: AppGlassTheme.shadowMd,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'ยินดีต้อนรับสู่แดชบอร์ดของคุณ',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: DashboardRuntimeTheme.headlineColor,
-                      ),
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                    decoration: AppGlassTheme.surfaceDecoration(
+                      radius: 24,
+                      borderAlpha: 0.60,
+                      colors: <Color>[
+                        const Color(0xFFFFFFFF).withValues(alpha: 0.78),
+                        const Color(0xFFF4FBF7).withValues(alpha: 0.44),
+                      ],
+                      shadows: AppGlassTheme.shadowMd,
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'เริ่มจาก Edit Mode แล้วเพิ่มวิดเจ็ตตัวแรกของคุณได้เลย',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.35,
-                        color: DashboardRuntimeTheme.mutedTextColor,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'ยินดีต้อนรับสู่แดชบอร์ดของคุณ',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: DashboardRuntimeTheme.headlineColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'เริ่มจาก Edit Mode แล้วเพิ่มวิดเจ็ตตัวแรกของคุณได้เลย',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.35,
+                            color: DashboardRuntimeTheme.mutedTextColor,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
                 ),
               ),
             ],
@@ -906,6 +1003,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                                     children: [
                                       for (final item in _items)
                                         Positioned(
+                                          key: ValueKey(item.id),
                                           left: item.rect.x * stepX,
                                           top: item.rect.y * stepY,
                                           width:
@@ -916,41 +1014,67 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                                               ((item.rect.h - 1) * _gridGap),
                                           child: Padding(
                                             padding: const EdgeInsets.all(2),
-                                            child: Stack(
-                                              children: [
-                                                Positioned.fill(
-                                                  child: Opacity(
-                                                    opacity:
-                                                        _isItemInteractionLocked(
-                                                          item,
-                                                        )
-                                                        ? 0.72
-                                                        : 1,
-                                                    child: Builder(
-                                                      builder: (context) {
-                                                        return DashboardItemRenderer(
-                                                          item: item,
-                                                          enableInteraction:
-                                                              !_isItemInteractionLocked(
-                                                                item,
-                                                              ),
-                                                          onItemChanged:
-                                                              _updateItemFromRenderer,
-                                                        );
-                                                      },
-                                                    ),
+                                            child: KeyedSubtree(
+                                              key: _itemHighlightKeys
+                                                  .putIfAbsent(
+                                                    item.id,
+                                                    () => GlobalKey(),
                                                   ),
-                                                ),
-                                                if (_isItemInteractionLocked(
-                                                  item,
-                                                ))
+                                              child: Stack(
+                                                children: [
                                                   Positioned.fill(
-                                                    child: AbsorbPointer(
-                                                      child:
-                                                          SizedBox.expand(),
+                                                    child: Opacity(
+                                                      opacity:
+                                                          _isItemInteractionLocked(
+                                                            item,
+                                                          )
+                                                          ? 0.72
+                                                          : 1,
+                                                      child: Builder(
+                                                        builder: (context) {
+                                                          return DashboardItemRenderer(
+                                                            item: item,
+                                                            enableInteraction:
+                                                                !_isItemInteractionLocked(
+                                                                  item,
+                                                                ),
+                                                            onItemChanged:
+                                                                _updateItemFromRenderer,
+                                                          );
+                                                        },
+                                                      ),
                                                     ),
                                                   ),
-                                              ],
+                                                  if (_highlightedItemId ==
+                                                      item.id)
+                                                    Positioned.fill(
+                                                      child: IgnorePointer(
+                                                        child: AnimatedBuilder(
+                                                          animation:
+                                                              _highlightAlpha,
+                                                          builder: (context, child) {
+                                                            final alpha =
+                                                                _highlightAlpha
+                                                                    .value;
+                                                            return _DashboardItemHighlightOverlay(
+                                                              item: item,
+                                                              alpha: alpha,
+                                                            );
+                                                          },
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  if (_isItemInteractionLocked(
+                                                    item,
+                                                  ))
+                                                    const Positioned.fill(
+                                                      child: AbsorbPointer(
+                                                        child:
+                                                            SizedBox.expand(),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -968,5 +1092,89 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         ),
       ),
     );
+  }
+}
+
+class _DashboardItemHighlightOverlay extends StatelessWidget {
+  const _DashboardItemHighlightOverlay({
+    required this.item,
+    required this.alpha,
+  });
+
+  final DashboardItem item;
+  final double alpha;
+
+  static const Color _borderColor = Color(0xFFFFC857);
+  static const Color _glowColor = Color(0xFFFFD166);
+
+  @override
+  Widget build(BuildContext context) {
+    if (alpha <= 0) {
+      return const SizedBox.expand();
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
+        final shape = _shapeFor(item.type, width, height);
+        final highlight = DecoratedBox(
+          decoration: ShapeDecoration(
+            color: Colors.transparent,
+            shape: shape,
+            shadows: [
+              BoxShadow(
+                color: _glowColor.withValues(alpha: alpha * 0.46),
+                blurRadius: 26,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+        );
+
+        if (item.type == DashboardItemType.slider) {
+          final layout = buildSliderShellLayout(
+            width: width,
+            height: height,
+            desiredShellHeight: SmartSliderVisualSpec.desiredShellHeight,
+            shellBottomInsetFor: SmartSliderVisualSpec.shellBottomInsetFor,
+          );
+          return Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: layout.shellTopInset,
+                bottom: layout.shellBottomInset,
+                child: highlight,
+              ),
+            ],
+          );
+        }
+
+        return highlight;
+      },
+    );
+  }
+
+  ShapeBorder _shapeFor(DashboardItemType type, double width, double height) {
+    final side = BorderSide(
+      color: _borderColor.withValues(alpha: alpha),
+      width: 3,
+    );
+
+    return switch (type) {
+      DashboardItemType.button => RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(math.min(width, height) / 2),
+        side: side,
+      ),
+      DashboardItemType.toggle => StadiumBorder(side: side),
+      DashboardItemType.slider ||
+      DashboardItemType.gauge ||
+      DashboardItemType.valueLabel => RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: side,
+      ),
+    };
   }
 }

@@ -20,13 +20,9 @@ class LocalAlertNotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _isInitialized = false;
-  bool _isAvailable = true;
   Future<void>? _initializeFuture;
 
   Future<void> initialize() async {
-    if (!_isAvailable) {
-      return;
-    }
     if (_isInitialized) {
       return;
     }
@@ -44,9 +40,6 @@ class LocalAlertNotificationService {
   }
 
   Future<void> showAlertEventNotification(AlertEventModel event) async {
-    if (!_isAvailable) {
-      return;
-    }
     if (!_isInitialized) {
       try {
         await initialize();
@@ -67,18 +60,62 @@ class LocalAlertNotificationService {
       importance: Importance.high,
       priority: Priority.high,
       icon: 'ic_stat_alert',
-      largeIcon: const DrawableResourceAndroidBitmap('logo_app_large'),
+      largeIcon: const DrawableResourceAndroidBitmap('princebot_logo_full'),
       styleInformation: BigTextStyleInformation(event.message),
     );
 
     final details = NotificationDetails(android: androidDetails);
-    await _plugin.show(
-      _notificationIdFromEvent(event.id),
-      notificationTitle,
-      event.message,
-      details,
-      payload: event.id,
+    try {
+      await _plugin.show(
+        _notificationIdFromEvent(event.id),
+        notificationTitle,
+        event.message,
+        details,
+        payload: event.id,
+      );
+    } catch (_) {}
+  }
+
+  Future<bool> showTestAlertNotification({
+    required String title,
+    required String message,
+  }) async {
+    if (!_isInitialized) {
+      try {
+        await initialize();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (!_isInitialized) {
+      return false;
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      _alertsChannel.id,
+      _alertsChannel.name,
+      channelDescription: _alertsChannel.description,
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: 'ic_stat_alert',
+      largeIcon: const DrawableResourceAndroidBitmap('princebot_logo_full'),
+      styleInformation: BigTextStyleInformation(message),
     );
+
+    final details = NotificationDetails(android: androidDetails);
+    try {
+      await _plugin.show(
+        DateTime.now().microsecondsSinceEpoch & 0x7fffffff,
+        title,
+        message,
+        details,
+        payload: 'test_alert',
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   String _alertEventTitle(AlertEventModel event) {
@@ -109,12 +146,28 @@ class LocalAlertNotificationService {
             AndroidFlutterLocalNotificationsPlugin
           >();
       await androidPlugin?.createNotificationChannel(_alertsChannel);
-      await androidPlugin?.requestNotificationsPermission();
 
       _isInitialized = true;
     } catch (_) {
-      _isAvailable = false;
       rethrow;
     }
+  }
+
+  Future<bool> areNotificationsEnabled() async {
+    await initialize();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    return await androidPlugin?.areNotificationsEnabled() ?? true;
+  }
+
+  Future<bool> requestNotificationsPermission() async {
+    await initialize();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    return await androidPlugin?.requestNotificationsPermission() ?? true;
   }
 }

@@ -5,25 +5,85 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../projects/services/project_state.dart';
 import '../models/dashboard_item.dart';
+import '../models/dashboard_theme_preset.dart';
+
+class DashboardBuilderHistoryEntry {
+  const DashboardBuilderHistoryEntry({
+    required this.items,
+    required this.selectedId,
+    required this.selectedIds,
+    required this.isMultiSelectMode,
+  });
+
+  final List<DashboardItem> items;
+  final String? selectedId;
+  final Set<String> selectedIds;
+  final bool isMultiSelectMode;
+}
+
+class DashboardBuilderHistoryState {
+  const DashboardBuilderHistoryState({
+    required this.currentSignature,
+    required this.undoStack,
+    required this.redoStack,
+  });
+
+  final String currentSignature;
+  final List<DashboardBuilderHistoryEntry> undoStack;
+  final List<DashboardBuilderHistoryEntry> redoStack;
+}
+
+class DashboardBuilderDraftState {
+  const DashboardBuilderDraftState({
+    required this.currentSignature,
+    required this.items,
+  });
+
+  final String currentSignature;
+  final List<DashboardItem> items;
+}
 
 class DashboardBuilderLayoutStorageService {
   DashboardBuilderLayoutStorageService({
     SharedPreferences? preferences,
     this.storageKey = _defaultStorageKey,
     this.dashboardTitleStorageKey = _dashboardTitleStorageKey,
+    this.dashboardThemePresetStorageKey = _dashboardThemePresetStorageKey,
+    this.dashboardThemeCustomStorageKey = _dashboardThemeCustomStorageKey,
+    this.dashboardHistoryStorageKey = _dashboardHistoryStorageKey,
+    this.dashboardDraftStorageKey = _dashboardDraftStorageKey,
   }) : _preferences = preferences;
 
   static const String _defaultStorageKey = 'dashboard_builder_layout_v1';
   static const String _dashboardTitleStorageKey = 'dashboard_builder_title_v1';
+  static const String _dashboardThemePresetStorageKey =
+      'dashboard_builder_theme_preset_v1';
+  static const String _dashboardThemeCustomStorageKey =
+      'dashboard_builder_theme_custom_v1';
+  static const String _dashboardHistoryStorageKey =
+      'dashboard_builder_history_v1';
+  static const String _dashboardDraftStorageKey = 'dashboard_builder_draft_v1';
   static const String defaultDashboardTitle = 'Your Dashboard Name';
 
   final SharedPreferences? _preferences;
   final String storageKey;
   final String dashboardTitleStorageKey;
+  final String dashboardThemePresetStorageKey;
+  final String dashboardThemeCustomStorageKey;
+  final String dashboardHistoryStorageKey;
+  final String dashboardDraftStorageKey;
 
   String get _effectiveStorageKey => _projectScopedKey(storageKey);
   String get _effectiveDashboardTitleStorageKey =>
       _projectScopedKey(dashboardTitleStorageKey);
+  String get _effectiveDashboardThemePresetStorageKey =>
+      _projectScopedKey(dashboardThemePresetStorageKey);
+  String get _effectiveDashboardThemeCustomStorageKey =>
+      _projectScopedKey(dashboardThemeCustomStorageKey);
+  String get _effectiveDashboardHistoryStorageKey =>
+      _projectScopedKey(dashboardHistoryStorageKey);
+  String get _effectiveDashboardDraftStorageKey =>
+      _projectScopedKey(dashboardDraftStorageKey);
 
   Future<String> loadDashboardTitle() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
@@ -37,6 +97,71 @@ class DashboardBuilderLayoutStorageService {
     await preferences.setString(
       _effectiveDashboardTitleStorageKey,
       _normalizeDashboardTitle(title),
+    );
+  }
+
+  Future<String?> loadDashboardThemePresetName() async {
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    final value = preferences.getString(
+      _effectiveDashboardThemePresetStorageKey,
+    );
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    return trimmed;
+  }
+
+  Future<void> saveDashboardThemePresetName(String presetName) async {
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    await preferences.setString(
+      _effectiveDashboardThemePresetStorageKey,
+      presetName.trim(),
+    );
+  }
+
+  Future<DashboardThemePreset> loadDashboardThemePreset() async {
+    final presetName = await loadDashboardThemePresetName();
+    if (presetName != customDashboardThemeName) {
+      return dashboardThemePresetByName(presetName);
+    }
+
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    final raw = preferences.getString(_effectiveDashboardThemeCustomStorageKey);
+    if (raw == null || raw.trim().isEmpty) {
+      return dashboardThemePresets.first;
+    }
+
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      return dashboardThemePresets.first;
+    }
+
+    final canvasColor = _optionalColor(decoded['canvasColor']);
+    final gridColor = _optionalColor(decoded['gridColor']);
+    if (canvasColor == null || gridColor == null) {
+      return dashboardThemePresets.first;
+    }
+
+    return dashboardCustomThemePreset(
+      canvasColor: canvasColor,
+      gridColor: gridColor,
+    );
+  }
+
+  Future<void> saveDashboardThemePreset(DashboardThemePreset preset) async {
+    await saveDashboardThemePresetName(preset.name);
+    if (preset.name != customDashboardThemeName) {
+      return;
+    }
+
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    await preferences.setString(
+      _effectiveDashboardThemeCustomStorageKey,
+      jsonEncode(<String, int>{
+        'canvasColor': preset.canvasColors.first.toARGB32(),
+        'gridColor': preset.gridColor.toARGB32(),
+      }),
     );
   }
 
@@ -70,6 +195,108 @@ class DashboardBuilderLayoutStorageService {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     final payload = items.map(_itemToJson).toList();
     await preferences.setString(_effectiveStorageKey, jsonEncode(payload));
+  }
+
+  Future<DashboardBuilderHistoryState?> loadBuilderHistory() async {
+    try {
+      final preferences = _preferences ?? await SharedPreferences.getInstance();
+      final raw = preferences.getString(_effectiveDashboardHistoryStorageKey);
+      if (raw == null || raw.trim().isEmpty) {
+        return null;
+      }
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final currentSignature = decoded['currentSignature']?.toString();
+      if (currentSignature == null || currentSignature.isEmpty) {
+        return null;
+      }
+
+      return DashboardBuilderHistoryState(
+        currentSignature: currentSignature,
+        undoStack: _historyEntriesFromJson(decoded['undoStack']),
+        redoStack: _historyEntriesFromJson(decoded['redoStack']),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveBuilderHistory({
+    required String currentSignature,
+    required List<DashboardBuilderHistoryEntry> undoStack,
+    required List<DashboardBuilderHistoryEntry> redoStack,
+  }) async {
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    await preferences.setString(
+      _effectiveDashboardHistoryStorageKey,
+      jsonEncode(<String, dynamic>{
+        'currentSignature': currentSignature,
+        'undoStack': undoStack.map(_historyEntryToJson).toList(),
+        'redoStack': redoStack.map(_historyEntryToJson).toList(),
+      }),
+    );
+  }
+
+  Future<void> clearBuilderHistory() async {
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    await preferences.remove(_effectiveDashboardHistoryStorageKey);
+  }
+
+  Future<DashboardBuilderDraftState?> loadBuilderDraft() async {
+    try {
+      final preferences = _preferences ?? await SharedPreferences.getInstance();
+      final raw = preferences.getString(_effectiveDashboardDraftStorageKey);
+      if (raw == null || raw.trim().isEmpty) {
+        return null;
+      }
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final currentSignature = decoded['currentSignature']?.toString();
+      if (currentSignature == null || currentSignature.isEmpty) {
+        return null;
+      }
+
+      final rawItems = decoded['items'];
+      if (rawItems is! List<dynamic>) {
+        return null;
+      }
+
+      final items = _itemsFromJsonList(rawItems);
+      if (items.isEmpty && rawItems.isNotEmpty) {
+        return null;
+      }
+
+      return DashboardBuilderDraftState(
+        currentSignature: currentSignature,
+        items: items,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveBuilderDraft(List<DashboardItem> items) async {
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    await preferences.setString(
+      _effectiveDashboardDraftStorageKey,
+      jsonEncode(<String, dynamic>{
+        'currentSignature': layoutSignature(items),
+        'items': items.map(_itemToJson).toList(),
+      }),
+    );
+  }
+
+  Future<void> clearBuilderDraft() async {
+    final preferences = _preferences ?? await SharedPreferences.getInstance();
+    await preferences.remove(_effectiveDashboardDraftStorageKey);
   }
 
   String layoutSignature(List<DashboardItem> items) {
@@ -120,6 +347,7 @@ class DashboardBuilderLayoutStorageService {
       'stepValue': item.stepValue,
       'sendBehavior': item.sendBehavior,
       'enabled': item.enabled,
+      'locked': item.locked,
     };
   }
 
@@ -164,7 +392,61 @@ class DashboardBuilderLayoutStorageService {
       'dataType': item.dataType,
       'stepValue': item.stepValue,
       'sendBehavior': item.sendBehavior,
+      'locked': item.locked,
     };
+  }
+
+  Map<String, dynamic> _historyEntryToJson(DashboardBuilderHistoryEntry entry) {
+    return <String, dynamic>{
+      'items': entry.items.map(_itemToJson).toList(),
+      'selectedId': entry.selectedId,
+      'selectedIds': entry.selectedIds.toList(),
+      'isMultiSelectMode': entry.isMultiSelectMode,
+    };
+  }
+
+  List<DashboardBuilderHistoryEntry> _historyEntriesFromJson(Object? value) {
+    final rawEntries = value is List<dynamic> ? value : const <dynamic>[];
+    final entries = <DashboardBuilderHistoryEntry>[];
+    for (final rawEntry in rawEntries) {
+      if (rawEntry is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final rawItems = rawEntry['items'];
+      if (rawItems is! List<dynamic>) {
+        continue;
+      }
+
+      final items = _itemsFromJsonList(rawItems);
+
+      final rawSelectedIds = rawEntry['selectedIds'];
+      entries.add(
+        DashboardBuilderHistoryEntry(
+          items: items,
+          selectedId: rawEntry['selectedId']?.toString(),
+          selectedIds: rawSelectedIds is List<dynamic>
+              ? rawSelectedIds.map((value) => value.toString()).toSet()
+              : <String>{},
+          isMultiSelectMode: rawEntry['isMultiSelectMode'] == true,
+        ),
+      );
+    }
+    return entries;
+  }
+
+  List<DashboardItem> _itemsFromJsonList(List<dynamic> rawItems) {
+    final items = <DashboardItem>[];
+    for (final rawItem in rawItems) {
+      if (rawItem is! Map<String, dynamic>) {
+        continue;
+      }
+      final item = _itemFromJson(rawItem);
+      if (item != null) {
+        items.add(item);
+      }
+    }
+    return items;
   }
 
   DashboardItem? _itemFromJson(Map<String, dynamic> json) {
@@ -244,6 +526,7 @@ class DashboardBuilderLayoutStorageService {
       stepValue: (json['stepValue'] as num?)?.toDouble() ?? 1,
       sendBehavior: json['sendBehavior']?.toString() ?? 'on_release',
       enabled: json['enabled'] == true,
+      locked: json['locked'] == true,
     );
   }
 

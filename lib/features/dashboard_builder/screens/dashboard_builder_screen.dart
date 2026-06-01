@@ -530,7 +530,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             horizontal: horizontalInset,
             vertical: 24,
           ),
-          backgroundColor: DashboardRuntimeTheme.cardColor,
+          backgroundColor: _themePreset.cardColor,
           surfaceTintColor: Colors.transparent,
           titlePadding: EdgeInsets.fromLTRB(
             compact ? 18 : 24,
@@ -560,7 +560,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
             textAlign: TextAlign.center,
             maxLines: 2,
             style: TextStyle(
-              color: DashboardRuntimeTheme.headlineColor,
+              color: _themePreset.headlineColor,
               fontWeight: FontWeight.w700,
               fontSize: titleFontSize,
               height: 1.18,
@@ -592,7 +592,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
               ),
               onPressed: () => Navigator.pop(context, _LeaveAction.cancel),
               child: const Text(
-                'Cancel',
+                'ยกเลิก',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
@@ -606,7 +606,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
               ),
               onPressed: () => Navigator.pop(context, _LeaveAction.discard),
               child: const Text(
-                'Discard',
+                'ไม่บันทึก',
                 style: TextStyle(color: Color(0xFFC96C78)),
               ),
             ),
@@ -625,7 +625,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
               ),
               onPressed: () => Navigator.pop(context, _LeaveAction.save),
               child: const Text(
-                'Save',
+                'บันทึก',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
@@ -670,17 +670,17 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: DashboardRuntimeTheme.cardColor,
+          backgroundColor: _themePreset.cardColor,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
             side: BorderSide(color: Colors.white.withValues(alpha: 0.78)),
           ),
-          title: const Text(
+          title: Text(
             'Restore draft?',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: DashboardRuntimeTheme.headlineColor,
+              color: _themePreset.headlineColor,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1295,7 +1295,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     final titlePainter = TextPainter(
       text: TextSpan(
         text: title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: titleFontSize,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
@@ -1561,14 +1561,14 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(
+                      child: Icon(
                         Icons.notifications_active_outlined,
                         color: accentColor,
                         size: 22,
                       ),
                     ),
                     const SizedBox(width: 14),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Widget มี Alert ผูกอยู่',
                         style: TextStyle(
@@ -1585,7 +1585,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                   'Widget ที่เลือกถูกใช้โดย ${affectedRules.length} alert rule'
                   '${affectedRules.length > 1 ? 's' : ''} ด้านล่าง '
                   'เลือกวิธีจัดการก่อนลบ widget:',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13.5,
                     height: 1.45,
                     color: Color(0xFF667587),
@@ -1622,7 +1622,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                         rule.title.isEmpty
                                             ? 'Untitled rule'
                                             : rule.title,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w700,
                                           color: Color(0xFF20303A),
@@ -1633,7 +1633,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                       Text(
                                         '${rule.widgetTitle}'
                                         '${rule.enabled ? '' : ' • disabled'}',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 11.5,
                                           color: Color(0xFF7B8895),
                                         ),
@@ -1685,7 +1685,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                         horizontal: 14,
                         vertical: 10,
                       ),
-                      textStyle: const TextStyle(
+                      textStyle: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1976,33 +1976,33 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   Future<void> _openEditModeInfoSheet() async {
     const rows = <MapEntry<String, String>>[
       MapEntry(
-        'Add Widget',
+        'เพิ่มวิดเจ็ต',
         'แตะปุ่ม + ตรงกลางด้านล่างเพื่อเพิ่ม widget ใหม่ลงบนพื้นที่ว่าง dashboard',
       ),
       MapEntry(
-        'Select',
+        'เลือกวิดเจ็ต',
         'แตะ widget หนึ่งครั้งเพื่อเลือก และเปิดปุ่ม Settings หรือ Delete',
       ),
-      MapEntry('Move Widget', 'กดค้างบน widget แล้วลากไปตำแหน่งใหม่บน grid'),
+      MapEntry('ย้ายวิดเจ็ต', 'กดค้างบน widget แล้วลากไปตำแหน่งใหม่บน grid'),
       MapEntry(
-        'Resize',
+        'ปรับขนาด',
         'เลือก widget แล้วลากจุดจับรอบกรอบเพื่อปรับขนาดความกว้างและความสูง',
       ),
       MapEntry(
-        'Multi Select',
+        'เลือกหลายวิดเจ็ต',
         'ใช้ปุ่ม Select ด้านล่างเพื่อเข้าโหมดเลือกหลายชิ้น แล้วแตะเลือก widget หลายตัวได้',
       ),
       MapEntry(
-        'Duplicate',
+        'คัดลอกวิดเจ็ต',
         'เลือก widget แล้วกด Duplicate เพื่อสร้างสำเนาใกล้ตำแหน่งเดิม',
       ),
       MapEntry(
-        'Widget Setting',
+        'ตั้งค่าวิดเจ็ต',
         'กด Settings เพื่อแก้ Data Key, title, style และค่าต่างๆ ของ widget',
       ),
       MapEntry(
-        'Save Layout',
-        'เมื่อจัดวางเสร็จแล้วกด Save ด้านบนเพื่อบันทึก layout ล่าสุด',
+        'บันทึกเลย์เอาต์',
+        'เมื่อจัดวางเสร็จแล้วกด บันทึก ด้านบนเพื่อบันทึก layout ล่าสุด',
       ),
     ];
 
@@ -2042,7 +2042,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                 ],
                                 shadows: const <BoxShadow>[],
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.info_outline_rounded,
                                 color: DashboardRuntimeTheme.labelTextColor,
                                 size: 20,
@@ -2054,21 +2054,18 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
+                            children: [
                               Text(
-                                'Edit Mode Guide',
+                                'คู่มือโหมดแก้ไข',
                                 style: TextStyle(
-                                  color: DashboardRuntimeTheme.headlineColor,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.3,
+                                  color: _themePreset.headlineColor,
                                 ),
                               ),
                               SizedBox(height: 3),
                               Text(
-                                'วิธีใช้งานหน้า Edit Mode และการจัดการ widget',
+                                'วิธีใช้งานหน้าโหมดแก้ไขและการจัดการ widget',
                                 style: TextStyle(
-                                  color: DashboardRuntimeTheme.mutedTextColor,
+                                  color: _themePreset.mutedTextColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -2098,9 +2095,9 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                     ],
                                     shadows: const <BoxShadow>[],
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.close_rounded,
-                                    color: DashboardRuntimeTheme.mutedTextColor,
+                                    color: _themePreset.mutedTextColor,
                                     size: 20,
                                   ),
                                 ),
@@ -2290,7 +2287,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
     if (duplicates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No free space available to duplicate.')),
+        const SnackBar(content: Text('ไม่มีพื้นที่ว่างสำหรับคัดลอกวิดเจ็ต')),
       );
       return;
     }
@@ -2305,52 +2302,55 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
   Widget _buildSaveAction() {
     final canSave = !_isLayoutLoading && !_isLayoutSaving && _hasUnsavedChanges;
-    return DecoratedBox(
-      decoration: canSave
-          ? AppGlassTheme.accentDecoration(
-              radius: 999,
-              borderColor: DashboardRuntimeTheme.surfaceBorderFocusColor,
-              colors: const <Color>[
-                DashboardRuntimeTheme.buttonStartColor,
-                DashboardRuntimeTheme.buttonEndColor,
-              ],
-              glowColor: DashboardRuntimeTheme.buttonGlowColor,
-            )
-          : AppGlassTheme.surfaceDecoration(
-              radius: 999,
-              borderAlpha: 0.60,
-              colors: <Color>[
-                const Color(0xFFFFFFFF).withValues(alpha: 0.54),
-                const Color(0xFFF0F4F8).withValues(alpha: 0.30),
-              ],
-              shadows: const <BoxShadow>[],
-            ),
-      child: TextButton.icon(
-        onPressed: canSave ? () => _saveLayout() : null,
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          foregroundColor: canSave
-              ? Colors.white
-              : DashboardRuntimeTheme.mutedTextColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
-          ),
-          backgroundColor: Colors.transparent,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        icon: _isLayoutSaving
-            ? const SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.8,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+    return Tooltip(
+      message: canSave ? 'บันทึกเลย์เอาต์' : 'ไม่มีการเปลี่ยนแปลงให้บันทึก',
+      child: DecoratedBox(
+        decoration: canSave
+            ? AppGlassTheme.accentDecoration(
+                radius: 999,
+                borderColor: DashboardRuntimeTheme.surfaceBorderFocusColor,
+                colors: const <Color>[
+                  DashboardRuntimeTheme.buttonStartColor,
+                  DashboardRuntimeTheme.buttonEndColor,
+                ],
+                glowColor: DashboardRuntimeTheme.buttonGlowColor,
               )
-            : const Icon(Icons.save_rounded, size: 13),
-        label: const Text(
-          'Save',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+            : AppGlassTheme.surfaceDecoration(
+                radius: 999,
+                borderAlpha: 0.60,
+                colors: <Color>[
+                  const Color(0xFFFFFFFF).withValues(alpha: 0.54),
+                  const Color(0xFFF0F4F8).withValues(alpha: 0.30),
+                ],
+                shadows: const <BoxShadow>[],
+              ),
+        child: TextButton.icon(
+          onPressed: canSave ? () => _saveLayout() : null,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            foregroundColor: canSave
+                ? Colors.white
+                : _themePreset.mutedTextColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+            backgroundColor: Colors.transparent,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          icon: _isLayoutSaving
+              ? const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Icon(Icons.save_rounded, size: 13),
+          label: const Text(
+            'บันทึก',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+          ),
         ),
       ),
     );
@@ -2408,7 +2408,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                     ],
                                     shadows: const <BoxShadow>[],
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.palette_rounded,
                                     color: DashboardRuntimeTheme.labelTextColor,
                                     size: 20,
@@ -2417,11 +2417,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Text(
                                 'Dashboard Theme',
                                 style: TextStyle(
-                                  color: DashboardRuntimeTheme.headlineColor,
+                                  color: _themePreset.headlineColor,
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: -0.3,
@@ -2500,23 +2500,28 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         ],
         shadows: const <BoxShadow>[],
       ),
-      child: IconButton(
-        onPressed: canOpenTheme ? _openThemeAction : null,
-        icon: Icon(
-          Icons.palette_rounded,
-          size: 17,
-          color: canOpenTheme
-              ? DashboardRuntimeTheme.headlineColor
-              : DashboardRuntimeTheme.mutedTextColor,
-        ),
-        padding: const EdgeInsets.all(7),
-        constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-        splashRadius: 18,
-        tooltip: 'Theme',
-        style: IconButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          disabledBackgroundColor: Colors.transparent,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Semantics(
+        button: true,
+        enabled: canOpenTheme,
+        label: 'เปลี่ยนธีม',
+        child: IconButton(
+          onPressed: canOpenTheme ? _openThemeAction : null,
+          icon: Icon(
+            Icons.palette_rounded,
+            size: 17,
+            color: canOpenTheme
+                ? _themePreset.headlineColor
+                : _themePreset.mutedTextColor,
+          ),
+          padding: const EdgeInsets.all(7),
+          constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+          splashRadius: 18,
+          tooltip: 'เปลี่ยนธีม',
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
       ),
     );
@@ -2544,7 +2549,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                   : DashboardRuntimeTheme.surfaceBorderColor,
               width: isSelected ? 1.6 : 1,
             ),
-            color: DashboardRuntimeTheme.surfaceColor,
+            color: _themePreset.surfaceColor,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2588,8 +2593,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                       preset.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: DashboardRuntimeTheme.headlineColor,
+                      style: TextStyle(
+                        color: _themePreset.headlineColor,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                       ),
@@ -2628,7 +2633,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                   : DashboardRuntimeTheme.surfaceBorderColor,
               width: isSelected ? 1.6 : 1,
             ),
-            color: DashboardRuntimeTheme.surfaceColor,
+            color: _themePreset.surfaceColor,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2656,13 +2661,13 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       customDashboardThemeName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: DashboardRuntimeTheme.headlineColor,
+                        color: _themePreset.headlineColor,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                       ),
@@ -2733,11 +2738,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                       children: [
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text(
                                 'Custom Theme',
                                 style: TextStyle(
-                                  color: DashboardRuntimeTheme.headlineColor,
+                                  color: _themePreset.headlineColor,
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: -0.3,
@@ -2860,7 +2865,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: DashboardRuntimeTheme.surfaceBorderColor),
-            color: DashboardRuntimeTheme.surfaceColor,
+            color: _themePreset.surfaceColor,
           ),
           child: Row(
             children: [
@@ -2877,8 +2882,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(
-                    color: DashboardRuntimeTheme.headlineColor,
+                  style: TextStyle(
+                    color: _themePreset.headlineColor,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
@@ -2925,8 +2930,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                       children: [
                         Text(
                           title,
-                          style: const TextStyle(
-                            color: DashboardRuntimeTheme.headlineColor,
+                          style: TextStyle(
+                            color: _themePreset.headlineColor,
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                           ),
@@ -2982,23 +2987,28 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         ],
         shadows: const <BoxShadow>[],
       ),
-      child: IconButton(
-        onPressed: canOpenInfo ? _openEditModeInfoSheet : null,
-        icon: Icon(
-          Icons.info_outline_rounded,
-          size: 17,
-          color: canOpenInfo
-              ? DashboardRuntimeTheme.headlineColor
-              : DashboardRuntimeTheme.mutedTextColor,
-        ),
-        padding: const EdgeInsets.all(7),
-        constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-        splashRadius: 18,
-        tooltip: 'Info',
-        style: IconButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          disabledBackgroundColor: Colors.transparent,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Semantics(
+        button: true,
+        enabled: canOpenInfo,
+        label: 'วิธีใช้งาน',
+        child: IconButton(
+          onPressed: canOpenInfo ? _openEditModeInfoSheet : null,
+          icon: Icon(
+            Icons.info_outline_rounded,
+            size: 17,
+            color: canOpenInfo
+                ? _themePreset.headlineColor
+                : _themePreset.mutedTextColor,
+          ),
+          padding: const EdgeInsets.all(7),
+          constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+          splashRadius: 18,
+          tooltip: 'วิธีใช้งาน',
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
       ),
     );
@@ -3040,12 +3050,15 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                   ? 'V Pin: No pin'
                                   : 'V Pin: $pin',
                               muted: pin == null || pin.isEmpty,
+                              themePreset: _themePreset,
                             ),
                             _InspectorPill(
                               label: 'Size: ${item.rect.w}x${item.rect.h}',
+                              themePreset: _themePreset,
                             ),
                             _InspectorPill(
                               label: 'x:${item.rect.x} y:${item.rect.y}',
+                              themePreset: _themePreset,
                             ),
                           ],
                         ),
@@ -3076,7 +3089,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
         return ClipRect(
           child: SizeTransition(
             sizeFactor: curvedAnimation,
-            axisAlignment: -1,
+            alignment: Alignment.topCenter,
             child: FadeTransition(
               opacity: curvedAnimation,
               child: SlideTransition(
@@ -3101,7 +3114,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
   Widget _buildFloatingControls() {
     const accentLineColor = DashboardRuntimeTheme.surfaceBorderFocusColor;
-    const outerRingColor = DashboardRuntimeTheme.cardColor;
+    final outerRingColor = _themePreset.cardColor;
     const baseAddButtonSize = 74.0;
     const baseSecondaryButtonSize = 40.0;
     const baseSecondaryGap = 8.0;
@@ -3150,83 +3163,87 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
           alignment: Alignment.center,
           clipBehavior: Clip.none,
           children: [
-            Tooltip(
-              message: 'Add Widget',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _openAddWidgetSheet,
-                child: SizedBox(
-                  width: addButtonSize,
-                  height: addButtonSize,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: addButtonSize,
-                        height: addButtonSize,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: DashboardRuntimeTheme.shadowLightColor,
-                              blurRadius: 12,
-                            ),
-                            BoxShadow(
-                              color: accentLineColor.withValues(alpha: 0.14),
-                              blurRadius: 16,
-                              spreadRadius: 0.2,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: addButtonSize * 0.84,
-                        height: addButtonSize * 0.84,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: outerRingColor,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.78),
-                            width: 1.2,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: DashboardRuntimeTheme.shadowLightColor,
-                              blurRadius: 6,
-                            ),
-                            BoxShadow(
-                              color: DashboardRuntimeTheme.shadowDarkColor,
-                              blurRadius: 10,
-                              offset: Offset(4, 6),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: addButtonSize * 0.73,
-                        height: addButtonSize * 0.73,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              DashboardRuntimeTheme.buttonStartColor,
-                              DashboardRuntimeTheme.buttonEndColor,
+            Semantics(
+              button: true,
+              label: 'เพิ่มวิดเจ็ต',
+              child: Tooltip(
+                message: 'เพิ่มวิดเจ็ต',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _openAddWidgetSheet,
+                  child: SizedBox(
+                    width: addButtonSize,
+                    height: addButtonSize,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: addButtonSize,
+                          height: addButtonSize,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: DashboardRuntimeTheme.shadowLightColor,
+                                blurRadius: 12,
+                              ),
+                              BoxShadow(
+                                color: accentLineColor.withValues(alpha: 0.14),
+                                blurRadius: 16,
+                                spreadRadius: 0.2,
+                              ),
                             ],
                           ),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.34),
-                            width: 0.9,
+                        ),
+                        Container(
+                          width: addButtonSize * 0.84,
+                          height: addButtonSize * 0.84,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: outerRingColor,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.78),
+                              width: 1.2,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: DashboardRuntimeTheme.shadowLightColor,
+                                blurRadius: 6,
+                              ),
+                              BoxShadow(
+                                color: DashboardRuntimeTheme.shadowDarkColor,
+                                blurRadius: 10,
+                                offset: Offset(4, 6),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Icon(
-                          Icons.add_rounded,
-                          color: Colors.white,
-                          size: (addButtonSize * 0.4).clamp(22.0, 30.0),
+                        Container(
+                          width: addButtonSize * 0.73,
+                          height: addButtonSize * 0.73,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                DashboardRuntimeTheme.buttonStartColor,
+                                DashboardRuntimeTheme.buttonEndColor,
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.34),
+                              width: 0.9,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.add_rounded,
+                            color: Colors.white,
+                            size: (addButtonSize * 0.4).clamp(22.0, 30.0),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -3243,7 +3260,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                 tooltip: 'Undo',
                 backgroundColor: _canUndo
                     ? _undoActionTone.background
-                    : DashboardRuntimeTheme.surfaceColor,
+                    : _themePreset.surfaceColor,
                 foregroundColor: _canUndo
                     ? _undoActionTone.foreground
                     : const Color(0xFF9DA6B3),
@@ -3267,7 +3284,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                 tooltip: 'Redo',
                 backgroundColor: _canRedo
                     ? _redoActionTone.background
-                    : DashboardRuntimeTheme.surfaceColor,
+                    : _themePreset.surfaceColor,
                 foregroundColor: _canRedo
                     ? _redoActionTone.foreground
                     : const Color(0xFF9DA6B3),
@@ -3427,7 +3444,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                     fontSize: titleFontSize,
                     height: 1.18,
                     fontWeight: FontWeight.w700,
-                    color: DashboardRuntimeTheme.headlineColor,
+                    color: _themePreset.headlineColor,
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -3499,23 +3516,23 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'เริ่มจัดวางวิดเจ็ตใน Edit Mode',
+                            'เริ่มจัดวางวิดเจ็ตในโหมดแก้ไข',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: titleFontSize,
                               height: 1.18,
                               fontWeight: FontWeight.w800,
-                              color: DashboardRuntimeTheme.headlineColor,
+                              color: _themePreset.headlineColor,
                             ),
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'แตะปุ่ม + เพื่อเพิ่มวิดเจ็ต หรือแตะพื้นที่ว่างเพื่อเริ่มจัดการเลย์เอาต์ของแดชบอร์ดนี้',
+                            'แตะปุ่ม + เพื่อเพิ่มวิดเจ็ต แล้วลากจัดวางบนพื้นที่นี้',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: bodyFontSize,
                               height: 1.35,
-                              color: DashboardRuntimeTheme.mutedTextColor,
+                              color: _themePreset.mutedTextColor,
                             ),
                           ),
                         ],
@@ -3652,7 +3669,9 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
     if (placedItem == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No free space available right now.')),
+        const SnackBar(
+          content: Text('ไม่มีพื้นที่ว่างสำหรับเพิ่มวิดเจ็ตตอนนี้'),
+        ),
       );
       return;
     }
@@ -4122,15 +4141,15 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
           elevation: 0,
           backgroundColor: Colors.transparent,
           scrolledUnderElevation: 0,
-          foregroundColor: DashboardRuntimeTheme.headlineColor,
+          foregroundColor: _themePreset.headlineColor,
           toolbarHeight: 54,
           titleSpacing: 20,
-          title: const Text(
-            'Edit Mode',
+          title: Text(
+            'โหมดแก้ไข',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: DashboardRuntimeTheme.headlineColor,
+              color: _themePreset.headlineColor,
             ),
           ),
           flexibleSpace: SafeArea(
@@ -4640,6 +4659,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                       top: -5,
                                       child: _LockedWidgetBadge(
                                         compact: width < 54 || height < 54,
+                                        themePreset: _themePreset,
                                       ),
                                     ),
                                 ],
@@ -4745,6 +4765,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                                       top: -5,
                                       child: _LockedWidgetBadge(
                                         compact: width < 54 || height < 54,
+                                        themePreset: _themePreset,
                                       ),
                                     ),
                                 ],
@@ -5432,9 +5453,10 @@ class _ResizeHandle extends StatelessWidget {
 }
 
 class _LockedWidgetBadge extends StatelessWidget {
-  const _LockedWidgetBadge({required this.compact});
+  const _LockedWidgetBadge({required this.compact, required this.themePreset});
 
   final bool compact;
+  final DashboardThemePreset themePreset;
 
   @override
   Widget build(BuildContext context) {
@@ -5443,7 +5465,7 @@ class _LockedWidgetBadge extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: DashboardRuntimeTheme.cardColor.withValues(alpha: 0.88),
+          color: themePreset.cardColor.withValues(alpha: 0.88),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.82),
             width: 1,
@@ -5471,16 +5493,19 @@ class _LockedWidgetBadge extends StatelessWidget {
 }
 
 class _InspectorPill extends StatelessWidget {
-  const _InspectorPill({required this.label, this.muted = false});
+  const _InspectorPill({
+    required this.label,
+    required this.themePreset,
+    this.muted = false,
+  });
 
   final String label;
+  final DashboardThemePreset themePreset;
   final bool muted;
 
   @override
   Widget build(BuildContext context) {
-    final color = muted
-        ? DashboardRuntimeTheme.mutedTextColor
-        : DashboardRuntimeTheme.labelTextColor;
+    final color = muted ? themePreset.mutedTextColor : themePreset.bodyColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
@@ -5628,7 +5653,7 @@ class _BuilderInfoRow extends StatelessWidget {
                   ),
                   child: Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: DashboardRuntimeTheme.labelTextColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
@@ -5642,7 +5667,7 @@ class _BuilderInfoRow extends StatelessWidget {
                     child: Text(
                       value,
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: DashboardRuntimeTheme.fieldTextColor,
                         fontSize: 13,
                         height: 1.35,

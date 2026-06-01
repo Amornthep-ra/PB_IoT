@@ -232,6 +232,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   bool _isLayoutSaving = false;
   String _savedLayoutSignature = '[]';
   DashboardThemePreset _themePreset = dashboardThemePresets.first;
+  DashboardThemePreset? _customThemePreset;
   List<DashboardItem>? _pendingDraftItems;
   DashboardBuilderHistoryState? _pendingDraftHistory;
   double _gestureStartScrollOffset = 0;
@@ -407,10 +408,11 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
     try {
       final storedItems = await _layoutStorage.loadItems();
       final storedThemePreset = await _layoutStorage.loadDashboardThemePreset();
+      final storedCustomThemePreset =
+          storedThemePreset.name == customDashboardThemeName
+          ? storedThemePreset
+          : null;
       final storedDraft = await _layoutStorage.loadBuilderDraft();
-      if (!mounted) {
-        return;
-      }
 
       final runtimeResolvedItems = await _runtimeValueStorage.applyToItems(
         storedItems ?? _buildInitialItems(),
@@ -435,6 +437,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
       setState(() {
         _items = resolvedItems;
         _themePreset = storedThemePreset;
+        _customThemePreset = storedCustomThemePreset;
         _restoreHistoryStacks(restoredHistory);
         _pendingDraftItems = hasRestorableDraft ? draftItems : null;
         _pendingDraftHistory = hasRestorableDraft
@@ -2474,6 +2477,10 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
     setState(() {
       _themePreset = selectedPreset;
+
+      if (selectedPreset.name == customDashboardThemeName) {
+        _customThemePreset = selectedPreset;
+      }
     });
 
     try {
@@ -2617,6 +2624,7 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
 
   Widget _buildCustomThemeTile(BuildContext context, {required double width}) {
     final isSelected = _themePreset.name == customDashboardThemeName;
+    final previewPreset = _customThemePreset ?? _themePreset;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2645,8 +2653,8 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
                   borderRadius: BorderRadius.circular(13),
                   gradient: LinearGradient(
                     colors: <Color>[
-                      _themePreset.canvasColors.first,
-                      _themePreset.gridColor.withValues(alpha: 0.78),
+                      previewPreset.canvasColors.first,
+                      previewPreset.gridColor.withValues(alpha: 0.78),
                     ],
                   ),
                 ),
@@ -2689,8 +2697,10 @@ class _DashboardBuilderScreenState extends State<DashboardBuilderScreen> {
   }
 
   Future<DashboardThemePreset?> _openCustomThemeEditor() async {
-    var canvasColor = _themePreset.canvasColors.first.withAlpha(255);
-    var gridColor = _themePreset.gridColor.withAlpha(255);
+    final initialPreset = _customThemePreset ?? _themePreset;
+
+    var canvasColor = initialPreset.canvasColors.first.withAlpha(255);
+    var gridColor = initialPreset.gridColor.withAlpha(255);
 
     return showModalBottomSheet<DashboardThemePreset>(
       context: context,

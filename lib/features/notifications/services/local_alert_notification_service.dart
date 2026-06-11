@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../models/alert_event_model.dart';
@@ -119,6 +121,7 @@ class LocalAlertNotificationService {
       importance: Importance.high,
       priority: Priority.high,
       icon: 'ic_stat_alert',
+      color: const Color(0xFF18B9FF),
       largeIcon: const DrawableResourceAndroidBitmap('princebot_logo_full'),
       styleInformation: BigTextStyleInformation(message),
     );

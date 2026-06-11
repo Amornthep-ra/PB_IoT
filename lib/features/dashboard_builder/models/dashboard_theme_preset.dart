@@ -41,26 +41,52 @@ class DashboardThemePreset {
 }
 
 DashboardThemePreset dashboardCustomThemePreset({
+  required Color pageStart,
+  required Color pageEnd,
   required Color canvasColor,
   required Color gridColor,
 }) {
+  final normalizedPageStart = pageStart.withAlpha(255);
+  final normalizedPageEnd = pageEnd.withAlpha(255);
   final normalizedCanvasColor = canvasColor.withAlpha(255);
+  final normalizedGridColor = gridColor.withAlpha(255);
+
+  final isDarkCanvas =
+      ThemeData.estimateBrightnessForColor(normalizedCanvasColor) ==
+      Brightness.dark;
 
   return DashboardThemePreset(
     name: customDashboardThemeName,
-    pageStart: normalizedCanvasColor,
-    pageEnd: normalizedCanvasColor,
+    pageStart: normalizedPageStart,
+    pageEnd: normalizedPageEnd,
     canvasColors: <Color>[
       normalizedCanvasColor,
       normalizedCanvasColor.withValues(alpha: 0.96),
       normalizedCanvasColor.withValues(alpha: 0.92),
     ],
-    gridColor: gridColor,
+    gridColor: normalizedGridColor,
+    headlineColor: isDarkCanvas
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFF15212B),
+    bodyColor: isDarkCanvas ? const Color(0xFFE2E8F0) : const Color(0xFF344054),
+    mutedTextColor: isDarkCanvas
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF667085),
+    surfaceColor: isDarkCanvas
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFF8FAFD),
+    cardColor: isDarkCanvas ? const Color(0xFF111827) : const Color(0xFFEFF3F8),
+    borderColor: isDarkCanvas
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0),
+    accentColor: isDarkCanvas
+        ? const Color(0xFF38BDF8)
+        : const Color(0xFF16A34A),
+    isDark: isDarkCanvas,
   );
 }
 
-const List<DashboardThemePreset> dashboardThemePresets =
-    <DashboardThemePreset>[
+const List<DashboardThemePreset> dashboardThemePresets = <DashboardThemePreset>[
   DashboardThemePreset(
     name: 'Default',
     pageStart: DashboardRuntimeTheme.backgroundColor,

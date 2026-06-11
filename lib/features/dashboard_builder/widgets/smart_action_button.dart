@@ -251,8 +251,10 @@ class _SmartActionButtonState extends State<SmartActionButton> {
             controlCornerRadius + layout.innerInset + layout.shellPadding;
         final canRenderControl = controlWidth >= 12 && controlHeight >= 12;
         final onColor = widget.activeColor;
-        final offColor = widget.inactiveColor;
-        final currentAccent = _isActive ? onColor : offColor;
+        final inactiveVisualColor =
+            Color.lerp(widget.inactiveColor, const Color(0xFFD94B4B), 0.42) ??
+            widget.inactiveColor;
+        final currentAccent = _isActive ? onColor : inactiveVisualColor;
         final surfaceColor =
             widget.shellBaseColor ??
             (_isActive
@@ -260,10 +262,47 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                 : DashboardRuntimeTheme.surfaceColor);
         final controlSurfaceColor =
             widget.innerBaseColor ?? DashboardRuntimeTheme.cardHighlightColor;
-        final resolvedGlowColor = widget.glowColor ?? currentAccent;
-        final resolvedGlowStrength = (widget.glowStrength ?? 0.12)
+        final usesDarkSurface =
+            ThemeData.estimateBrightnessForColor(surfaceColor) ==
+            Brightness.dark;
+        final usesDarkControlSurface =
+            ThemeData.estimateBrightnessForColor(controlSurfaceColor) ==
+            Brightness.dark;
+        final shellGradientEnd = usesDarkSurface
+            ? (Color.lerp(surfaceColor, Colors.white, 0.08) ?? surfaceColor)
+            : (Color.lerp(
+                    surfaceColor,
+                    DashboardRuntimeTheme.cardHighlightColor,
+                    0.35,
+                  ) ??
+                  surfaceColor);
+        final controlGradientEnd = usesDarkControlSurface
+            ? (Color.lerp(controlSurfaceColor, Colors.white, 0.10) ??
+                  controlSurfaceColor)
+            : (Color.lerp(
+                    controlSurfaceColor,
+                    DashboardRuntimeTheme.cardColor,
+                    0.8,
+                  ) ??
+                  controlSurfaceColor);
+        final highlightShadowColor = usesDarkSurface
+            ? Colors.white.withValues(alpha: 0.045)
+            : DashboardRuntimeTheme.shadowLightColor;
+        final controlHighlightShadowColor = usesDarkControlSurface
+            ? Colors.white.withValues(alpha: 0.055)
+            : DashboardRuntimeTheme.shadowLightColor;
+        final ambientShadowColor = usesDarkSurface
+            ? Colors.black.withValues(alpha: 0.24)
+            : DashboardRuntimeTheme.shadowDarkColor;
+        final resolvedGlowColor = _isActive
+            ? (widget.glowColor ?? onColor)
+            : inactiveVisualColor;
+        final rawGlowStrength = (widget.glowStrength ?? 0.12)
             .clamp(0.0, 0.35)
             .toDouble();
+        final resolvedGlowStrength = _isActive
+            ? rawGlowStrength
+            : math.min(rawGlowStrength * 0.24, 0.035);
         final resolvedGlowBlur = (widget.glowBlur ?? 18.0)
             .clamp(0.0, 40.0)
             .toDouble();
@@ -279,7 +318,7 @@ class _SmartActionButtonState extends State<SmartActionButton> {
             .toDouble();
         final borderColor = _isActive
             ? onColor.withValues(alpha: 0.26)
-            : offColor.withValues(alpha: 0.22);
+            : inactiveVisualColor.withValues(alpha: 0.18);
         final resolvedShellBorderColor = widget.shellBorderColor ?? borderColor;
         final resolvedShellBorderWidth =
             widget.shellBorderWidth ?? layout.borderWidth;
@@ -296,20 +335,11 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      controlSurfaceColor,
-                      Color.lerp(
-                            controlSurfaceColor,
-                            DashboardRuntimeTheme.cardColor,
-                            0.8,
-                          ) ??
-                          controlSurfaceColor,
-                    ],
+                    colors: [controlSurfaceColor, controlGradientEnd],
                   ),
                   border: Border.all(
-                    color: (_isActive ? onColor : offColor).withValues(
-                      alpha: 0.88,
-                    ),
+                    color: (_isActive ? onColor : inactiveVisualColor)
+                        .withValues(alpha: _isActive ? 0.88 : 0.46),
                     width: layout.controlBorderWidth,
                   ),
                   boxShadow: [
@@ -321,8 +351,8 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                         blurRadius: math.max(16.0, resolvedGlowBlur * 0.62),
                         spreadRadius: 1,
                       ),
-                    const BoxShadow(
-                      color: DashboardRuntimeTheme.shadowLightColor,
+                    BoxShadow(
+                      color: controlHighlightShadowColor,
                       blurRadius: 5,
                       offset: Offset.zero,
                     ),
@@ -440,7 +470,7 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                                   end: Alignment.bottomRight,
                                   colors: [
                                     currentAccent.withValues(
-                                      alpha: _isActive ? 0.1 : 0.05,
+                                      alpha: _isActive ? 0.1 : 0.025,
                                     ),
                                     Colors.transparent,
                                   ],
@@ -466,7 +496,7 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                                           shadows: [
                                             BoxShadow(
                                               color: currentAccent.withValues(
-                                                alpha: _isActive ? 0.18 : 0.08,
+                                                alpha: _isActive ? 0.18 : 0.05,
                                               ),
                                               blurRadius: 10,
                                             ),
@@ -529,15 +559,7 @@ class _SmartActionButtonState extends State<SmartActionButton> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                surfaceColor,
-                Color.lerp(
-                      surfaceColor,
-                      DashboardRuntimeTheme.cardHighlightColor,
-                      0.35,
-                    ) ??
-                    surfaceColor,
-              ],
+              colors: [surfaceColor, shellGradientEnd],
             ),
             borderRadius: BorderRadius.circular(shellCornerRadius),
             border: Border.all(
@@ -546,12 +568,12 @@ class _SmartActionButtonState extends State<SmartActionButton> {
             ),
             boxShadow: [
               BoxShadow(
-                color: DashboardRuntimeTheme.shadowLightColor,
+                color: highlightShadowColor,
                 blurRadius: layout.baseShadowBlur * 0.45,
                 offset: Offset.zero,
               ),
               BoxShadow(
-                color: DashboardRuntimeTheme.shadowDarkColor,
+                color: ambientShadowColor,
                 blurRadius: layout.baseShadowBlur * 0.8,
                 offset: Offset(0, width * 0.03),
               ),
@@ -587,14 +609,25 @@ class _SmartActionButtonState extends State<SmartActionButton> {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.18),
-                          Colors.transparent,
-                          currentAccent.withValues(
-                            alpha: _isActive ? 0.04 : 0.02,
-                          ),
-                        ],
-                        stops: const [0.0, 0.35, 1.0],
+                        colors: usesDarkSurface
+                            ? [
+                                Colors.white.withValues(alpha: 0.08),
+                                Colors.white.withValues(alpha: 0.04),
+                                Colors.transparent,
+                                currentAccent.withValues(
+                                  alpha: _isActive ? 0.035 : 0.010,
+                                ),
+                              ]
+                            : [
+                                Colors.white.withValues(alpha: 0.18),
+                                Colors.transparent,
+                                currentAccent.withValues(
+                                  alpha: _isActive ? 0.04 : 0.012,
+                                ),
+                              ],
+                        stops: usesDarkSurface
+                            ? const [0.0, 0.35, 0.62, 1.0]
+                            : const [0.0, 0.35, 1.0],
                       ),
                     ),
                   ),

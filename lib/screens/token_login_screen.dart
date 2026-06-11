@@ -41,10 +41,10 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
   static const _backgroundColor = Color(0xFFF2F5FA);
   static const _cardColor = Color(0xFFEFF3F8);
   static const _surfaceColor = Color(0xFFF8FAFD);
-  static const _surfaceBorderColor = Color(0xFFD7E0EA);
+  static const _surfaceBorderColor = Color(0xFFC9D5E1);
   static const _surfaceBorderFocusColor = Color(0xFF6EAB90);
   static const _fieldTextColor = Color(0xFF20303A);
-  static const _mutedTextColor = Color(0xFF667587);
+  static const _mutedTextColor = Color(0xFF5C6A7A);
   static const _labelTextColor = Color(0xFF4B5A69);
   static const _buttonStartColor = Color(0xFF7FC39C);
   static const _buttonEndColor = Color(0xFF4E9070);
@@ -188,7 +188,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open Privacy Policy.')),
+        const SnackBar(content: Text('ไม่สามารถเปิดนโยบายความเป็นส่วนตัวได้')),
       );
     }
   }
@@ -198,7 +198,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open Delete Account.')),
+        const SnackBar(content: Text('ไม่สามารถเปิดหน้าลบบัญชีได้')),
       );
     }
   }
@@ -256,6 +256,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final width = size.width;
     final loginError = _loginError;
+    final keyboardVisible = keyboardInset > 0;
     final hasFieldError =
         loginError != null && loginError != _LoginError.sessionExpired;
 
@@ -283,21 +284,36 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                 final errorGapHeight = isShortHeight ? 14.0 : 18.0;
                 final buttonTopGap = isShortHeight ? 18.0 : 22.0;
                 final footerTopGap = isShortHeight ? 18.0 : 24.0;
+                final effectiveFooterTopGap = keyboardVisible
+                    ? 8.0
+                    : footerTopGap;
                 final content = Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
                       height: metrics.authResolvedTopSpacing(
-                        keyboardVisible: false,
+                        keyboardVisible: keyboardVisible,
                       ),
                     ),
-                    _LogoPlaceholder(
-                      width: metrics.authHeroSize * 0.68,
-                      height: metrics.authHeroSize * 0.68,
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: keyboardVisible
+                          ? const SizedBox.shrink()
+                          : _LogoPlaceholder(
+                              width: metrics.authHeroSize * 0.68,
+                              height: metrics.authHeroSize * 0.68,
+                            ),
                     ),
-                    SizedBox(
-                      height: metrics.authResolvedHeroCardGap(
-                        keyboardVisible: false,
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        height: metrics.authResolvedHeroCardGap(
+                          keyboardVisible: keyboardVisible,
+                        ),
                       ),
                     ),
                     Container(
@@ -308,7 +324,8 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                           metrics.authCardRadius,
                         ),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.78),
+                          color: const Color(0xFFE4EBF3),
+                          width: 1.1,
                         ),
                         boxShadow: const [
                           BoxShadow(
@@ -332,7 +349,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _FieldBlock(
-                            label: 'Token Access',
+                            label: 'โทเค็นเข้าใช้งาน',
                             child: _LoginTextField(
                               controller: _tokenController,
                               hintText: 'กรุณากรอกโทเค็นแอปของคุณ',
@@ -348,6 +365,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                               decorationBuilder: _inputDecoration,
                               hasError: hasFieldError,
                               isObscured: _obscureToken,
+                              isSensitive: true,
                               keyboardAppearance: Brightness.light,
                               style: const TextStyle(
                                 fontSize: 16,
@@ -369,8 +387,8 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                                               ? Icons.visibility_outlined
                                               : Icons.visibility_off_outlined,
                                           tooltip: _obscureToken
-                                              ? 'Show token'
-                                              : 'Hide token',
+                                              ? 'แสดงโทเค็น'
+                                              : 'ซ่อนโทเค็น',
                                           onTap: () {
                                             setState(() {
                                               _obscureToken = !_obscureToken;
@@ -385,8 +403,7 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                           ),
                           SizedBox(height: metrics.authFieldGap),
                           _FieldBlock(
-                            label: 'Profile Name',
-                            trailingLabel: '(ชื่อโปรไฟล์)',
+                            label: 'ชื่อโปรไฟล์',
                             child: _LoginTextField(
                               controller: _displayNameController,
                               hintText: 'กรอกชื่อที่ต้องการให้เป็นชื่อโปรไฟล์',
@@ -426,48 +443,17 @@ class _TokenLoginScreenState extends State<TokenLoginScreen> {
                     ),
                     SafeArea(
                       top: false,
-                      minimum: EdgeInsets.only(top: footerTopGap, bottom: 20),
+                      minimum: EdgeInsets.only(
+                        top: effectiveFooterTopGap,
+                        bottom: 20,
+                      ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _LoginFooterLinks(
                             onTokenRequestTap: _onOpenTokenRequest,
-                          ),
-                          const SizedBox(height: 2),
-                          TextButton(
-                            onPressed: _onOpenDeleteAccount,
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFB24A46),
-                              textStyle: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Delete Account'),
-                          ),
-                          const SizedBox(height: 2),
-                          TextButton(
-                            onPressed: _onOpenPrivacyPolicy,
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFF667587),
-                              textStyle: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Privacy Policy'),
+                            onPrivacyPolicyTap: _onOpenPrivacyPolicy,
+                            onDeleteAccountTap: _onOpenDeleteAccount,
                           ),
                         ],
                       ),
@@ -738,14 +724,9 @@ class _GlowOrb extends StatelessWidget {
 }
 
 class _FieldBlock extends StatelessWidget {
-  const _FieldBlock({
-    required this.label,
-    required this.child,
-    this.trailingLabel,
-  });
+  const _FieldBlock({required this.label, required this.child});
 
   final String label;
-  final String? trailingLabel;
   final Widget child;
 
   @override
@@ -764,15 +745,6 @@ class _FieldBlock extends StatelessWidget {
                   color: _TokenLoginScreenState._labelTextColor,
                 ),
               ),
-              if (trailingLabel != null)
-                TextSpan(
-                  text: ' $trailingLabel',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF718093),
-                  ),
-                ),
             ],
           ),
         ),
@@ -840,6 +812,7 @@ class _LoginTextField extends StatefulWidget {
     this.style,
     this.hasError = false,
     this.isObscured = false,
+    this.isSensitive = false,
     this.keyboardAppearance,
     this.suffixIconBuilder,
   });
@@ -860,6 +833,7 @@ class _LoginTextField extends StatefulWidget {
   final TextStyle? style;
   final bool hasError;
   final bool isObscured;
+  final bool isSensitive;
   final Brightness? keyboardAppearance;
   final Widget Function({required bool isFocused, required bool hasError})?
   suffixIconBuilder;
@@ -927,8 +901,15 @@ class _LoginTextFieldState extends State<_LoginTextField> {
         onSubmitted: widget.onSubmitted,
         onChanged: widget.onChanged,
         obscureText: widget.isObscured,
-        autocorrect: false,
-        enableSuggestions: !widget.isObscured,
+        autocorrect: !widget.isSensitive,
+        enableSuggestions: !widget.isSensitive,
+        enableIMEPersonalizedLearning: !widget.isSensitive,
+        smartDashesType: widget.isSensitive
+            ? SmartDashesType.disabled
+            : SmartDashesType.enabled,
+        smartQuotesType: widget.isSensitive
+            ? SmartQuotesType.disabled
+            : SmartQuotesType.enabled,
         keyboardAppearance: widget.keyboardAppearance,
         maxLines: 1,
         style:
@@ -962,77 +943,101 @@ class _RememberMeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              width: 52,
-              height: 30,
-              decoration: BoxDecoration(
-                color: value
-                    ? const Color(0xFF7FC39C)
-                    : const Color(0xFFDDE5EE),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: value
-                      ? const Color(0xFF8FCDAA)
-                      : const Color(0xFFCFD9E3),
-                  width: 1.1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.white.withValues(alpha: 0.76),
-                    offset: const Offset(-1, -1),
-                    blurRadius: 4,
+    return Semantics(
+      label: 'จดจำโทเค็นบนอุปกรณ์นี้',
+      toggled: value,
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 52,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: value
+                          ? const Color(0xFF7FC39C)
+                          : const Color(0xFFDDE5EE),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: value
+                            ? const Color(0xFF8FCDAA)
+                            : const Color(0xFFCFD9E3),
+                        width: 1.1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.76),
+                          offset: const Offset(-1, -1),
+                          blurRadius: 4,
+                        ),
+                        BoxShadow(
+                          color: const Color(0x190E1E2B),
+                          offset: const Offset(2, 3),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: AnimatedAlign(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      alignment: value
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: value
+                              ? const Color(0xFFF9FFFB)
+                              : const Color(0xFFF8FAFD),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.10),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                  BoxShadow(
-                    color: const Color(0x190E1E2B),
-                    offset: const Offset(2, 3),
-                    blurRadius: 6,
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'จดจำโทเค็นบนอุปกรณ์นี้',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF536170),
+                      ),
+                    ),
                   ),
                 ],
               ),
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: value
-                        ? const Color(0xFFF9FFFB)
-                        : const Color(0xFFF8FAFD),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.10),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+              const Padding(
+                padding: EdgeInsets.only(left: 60, top: 3),
+                child: Text(
+                  'เก็บโทเค็นอย่างปลอดภัยบนอุปกรณ์นี้',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.25,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF6E7C8B),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                'Remember me',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF5E6C79),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1144,12 +1149,12 @@ class _GlowLoginButton extends StatelessWidget {
                         ),
                       )
                     : const Text(
-                        'Sign In',
+                        'เข้าสู่ระบบ',
                         key: ValueKey('label'),
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: -0.1,
+                          letterSpacing: 0,
                         ),
                       ),
               ),
@@ -1162,25 +1167,74 @@ class _GlowLoginButton extends StatelessWidget {
 }
 
 class _LoginFooterLinks extends StatelessWidget {
-  const _LoginFooterLinks({required this.onTokenRequestTap});
+  const _LoginFooterLinks({
+    required this.onTokenRequestTap,
+    required this.onPrivacyPolicyTap,
+    required this.onDeleteAccountTap,
+  });
 
   final VoidCallback onTokenRequestTap;
+  final VoidCallback onPrivacyPolicyTap;
+  final VoidCallback onDeleteAccountTap;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: TextButton.icon(
-        onPressed: onTokenRequestTap,
-        icon: const Icon(Icons.open_in_new_rounded, size: 16),
-        label: const Text('ขอ Token / ลืม Token? คลิกที่นี่'),
-        style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFF4E9070),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextButton.icon(
+          onPressed: onTokenRequestTap,
+          icon: const Icon(Icons.open_in_new_rounded, size: 16),
+          label: const Text('ขอโทเค็น / ลืมโทเค็น? คลิกที่นี่'),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF4E9070),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
-      ),
+        const SizedBox(height: 2),
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
+          runSpacing: 2,
+          children: [
+            TextButton(
+              onPressed: onPrivacyPolicyTap,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF667587),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('นโยบายความเป็นส่วนตัว'),
+            ),
+            TextButton(
+              onPressed: onDeleteAccountTap,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFA94E4A),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('ลบบัญชี'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

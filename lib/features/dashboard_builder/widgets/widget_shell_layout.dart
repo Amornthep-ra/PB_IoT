@@ -45,13 +45,9 @@ WidgetShellLayoutSpec buildSliderShellLayout({
       ? 16.0
       : 14.0;
   final shellBottomInset = shellBottomInsetFor(height);
-  final shellTopInset = math.max(
-    0.0,
-    height - shellBottomInset - desiredShellHeight,
-  );
 
   return WidgetShellLayoutSpec(
-    shellTopInset: shellTopInset,
+    shellTopInset: 0,
     shellBottomInset: shellBottomInset,
     titleLift: titleLift,
   );

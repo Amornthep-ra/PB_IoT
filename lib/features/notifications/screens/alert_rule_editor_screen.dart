@@ -95,7 +95,8 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
 
     setState(() {
       _availableItems = availableItems;
-      final hasMatchingItem = _selectedWidgetId != null &&
+      final hasMatchingItem =
+          _selectedWidgetId != null &&
           availableItems.any((item) => item.id == _selectedWidgetId);
       if (!hasMatchingItem) {
         if (widget.initialRule == null) {
@@ -254,7 +255,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
 
       if (!canNotify) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notifications are disabled.')),
+          const SnackBar(content: Text('ยังไม่ได้เปิดสิทธิ์การแจ้งเตือน')),
         );
         return;
       }
@@ -276,7 +277,11 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(sent ? 'Test alert sent.' : 'Unable to send test alert.'),
+          content: Text(
+            sent
+                ? 'ส่งการแจ้งเตือนทดสอบแล้ว'
+                : 'ไม่สามารถส่งการแจ้งเตือนทดสอบได้',
+          ),
         ),
       );
     } finally {
@@ -352,7 +357,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
           decoration: AppGlassTheme.surfaceDecoration(
             radius: 28,
             borderAlpha: 0.58,
@@ -382,24 +387,25 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                     color: Color(0xFF20303A),
                   ),
                   splashRadius: 20,
-                  tooltip: 'Back',
+                  tooltip: 'กลับ',
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.isEditing ? 'Edit Alert' : 'Create Alert',
+                      widget.isEditing
+                          ? 'แก้ไขการแจ้งเตือน'
+                          : 'สร้างการแจ้งเตือน',
                       style: const TextStyle(
-                        fontSize: 26,
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.4,
                         color: Color(0xFF20303A),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       widget.isEditing
                           ? 'แก้ไขกฎการแจ้งเตือนได้ โดยไม่มีผลต่อการทำงานในปัจจุบัน'
@@ -439,12 +445,12 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
         decoration: _pageDecoration,
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildGlassHeader(),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
                 Expanded(
                   child: _isLoading
                       ? Center(
@@ -464,7 +470,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                                   ),
                                   SizedBox(height: 14),
                                   Text(
-                                    'Loading alert editor...',
+                                    'กำลังโหลดตัวแก้ไขการแจ้งเตือน...',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 16,
@@ -479,150 +485,62 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                         )
                       : _availableItems.isEmpty
                       ? _buildNoWidgetsState()
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'เริ่มต้นสร้างกฎการแจ้งเตือนง่ายๆ โดยเลือกจากวิดเจ็ตบนหน้าแดชบอร์ด',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    height: 1.45,
-                                    color: Color(0xFF667587),
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                _SectionCard(
+                      : Column(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.only(bottom: 168),
+                                child: Form(
+                                  key: _formKey,
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const _FieldLabel('Alert name'),
-                                      const SizedBox(height: 8),
-                                      KeyedSubtree(
-                                        key: _titleFieldKey,
-                                        child: TextFormField(
-                                          controller: _titleController,
-                                          focusNode: _titleFocusNode,
-                                          textInputAction: TextInputAction.next,
-                                          decoration: _inputDecoration(
-                                            hintText:
-                                                'ตัวอย่าง: ความชื้นในดินต่ำ',
-                                          ),
-                                          onChanged: (_) => setState(() {}),
-                                          validator: (value) {
-                                            if ((value ?? '').trim().isEmpty) {
-                                              return 'กรอกชื่อการแจ้งเตือน';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      const _FieldLabel('Widget'),
-                                      const SizedBox(height: 8),
-                                      if (_sourceWidgetMissing) ...[
-                                        _SourceMissingBanner(
-                                          widgetTitle: widget
-                                              .initialRule!
-                                              .widgetTitle,
-                                        ),
-                                        const SizedBox(height: 10),
-                                      ],
-                                      DropdownButtonFormField<String>(
-                                        initialValue: _selectedWidgetId,
-                                        isExpanded: true,
-                                        decoration: _inputDecoration(),
-                                        borderRadius: BorderRadius.circular(22),
-                                        dropdownColor: const Color(0xFFF7FBFF),
-                                        elevation: 0,
-                                        icon: const Icon(
-                                          Icons.expand_more_rounded,
-                                          color: Color(0xFF6D7C8A),
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF20303A),
-                                        ),
-                                        menuMaxHeight: 320,
-                                        selectedItemBuilder: (context) =>
-                                            _availableItems
-                                                .map(
-                                                  (item) => Align(
-                                                    alignment:
-                                                        Alignment.centerLeft,
-                                                    child: Text(
-                                                      _widgetDisplayName(item),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: Color(
-                                                          0xFF20303A,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                )
-                                                .toList(),
-                                        items: _availableItems
-                                            .map(
-                                              (item) =>
-                                                  DropdownMenuItem<String>(
-                                                    value: item.id,
-                                                    child: _WidgetOptionTile(
-                                                      title: _widgetDisplayName(
-                                                        item,
-                                                      ),
-                                                      subtitle:
-                                                          _widgetBindingSummary(
-                                                            item,
-                                                          ),
-                                                    ),
-                                                  ),
-                                            )
-                                            .toList(),
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _selectedWidgetId = value;
-                                            _selectedCondition =
-                                                _sanitizeCondition(
-                                                  item: _selectedItem,
-                                                  current: _selectedCondition,
-                                                );
-                                          });
-                                        },
-                                      ),
-                                      if (selectedItem != null) ...[
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          _widgetBindingSummary(selectedItem),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            height: 1.35,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF7B8895),
-                                          ),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 16),
-                                      const _FieldLabel('Condition'),
-                                      const SizedBox(height: 8),
-                                      KeyedSubtree(
-                                        key: _conditionFieldKey,
-                                        child:
-                                            DropdownButtonFormField<
-                                              AlertRuleCondition
-                                            >(
-                                              initialValue: _selectedCondition,
+                                      _SectionCard(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const _FieldLabel(
+                                              'ชื่อการแจ้งเตือน',
+                                            ),
+                                            const SizedBox(height: 7),
+                                            KeyedSubtree(
+                                              key: _titleFieldKey,
+                                              child: TextFormField(
+                                                controller: _titleController,
+                                                focusNode: _titleFocusNode,
+                                                textInputAction:
+                                                    TextInputAction.next,
+                                                decoration: _inputDecoration(
+                                                  hintText:
+                                                      'ตัวอย่าง: ความชื้นในดินต่ำ',
+                                                ),
+                                                onChanged: (_) =>
+                                                    setState(() {}),
+                                                validator: (value) {
+                                                  if ((value ?? '')
+                                                      .trim()
+                                                      .isEmpty) {
+                                                    return 'กรอกชื่อการแจ้งเตือน';
+                                                  }
+                                                  return null;
+                                                },
+                                              ),
+                                            ),
+                                            const SizedBox(height: 14),
+                                            const _FieldLabel('วิดเจ็ต'),
+                                            const SizedBox(height: 7),
+                                            if (_sourceWidgetMissing) ...[
+                                              _SourceMissingBanner(
+                                                widgetTitle: widget
+                                                    .initialRule!
+                                                    .widgetTitle,
+                                              ),
+                                              const SizedBox(height: 10),
+                                            ],
+                                            DropdownButtonFormField<String>(
+                                              initialValue: _selectedWidgetId,
                                               isExpanded: true,
                                               decoration: _inputDecoration(),
                                               borderRadius:
@@ -641,17 +559,19 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                                                 color: Color(0xFF20303A),
                                               ),
                                               menuMaxHeight: 320,
-                                              items: availableConditions
-                                                  .map(
-                                                    (condition) =>
-                                                        DropdownMenuItem<
-                                                          AlertRuleCondition
-                                                        >(
-                                                          value: condition,
+                                              selectedItemBuilder: (context) =>
+                                                  _availableItems
+                                                      .map(
+                                                        (item) => Align(
+                                                          alignment: Alignment
+                                                              .centerLeft,
                                                           child: Text(
-                                                            _conditionLabel(
-                                                              condition,
+                                                            _widgetDisplayName(
+                                                              item,
                                                             ),
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
                                                             style:
                                                                 const TextStyle(
                                                                   fontSize: 14,
@@ -664,193 +584,209 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                                                                 ),
                                                           ),
                                                         ),
+                                                      )
+                                                      .toList(),
+                                              items: _availableItems
+                                                  .map(
+                                                    (
+                                                      item,
+                                                    ) => DropdownMenuItem<String>(
+                                                      value: item.id,
+                                                      child: _WidgetOptionTile(
+                                                        title:
+                                                            _widgetDisplayName(
+                                                              item,
+                                                            ),
+                                                        subtitle:
+                                                            _widgetBindingSummary(
+                                                              item,
+                                                            ),
+                                                      ),
+                                                    ),
                                                   )
                                                   .toList(),
                                               onChanged: (value) {
                                                 setState(() {
-                                                  _selectedCondition = value;
+                                                  _selectedWidgetId = value;
+                                                  _selectedCondition =
+                                                      _sanitizeCondition(
+                                                        item: _selectedItem,
+                                                        current:
+                                                            _selectedCondition,
+                                                      );
                                                 });
                                               },
-                                              validator: (value) {
-                                                if (value == null) {
-                                                  return 'เลือกเงื่อนไขการแจ้งเตือน';
-                                                }
-                                                return null;
-                                              },
                                             ),
-                                      ),
-                                      if (_selectedConditionNeedsThreshold) ...[
-                                        const SizedBox(height: 16),
-                                        const _FieldLabel('Value'),
-                                        const SizedBox(height: 8),
-                                        KeyedSubtree(
-                                          key: _thresholdFieldKey,
-                                          child: TextFormField(
-                                            controller: _thresholdController,
-                                            focusNode: _thresholdFocusNode,
-                                            textInputAction:
-                                                TextInputAction.next,
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                  signed: false,
+                                            if (selectedItem != null) ...[
+                                              const SizedBox(height: 8),
+                                              _WidgetBindingChips(
+                                                item: selectedItem,
+                                              ),
+                                            ],
+                                            const SizedBox(height: 14),
+                                            const _FieldLabel('เงื่อนไข'),
+                                            const SizedBox(height: 7),
+                                            KeyedSubtree(
+                                              key: _conditionFieldKey,
+                                              child: DropdownButtonFormField<AlertRuleCondition>(
+                                                initialValue:
+                                                    _selectedCondition,
+                                                isExpanded: true,
+                                                decoration: _inputDecoration(),
+                                                borderRadius:
+                                                    BorderRadius.circular(22),
+                                                dropdownColor: const Color(
+                                                  0xFFF7FBFF,
                                                 ),
-                                            decoration: _inputDecoration(
-                                              hintText: _thresholdHintForItem(
-                                                selectedItem,
+                                                elevation: 0,
+                                                icon: const Icon(
+                                                  Icons.expand_more_rounded,
+                                                  color: Color(0xFF6D7C8A),
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF20303A),
+                                                ),
+                                                menuMaxHeight: 320,
+                                                items: availableConditions
+                                                    .map(
+                                                      (condition) =>
+                                                          DropdownMenuItem<
+                                                            AlertRuleCondition
+                                                          >(
+                                                            value: condition,
+                                                            child: Text(
+                                                              _conditionLabel(
+                                                                condition,
+                                                              ),
+                                                              style: const TextStyle(
+                                                                fontSize: 14,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Color(
+                                                                  0xFF20303A,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                    )
+                                                    .toList(),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    _selectedCondition = value;
+                                                  });
+                                                },
+                                                validator: (value) {
+                                                  if (value == null) {
+                                                    return 'เลือกเงื่อนไขการแจ้งเตือน';
+                                                  }
+                                                  return null;
+                                                },
                                               ),
                                             ),
-                                            onChanged: (_) => setState(() {}),
-                                            validator: (value) {
-                                              if (!_selectedConditionNeedsThreshold) {
-                                                return null;
-                                              }
-                                              if ((value ?? '')
-                                                  .trim()
-                                                  .isEmpty) {
-                                                return 'กรอกค่าที่ต้องการ';
-                                              }
-                                              if (double.tryParse(
-                                                    value!.trim(),
-                                                  ) ==
-                                                  null) {
-                                                return 'ระบุตัวเลขที่ถูกต้อง';
-                                              }
-                                              return null;
-                                            },
-                                          ),
+                                            if (_selectedConditionNeedsThreshold) ...[
+                                              const SizedBox(height: 14),
+                                              const _FieldLabel('ค่า'),
+                                              const SizedBox(height: 7),
+                                              KeyedSubtree(
+                                                key: _thresholdFieldKey,
+                                                child: TextFormField(
+                                                  controller:
+                                                      _thresholdController,
+                                                  focusNode:
+                                                      _thresholdFocusNode,
+                                                  textInputAction:
+                                                      TextInputAction.next,
+                                                  keyboardType:
+                                                      const TextInputType.numberWithOptions(
+                                                        decimal: true,
+                                                        signed: false,
+                                                      ),
+                                                  decoration: _inputDecoration(
+                                                    hintText:
+                                                        _thresholdHintForItem(
+                                                          selectedItem,
+                                                        ),
+                                                  ),
+                                                  onChanged: (_) =>
+                                                      setState(() {}),
+                                                  validator: (value) {
+                                                    if (!_selectedConditionNeedsThreshold) {
+                                                      return null;
+                                                    }
+                                                    if ((value ?? '')
+                                                        .trim()
+                                                        .isEmpty) {
+                                                      return 'กรอกค่าที่ต้องการ';
+                                                    }
+                                                    if (double.tryParse(
+                                                          value!.trim(),
+                                                        ) ==
+                                                        null) {
+                                                      return 'ระบุตัวเลขที่ถูกต้อง';
+                                                    }
+                                                    return null;
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                            const SizedBox(height: 14),
+                                            const _FieldLabel('ระดับความสำคัญ'),
+                                            const SizedBox(height: 7),
+                                            _SeveritySelector(
+                                              value: _selectedSeverity,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _selectedSeverity = value;
+                                                });
+                                              },
+                                            ),
+                                            const SizedBox(height: 14),
+                                            const _FieldLabel(
+                                              'ข้อความแจ้งเตือน',
+                                            ),
+                                            const SizedBox(height: 7),
+                                            KeyedSubtree(
+                                              key: _messageFieldKey,
+                                              child: TextFormField(
+                                                controller: _messageController,
+                                                focusNode: _messageFocusNode,
+                                                minLines: 2,
+                                                maxLines: 4,
+                                                decoration: _inputDecoration(
+                                                  hintText:
+                                                      'ตัวอย่าง: ความชื้นในดินต่ำเกินไป',
+                                                ),
+                                                onChanged: (_) =>
+                                                    setState(() {}),
+                                                validator: (value) {
+                                                  if ((value ?? '')
+                                                      .trim()
+                                                      .isEmpty) {
+                                                    return 'กรอกข้อความแจ้งเตือน';
+                                                  }
+                                                  return null;
+                                                },
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                      const SizedBox(height: 16),
-                                      const _FieldLabel('Severity'),
-                                      const SizedBox(height: 8),
-                                      _SeveritySelector(
-                                        value: _selectedSeverity,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _selectedSeverity = value;
-                                          });
-                                        },
                                       ),
-                                      const SizedBox(height: 16),
-                                      const _FieldLabel('Alert message'),
-                                      const SizedBox(height: 8),
-                                      KeyedSubtree(
-                                        key: _messageFieldKey,
-                                        child: TextFormField(
-                                          controller: _messageController,
-                                          focusNode: _messageFocusNode,
-                                          minLines: 2,
-                                          maxLines: 4,
-                                          decoration: _inputDecoration(
-                                            hintText:
-                                                'ตัวอย่าง: ความชื้นในดินต่ำเกินไป',
-                                          ),
-                                          onChanged: (_) => setState(() {}),
-                                          validator: (value) {
-                                            if ((value ?? '').trim().isEmpty) {
-                                              return 'กรอกข้อความแจ้งเตือน';
-                                            }
-                                            return null;
-                                          },
-                                        ),
+                                      const SizedBox(height: 14),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: _buildPreviewCard(selectedItem),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 18),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: _buildPreviewCard(selectedItem),
-                                ),
-                                const SizedBox(height: 18),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton.icon(
-                                    onPressed:
-                                        (_isSaving || _isTestingAlert)
-                                        ? null
-                                        : _testAlert,
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: const Color(0xFF4E9070),
-                                      side: const BorderSide(
-                                        color: Color(0xFF8FC8A9),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 15,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(18),
-                                      ),
-                                    ),
-                                    icon: _isTestingAlert
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Color(0xFF4E9070),
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.notifications_active_outlined,
-                                          ),
-                                    label: Text(
-                                      _isTestingAlert
-                                          ? 'Sending test...'
-                                          : 'Test alert',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Container(
-                                  width: double.infinity,
-                                  decoration: AppGlassTheme.accentDecoration(
-                                    radius: 18,
-                                    colors: const <Color>[
-                                      Color(0xFFB6D2F5),
-                                      Color(0xFF82AEE8),
-                                    ],
-                                    borderColor: const Color(0xFF9EC3F0),
-                                    glowColor: const Color(0xFF82AEE8),
-                                  ),
-                                  child: FilledButton.icon(
-                                    onPressed: (_isSaving || _isTestingAlert)
-                                        ? null
-                                        : _saveRule,
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      shadowColor: Colors.transparent,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(18),
-                                      ),
-                                    ),
-                                    icon: _isSaving
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(Icons.save_outlined),
-                                    label: Text(
-                                      _isSaving
-                                          ? 'Saving...'
-                                          : (widget.isEditing
-                                                ? 'Save changes'
-                                                : 'Save alert'),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 10),
+                            _buildStickyActionBar(),
+                          ],
                         ),
                 ),
               ],
@@ -863,7 +799,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
 
   Widget _buildNoWidgetsState() {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Center(
         child: _SectionCard(
           child: Column(
@@ -896,7 +832,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'No widgets available yet',
+                'ยังไม่มีวิดเจ็ตที่ใช้ได้',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 20,
@@ -912,6 +848,106 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
                   fontSize: 14,
                   height: 1.45,
                   color: Color(0xFF667587),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStickyActionBar() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: AppGlassTheme.surfaceDecoration(
+            radius: 22,
+            borderAlpha: 0.52,
+            colors: <Color>[
+              const Color(0xFFFFFFFF).withValues(alpha: 0.76),
+              const Color(0xFFF6FBFF).withValues(alpha: 0.44),
+            ],
+            shadows: AppGlassTheme.shadowMd,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: (_isSaving || _isTestingAlert) ? null : _testAlert,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF4E9070),
+                    side: const BorderSide(color: Color(0xFF8FC8A9)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  icon: _isTestingAlert
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF4E9070),
+                          ),
+                        )
+                      : const Icon(Icons.notifications_active_outlined),
+                  label: Text(
+                    _isTestingAlert ? 'กำลังส่งทดสอบ...' : 'ทดสอบแจ้งเตือน',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                decoration: AppGlassTheme.accentDecoration(
+                  radius: 16,
+                  colors: const <Color>[Color(0xFFB6D2F5), Color(0xFF82AEE8)],
+                  borderColor: const Color(0xFF9EC3F0),
+                  glowColor: const Color(0xFF82AEE8),
+                ),
+                child: FilledButton.icon(
+                  onPressed: (_isSaving || _isTestingAlert) ? null : _saveRule,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(
+                    _isSaving
+                        ? 'กำลังบันทึก...'
+                        : (widget.isEditing
+                              ? 'บันทึกการแก้ไข'
+                              : 'บันทึกการแจ้งเตือน'),
+                  ),
                 ),
               ),
             ],
@@ -951,7 +987,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
               shadows: const <BoxShadow>[],
             ),
             child: const Text(
-              'Preview',
+              'ตัวอย่าง',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
@@ -959,7 +995,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           const Text(
             'จะแจ้งเตือนเมื่อ',
             style: TextStyle(
@@ -968,7 +1004,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
               color: Color(0xFF7B8895),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             previewTrigger,
             style: const TextStyle(
@@ -977,7 +1013,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
               color: Color(0xFF20303A),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           const Text(
             'ข้อความแจ้งเตือน',
             style: TextStyle(
@@ -986,7 +1022,7 @@ class _AlertRuleEditorScreenState extends State<AlertRuleEditorScreen> {
               color: Color(0xFF7B8895),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             previewMessage,
             style: const TextStyle(
@@ -1058,7 +1094,7 @@ class _SectionCard extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           decoration: AppGlassTheme.surfaceDecoration(
             radius: 24,
             borderAlpha: 0.5,
@@ -1114,7 +1150,7 @@ class _SeveritySelector extends StatelessWidget {
           onTap: () => onChanged(severity),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: selected
                 ? AppGlassTheme.accentDecoration(
                     radius: 16,
@@ -1156,6 +1192,44 @@ class _SeveritySelector extends StatelessWidget {
   }
 }
 
+class _WidgetBindingChips extends StatelessWidget {
+  const _WidgetBindingChips({required this.item});
+
+  final DashboardItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final part in _widgetBindingParts(item))
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: AppGlassTheme.surfaceDecoration(
+              radius: 999,
+              borderAlpha: 0.28,
+              colors: <Color>[
+                Colors.white.withValues(alpha: 0.46),
+                const Color(0xFFEEF6FF).withValues(alpha: 0.34),
+              ],
+              shadows: const <BoxShadow>[],
+            ),
+            child: Text(
+              part,
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.1,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF667587),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 InputDecoration _inputDecoration({String? hintText}) {
   return InputDecoration(
     hintText: hintText,
@@ -1166,7 +1240,7 @@ InputDecoration _inputDecoration({String? hintText}) {
       fontSize: 13,
       fontWeight: FontWeight.w500,
     ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
       borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.68)),
@@ -1201,6 +1275,8 @@ bool _supportsAlertRules(DashboardItem item) {
     DashboardItemType.gauge => true,
     DashboardItemType.valueLabel => true,
     DashboardItemType.slider => true,
+    DashboardItemType.stepH => true,
+    DashboardItemType.stepV => true,
     DashboardItemType.toggle => true,
     DashboardItemType.button => true,
   };
@@ -1219,6 +1295,8 @@ List<AlertRuleCondition> _conditionsForItem(DashboardItem item) {
     case DashboardItemType.gauge:
     case DashboardItemType.valueLabel:
     case DashboardItemType.slider:
+    case DashboardItemType.stepH:
+    case DashboardItemType.stepV:
       return const <AlertRuleCondition>[
         AlertRuleCondition.lessThan,
         AlertRuleCondition.lessThanOrEqual,
@@ -1280,13 +1358,13 @@ String _conditionLabel(AlertRuleCondition condition) {
     case AlertRuleCondition.notEqualTo:
       return '!=';
     case AlertRuleCondition.isOn:
-      return 'Is ON';
+      return 'เปิดอยู่';
     case AlertRuleCondition.isOff:
-      return 'Is OFF';
+      return 'ปิดอยู่';
     case AlertRuleCondition.becameOn:
-      return 'Changed to ON';
+      return 'เปลี่ยนเป็นเปิด';
     case AlertRuleCondition.becameOff:
-      return 'Changed to OFF';
+      return 'เปลี่ยนเป็นปิด';
   }
 }
 
@@ -1315,11 +1393,11 @@ Color _severityColor(AlertRuleSeverity severity) {
 String _severityLabel(AlertRuleSeverity severity) {
   switch (severity) {
     case AlertRuleSeverity.info:
-      return 'Info';
+      return 'ข้อมูล';
     case AlertRuleSeverity.warning:
-      return 'Warning';
+      return 'เตือน';
     case AlertRuleSeverity.critical:
-      return 'Critical';
+      return 'วิกฤต';
   }
 }
 
@@ -1331,33 +1409,54 @@ String _thresholdHintForItem(DashboardItem? item) {
   if (unit.isEmpty) {
     return 'ใส่ค่าตัวเลข';
   }
-  return 'Enter a value in $unit';
+  return 'ใส่ค่าเป็น $unit';
 }
 
 String _widgetDisplayName(DashboardItem item) {
   final title = item.title.trim();
-  final typeLabel = item.type.name;
+  final typeLabel = _widgetTypeLabel(item.type);
   if (title.isEmpty) {
     return typeLabel;
   }
   return '$title ($typeLabel)';
 }
 
+String _widgetTypeLabel(DashboardItemType type) {
+  return switch (type) {
+    DashboardItemType.button => 'ปุ่ม',
+    DashboardItemType.toggle => 'สวิตช์',
+    DashboardItemType.slider => 'สไลเดอร์',
+    DashboardItemType.stepH => 'ปรับค่า H',
+    DashboardItemType.stepV => 'ปรับค่า V',
+    DashboardItemType.gauge => 'เกจ',
+    DashboardItemType.valueLabel => 'แสดงค่า',
+  };
+}
+
 String _widgetBindingSummary(DashboardItem item) {
+  return _widgetBindingParts(item).join('  •  ');
+}
+
+List<String> _widgetBindingParts(DashboardItem item) {
   final dataKeyLabel = (item.dataKeyLabel ?? '').trim();
   final dataKey = (item.dataKey ?? '').trim();
   final normalizedType = item.dataType.trim().toLowerCase();
   final typeLabel = switch (normalizedType) {
-    'bool' || 'boolean' => 'boolean',
+    'bool' || 'boolean' => 'บูลีน',
     'enum' || 'enumeration' => 'enum',
-    'string' => 'text',
-    _ => 'number',
+    'string' => 'ข้อความ',
+    'integer' || 'int' => 'จำนวนเต็ม',
+    _ => 'ตัวเลข',
   };
   final unit = (item.unit ?? '').trim();
   final bindingMode = item.bindingMode.trim().toLowerCase();
-  final modeLabel = bindingMode == 'write' ? 'write' : 'read';
+  final modeLabel = bindingMode == 'write'
+      ? 'เขียนค่า'
+      : bindingMode == 'read_write'
+      ? 'อ่าน/เขียน'
+      : 'อ่านค่า';
 
-  final parts = <String>[
+  return <String>[
     if (dataKeyLabel.isNotEmpty) dataKeyLabel,
     if (dataKey.isNotEmpty &&
         dataKey.toLowerCase() != dataKeyLabel.toLowerCase())
@@ -1366,7 +1465,6 @@ String _widgetBindingSummary(DashboardItem item) {
     if (unit.isNotEmpty) unit,
     modeLabel,
   ];
-  return parts.join('  |  ');
 }
 
 String _fallbackWidgetTitle(DashboardItem item) {
@@ -1395,18 +1493,14 @@ class _SourceMissingBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: accent,
-            size: 18,
-          ),
+          const Icon(Icons.error_outline_rounded, color: accent, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Widget ต้นทางถูกลบแล้ว',
+                  'วิดเจ็ตต้นทางถูกลบแล้ว',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -1415,8 +1509,8 @@ class _SourceMissingBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'rule นี้เคยผูกกับ "$widgetTitle" '
-                  'กรุณาเลือก widget ใหม่เพื่อบันทึก',
+                  'กฎนี้เคยผูกกับ "$widgetTitle" '
+                  'กรุณาเลือกวิดเจ็ตใหม่เพื่อบันทึก',
                   style: const TextStyle(
                     fontSize: 12,
                     height: 1.4,

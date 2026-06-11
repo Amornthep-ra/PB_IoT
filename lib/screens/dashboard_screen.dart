@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -16,8 +17,14 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  static const double _bottomNavEstimatedHeight = 68;
+  static const double _bottomNavContentGap = 24;
+  static const Duration _dashboardNavRestoreDelay = Duration(milliseconds: 250);
+
   late final DashboardRuntimeController _runtimeController;
+  Timer? _dashboardNavRestoreTimer;
   int _selectedIndex = 0;
+  bool _isDashboardScrolling = false;
 
   @override
   void initState() {
@@ -33,6 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _runtimeController.highlightItemIdNotifier.removeListener(
       _handleHighlightRequest,
     );
+    _dashboardNavRestoreTimer?.cancel();
     _runtimeController.dispose();
     super.dispose();
   }
@@ -43,77 +51,160 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
     if (_selectedIndex != 0) {
+      _clearDashboardScrollState();
       setState(() => _selectedIndex = 0);
     }
   }
 
-  Widget _buildCurrentScreen() {
+  Widget _buildCurrentScreen(double bottomContentPadding) {
     return switch (_selectedIndex) {
-      0 => DashboardHomeView(runtimeController: _runtimeController),
-      1 => DevicesScreen(runtimeController: _runtimeController),
-      2 => NotificationsScreen(runtimeController: _runtimeController),
-      _ => DashboardHomeView(runtimeController: _runtimeController),
+      0 => DashboardHomeView(
+        runtimeController: _runtimeController,
+        bottomContentPadding: bottomContentPadding,
+        onScrollActivityChanged: _handleDashboardScrollActivity,
+      ),
+      1 => DevicesScreen(
+        runtimeController: _runtimeController,
+        bottomContentPadding: bottomContentPadding,
+      ),
+      2 => NotificationsScreen(
+        runtimeController: _runtimeController,
+        bottomContentPadding: bottomContentPadding,
+      ),
+      _ => DashboardHomeView(
+        runtimeController: _runtimeController,
+        bottomContentPadding: bottomContentPadding,
+        onScrollActivityChanged: _handleDashboardScrollActivity,
+      ),
     };
+  }
+
+  void _selectTab(int index) {
+    _clearDashboardScrollState();
+    setState(() => _selectedIndex = index);
+  }
+
+  void _handleDashboardScrollActivity(bool isActive) {
+    if (_selectedIndex != 0 || !mounted) {
+      return;
+    }
+
+    if (isActive) {
+      _dashboardNavRestoreTimer?.cancel();
+      if (!_isDashboardScrolling) {
+        setState(() => _isDashboardScrolling = true);
+      }
+      return;
+    }
+
+    _dashboardNavRestoreTimer?.cancel();
+    _dashboardNavRestoreTimer = Timer(_dashboardNavRestoreDelay, () {
+      if (!mounted || _selectedIndex != 0) {
+        return;
+      }
+      if (_isDashboardScrolling) {
+        setState(() => _isDashboardScrolling = false);
+      }
+    });
+  }
+
+  void _clearDashboardScrollState() {
+    _dashboardNavRestoreTimer?.cancel();
+    _dashboardNavRestoreTimer = null;
+    _isDashboardScrolling = false;
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bottomNavBottomPadding = bottomInset > 0 ? bottomInset + 8 : 16.0;
+    final dashboardBottomContentPadding =
+        _bottomNavEstimatedHeight +
+        bottomNavBottomPadding +
+        _bottomNavContentGap;
+    final isNavSoftened = _selectedIndex == 0 && _isDashboardScrolling;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F5FA),
-      body: _buildCurrentScreen(),
+      body: _buildCurrentScreen(dashboardBottomContentPadding),
       extendBody: true,
       bottomNavigationBar: Padding(
-        padding: EdgeInsets.fromLTRB(14, 0, 14, bottomInset > 0 ? bottomInset + 8 : 16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              decoration: AppGlassTheme.surfaceDecoration(
-                radius: 24,
-                borderAlpha: 0.55,
-                colors: <Color>[
-                  const Color(0xFFFFFFFF).withValues(alpha: 0.72),
-                  const Color(0xFFF6FBFF).withValues(alpha: 0.46),
-                ],
-                shadows: AppGlassTheme.shadowLg,
-              ),
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-              child: Row(
-                children: [
-                  _BottomNavItem(
-                    icon: Icons.speed_outlined,
-                    label: 'Dashboard',
-                    isActive: _selectedIndex == 0,
-                    activeColors: const [Color(0xFFB6D2F5), Color(0xFF82AEE8)],
-                    onTap: () => setState(() => _selectedIndex = 0),
-                  ),
-                  _BottomNavItem(
-                    icon: Icons.devices_other_outlined,
-                    label: 'Devices',
-                    isActive: _selectedIndex == 1,
-                    activeColors: const [Color(0xFFF6C7D7), Color(0xFFE59AB6)],
-                    onTap: () => setState(() => _selectedIndex = 1),
-                  ),
-                  _BottomNavItem(
-                    icon: Icons.notifications_none_rounded,
-                    label: 'Alerts',
-                    isActive: _selectedIndex == 2,
-                    activeColors: const [Color(0xFFD5C8F7), Color(0xFFAA93E8)],
-                    onTap: () => setState(() => _selectedIndex = 2),
-                  ),
-                  _BottomNavItem(
-                    icon: Icons.settings_outlined,
-                    label: 'Settings',
-                    isActive: false,
-                    activeColors: const [Color(0xFFC5E4D2), Color(0xFF8BC3A5)],
-                    onTap: () {
-                      Navigator.pushNamed(context, '/account-session');
-                    },
-                  ),
-                ],
+        padding: EdgeInsets.fromLTRB(14, 0, 14, bottomNavBottomPadding),
+        child: AnimatedOpacity(
+          key: const ValueKey<String>('dashboard-bottom-nav-opacity'),
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          opacity: isNavSoftened ? 0.78 : 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOut,
+                decoration: AppGlassTheme.surfaceDecoration(
+                  radius: 24,
+                  borderAlpha: isNavSoftened ? 0.42 : 0.55,
+                  colors: <Color>[
+                    const Color(
+                      0xFFFFFFFF,
+                    ).withValues(alpha: isNavSoftened ? 0.58 : 0.72),
+                    const Color(
+                      0xFFF6FBFF,
+                    ).withValues(alpha: isNavSoftened ? 0.34 : 0.46),
+                  ],
+                  shadows: isNavSoftened
+                      ? AppGlassTheme.shadowSm
+                      : AppGlassTheme.shadowLg,
+                ),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                child: Row(
+                  children: [
+                    _BottomNavItem(
+                      icon: Icons.speed_outlined,
+                      label: 'แดชบอร์ด',
+                      isActive: _selectedIndex == 0,
+                      activeColors: const [
+                        Color(0xFFB6D2F5),
+                        Color(0xFF82AEE8),
+                      ],
+                      onTap: () => _selectTab(0),
+                    ),
+                    _BottomNavItem(
+                      icon: Icons.devices_other_outlined,
+                      label: 'อุปกรณ์',
+                      isActive: _selectedIndex == 1,
+                      activeColors: const [
+                        Color(0xFFF6C7D7),
+                        Color(0xFFE59AB6),
+                      ],
+                      onTap: () => _selectTab(1),
+                    ),
+                    _BottomNavItem(
+                      icon: Icons.notifications_none_rounded,
+                      label: 'แจ้งเตือน',
+                      isActive: _selectedIndex == 2,
+                      activeColors: const [
+                        Color(0xFFD5C8F7),
+                        Color(0xFFAA93E8),
+                      ],
+                      onTap: () => _selectTab(2),
+                    ),
+                    _BottomNavItem(
+                      icon: Icons.settings_outlined,
+                      label: 'ตั้งค่า',
+                      isActive: false,
+                      activeColors: const [
+                        Color(0xFFC5E4D2),
+                        Color(0xFF8BC3A5),
+                      ],
+                      onTap: () {
+                        _clearDashboardScrollState();
+                        Navigator.pushNamed(context, '/account-session');
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -150,7 +241,9 @@ class _BottomNavItem extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           border: isActive
-              ? Border.all(color: const Color(0xFFFFFFFF).withValues(alpha: 0.75))
+              ? Border.all(
+                  color: const Color(0xFFFFFFFF).withValues(alpha: 0.75),
+                )
               : null,
           gradient: isActive
               ? AppGlassTheme.surfaceGradient(activeColors)

@@ -18,9 +18,14 @@ import 'alert_rule_editor_screen.dart';
 enum _AlertsPage { currentEvents, allHistory }
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key, required this.runtimeController});
+  const NotificationsScreen({
+    super.key,
+    required this.runtimeController,
+    this.bottomContentPadding = 0,
+  });
 
   final DashboardRuntimeController runtimeController;
+  final double bottomContentPadding;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -199,7 +204,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ),
                 const SizedBox(height: 14),
                 const Text(
-                  'ให้ PB IoT ส่งการแจ้งเตือนบนมือถือเมื่อมี Alerts ต่างๆ',
+                  'ให้ PB IoT ส่งการแจ้งเตือนบนมือถือเมื่อมีเหตุการณ์สำคัญ',
                   style: TextStyle(
                     fontSize: 12,
                     height: 1.45,
@@ -405,7 +410,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     const SizedBox(width: 14),
                     const Expanded(
                       child: Text(
-                        'Clear Event History',
+                        'ล้างเหตุการณ์ล่าสุด',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
@@ -441,7 +446,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      child: const Text('Cancel'),
+                      child: const Text('ยกเลิก'),
                     ),
                     const SizedBox(width: 8),
                     DecoratedBox(
@@ -473,7 +478,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: const Text('Clear'),
+                        child: const Text('ล้าง'),
                       ),
                     ),
                   ],
@@ -637,7 +642,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      child: const Text('Cancel'),
+                      child: const Text('ยกเลิก'),
                     ),
                     const SizedBox(width: 8),
                     DecoratedBox(
@@ -687,10 +692,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     final shouldDelete = await _confirmHistoryAction(
-      title: 'Delete History Item',
+      title: 'ลบรายการประวัติ',
       message:
-          'ลบรายการนี้ออกจาก All History ใช่หรือไม่? รายการนี้จะไม่ถูกเก็บในประวัติย้อนหลังแล้ว',
-      confirmLabel: 'Delete',
+          'ลบรายการนี้ออกจากประวัติทั้งหมดใช่หรือไม่? รายการนี้จะไม่ถูกเก็บในประวัติย้อนหลังแล้ว',
+      confirmLabel: 'ลบ',
     );
     if (!shouldDelete || !mounted) {
       return;
@@ -720,7 +725,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     _showHistoryFeedback(
-      message: 'ลบออกจาก All History แล้ว',
+      message: 'ลบออกจากประวัติทั้งหมดแล้ว',
       icon: Icons.delete_outline_rounded,
       accentColor: const Color(0xFFCC5A4E),
       onUndo: () async {
@@ -741,10 +746,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     final shouldClear = await _confirmHistoryAction(
-      title: 'Clear All History',
+      title: 'ล้างประวัติทั้งหมด',
       message:
-          'ล้างประวัติทั้งหมดในหน้า All History ใช่หรือไม่? คุณยังสามารถกดย้อนกลับได้ทันทีจากแถบข้อความด้านล่าง',
-      confirmLabel: 'Clear all',
+          'ล้างประวัติทั้งหมดใช่หรือไม่? คุณยังสามารถกดย้อนกลับได้ทันทีจากแถบข้อความด้านล่าง',
+      confirmLabel: 'ล้างทั้งหมด',
       icon: Icons.delete_sweep_outlined,
       accentColor: const Color(0xFFE28A3B),
     );
@@ -774,7 +779,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     _showHistoryFeedback(
-      message: 'ล้าง All History แล้ว',
+      message: 'ล้างประวัติทั้งหมดแล้ว',
       icon: Icons.delete_sweep_outlined,
       accentColor: const Color(0xFFE28A3B),
       onUndo: () async {
@@ -804,10 +809,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final selectedRuleIds = selectedRules.map((rule) => rule.id).toSet();
     if (selectedRules.length > 1) {
       final shouldDelete = await _confirmHistoryAction(
-        title: 'Delete Alert Rules',
+        title: 'ลบกฎแจ้งเตือน',
         message:
             'ลบกฎการแจ้งเตือน ${selectedRules.length} รายการหรือไม่? กฎเหล่านี้จะไม่สร้างเหตุการณ์การแจ้งเตือนอีกต่อไป',
-        confirmLabel: 'Delete',
+        confirmLabel: 'ลบ',
       );
       if (!shouldDelete || !mounted) {
         return;
@@ -835,7 +840,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
 
       _showHistoryFeedback(
-        message: 'Deleted ${selectedRules.length} Alert Rules',
+        message: 'ลบกฎแจ้งเตือน ${selectedRules.length} รายการแล้ว',
         icon: Icons.rule_folder_outlined,
         accentColor: const Color(0xFFCC5A4E),
         onUndo: () async {
@@ -855,10 +860,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final rule = selectedRules.single;
 
     final shouldDelete = await _confirmHistoryAction(
-      title: 'Delete Alert Rule',
+      title: 'ลบกฎแจ้งเตือน',
       message:
           'ลบกฎแจ้งเตือน "${rule.title}" ใช่หรือไม่? หลังลบแล้วระบบจะไม่สร้างเหตุการณ์จากกฎนี้อีก',
-      confirmLabel: 'Delete',
+      confirmLabel: 'ลบ',
     );
     if (!shouldDelete || !mounted) {
       return;
@@ -886,7 +891,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     _showHistoryFeedback(
-      message: 'ลบ Alert Rule แล้ว',
+      message: 'ลบกฎแจ้งเตือนแล้ว',
       icon: Icons.rule_folder_outlined,
       accentColor: const Color(0xFFCC5A4E),
       onUndo: () async {
@@ -997,7 +1002,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
           decoration: AppGlassTheme.surfaceDecoration(
             radius: 28,
             borderAlpha: 0.6,
@@ -1018,15 +1023,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Alerts',
+                          'การแจ้งเตือน',
                           style: TextStyle(
-                            fontSize: 28,
+                            fontSize: 26,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
                             color: Color(0xFF20303A),
                           ),
                         ),
-                        SizedBox(height: 6),
+                        SizedBox(height: 4),
                         Text(
                           'สรุปแจ้งเตือนทั้งหมดและประวัติย้อนหลัง',
                           style: TextStyle(
@@ -1040,22 +1044,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   _StatChip(
-                    label: '${_events.length} current',
+                    label: '${_events.length} รายการล่าสุด',
                     color: const Color(0xFF4C8BC8),
                   ),
                   _StatChip(
-                    label: '${_historyEvents.length} all history',
+                    label: '${_historyEvents.length} ประวัติทั้งหมด',
                     color: const Color(0xFF7D6AD6),
                   ),
                   if (_unreadCount > 0)
                     _StatChip(
-                      label: '$_unreadCount unread',
+                      label: '$_unreadCount ยังไม่อ่าน',
                       color: const Color(0xFFE28A3B),
                     ),
                 ],
@@ -1086,7 +1090,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Alerts',
+                          'การแจ้งเตือน',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
@@ -1112,7 +1116,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                     ),
                     icon: const Icon(Icons.add_alert_rounded, size: 18),
-                    label: const Text('Create Alert'),
+                    label: const Text('สร้างการแจ้งเตือน'),
                   ),
                 ],
               ),
@@ -1131,20 +1135,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 runSpacing: 8,
                 children: [
                   _StatChip(
-                    label: '${_rules.length} rules',
+                    label: '${_rules.length} กฎ',
                     color: const Color(0xFF4E9070),
                   ),
                   _StatChip(
-                    label: '${_events.length} current',
+                    label: '${_events.length} รายการล่าสุด',
                     color: const Color(0xFF4C8BC8),
                   ),
                   _StatChip(
-                    label: '${_historyEvents.length} all history',
+                    label: '${_historyEvents.length} ประวัติทั้งหมด',
                     color: const Color(0xFF7D6AD6),
                   ),
                   if (_unreadCount > 0)
                     _StatChip(
-                      label: '$_unreadCount unread',
+                      label: '$_unreadCount ยังไม่อ่าน',
                       color: const Color(0xFFE28A3B),
                     ),
                 ],
@@ -1182,7 +1186,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ),
                 SizedBox(height: 14),
                 Text(
-                  'Loading alerts...',
+                  'กำลังโหลดการแจ้งเตือน...',
                   style: TextStyle(fontSize: 14, color: Color(0xFF667587)),
                 ),
               ],
@@ -1201,6 +1205,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       onRefresh: _loadData,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.only(bottom: widget.bottomContentPadding),
         children: [
           _RulesSection(
             rules: _rules,
@@ -1229,7 +1234,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           const SizedBox(height: 14),
           if (_selectedPage == _AlertsPage.currentEvents)
             _EventsSection(
-              title: 'Event History',
+              title: 'เหตุการณ์ล่าสุด',
               subtitle:
                   'ลบข้อมูลเฉพาะหน้านี้เท่านั้น ประวัติรวมทั้งหมดจะยังคงอยู่ครบถ้วน',
               events: _events,
@@ -1243,9 +1248,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             )
           else
             _EventsSection(
-              title: 'All History',
+              title: 'ประวัติทั้งหมด',
               subtitle:
-                  'เก็บบันทึกถาวร หน้านี้บันทึกทุกเหตุการณ์และไม่สามารถลบได้',
+                  'ระบบจะบันทึกทุกเหตุการณ์ไว้ที่นี่ และคุณสามารถล้างหรือลบรายการได้เมื่อต้องการ',
               events: _historyEvents,
               ruleDataKeysById: ruleDataKeysById,
               unreadCount: 0,
@@ -1285,6 +1290,16 @@ class _RulesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasRules = rules.isNotEmpty;
+    final disabledActionDecoration = AppGlassTheme.surfaceDecoration(
+      radius: 14,
+      borderAlpha: 0.22,
+      colors: <Color>[
+        Colors.white.withValues(alpha: 0.2),
+        const Color(0xFFE4EAF1).withValues(alpha: 0.2),
+      ],
+      shadows: const <BoxShadow>[],
+    );
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1296,7 +1311,7 @@ class _RulesSection extends StatelessWidget {
                   children: [
                     const Flexible(
                       child: Text(
-                        'Alert Rules',
+                        'กฎแจ้งเตือน',
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 16,
@@ -1308,7 +1323,7 @@ class _RulesSection extends StatelessWidget {
                     if (rules.isNotEmpty) ...[
                       const SizedBox(width: 8),
                       _CompactInfoChip(
-                        label: '${rules.length} rules',
+                        label: '${rules.length} กฎ',
                         color: const Color(0xFF4C8BC8),
                       ),
                     ],
@@ -1317,20 +1332,20 @@ class _RulesSection extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                decoration: AppGlassTheme.surfaceDecoration(
-                  radius: 14,
-                  borderAlpha: 0.34,
-                  colors: <Color>[
-                    Colors.white.withValues(alpha: 0.3),
-                    const Color(0xFF4C8BC8).withValues(alpha: 0.1),
-                  ],
-                  shadows: const <BoxShadow>[],
-                ),
+                decoration: hasRules
+                    ? AppGlassTheme.surfaceDecoration(
+                        radius: 14,
+                        borderAlpha: 0.34,
+                        colors: <Color>[
+                          Colors.white.withValues(alpha: 0.3),
+                          const Color(0xFF4C8BC8).withValues(alpha: 0.1),
+                        ],
+                        shadows: const <BoxShadow>[],
+                      )
+                    : disabledActionDecoration,
                 child: IconButton(
-                  onPressed: rules.isEmpty ? null : onToggleExpanded,
-                  tooltip: isExpanded
-                      ? 'Collapse alert rules'
-                      : 'Expand alert rules',
+                  onPressed: hasRules ? onToggleExpanded : null,
+                  tooltip: isExpanded ? 'ย่อกฎแจ้งเตือน' : 'แสดงกฎแจ้งเตือน',
                   constraints: const BoxConstraints.tightFor(
                     width: 38,
                     height: 38,
@@ -1343,7 +1358,7 @@ class _RulesSection extends StatelessWidget {
                     size: 22,
                   ),
                   color: const Color(0xFF4C8BC8),
-                  disabledColor: const Color(0xFFB7C0C8),
+                  disabledColor: const Color(0xFFC8D0D8),
                   visualDensity: VisualDensity.compact,
                   splashRadius: 19,
                 ),
@@ -1358,7 +1373,7 @@ class _RulesSection extends StatelessWidget {
                 ),
                 child: IconButton(
                   onPressed: onCreateRule,
-                  tooltip: 'Create alert rule',
+                  tooltip: 'สร้างกฎแจ้งเตือน',
                   constraints: const BoxConstraints.tightFor(
                     width: 38,
                     height: 38,
@@ -1372,20 +1387,22 @@ class _RulesSection extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Container(
-                decoration: AppGlassTheme.surfaceDecoration(
-                  radius: 14,
-                  borderAlpha: 0.34,
-                  colors: <Color>[
-                    Colors.white.withValues(alpha: 0.3),
-                    const Color(0xFFCC5A4E).withValues(alpha: 0.12),
-                  ],
-                  shadows: const <BoxShadow>[],
-                ),
+                decoration: hasRules
+                    ? AppGlassTheme.surfaceDecoration(
+                        radius: 14,
+                        borderAlpha: 0.34,
+                        colors: <Color>[
+                          Colors.white.withValues(alpha: 0.3),
+                          const Color(0xFFCC5A4E).withValues(alpha: 0.12),
+                        ],
+                        shadows: const <BoxShadow>[],
+                      )
+                    : disabledActionDecoration,
                 child: IconButton(
-                  onPressed: rules.isEmpty
+                  onPressed: !hasRules
                       ? null
                       : () => _openDeleteRulePicker(context),
-                  tooltip: 'Delete alert rule',
+                  tooltip: 'ลบกฎแจ้งเตือน',
                   constraints: const BoxConstraints.tightFor(
                     width: 38,
                     height: 38,
@@ -1393,7 +1410,7 @@ class _RulesSection extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   icon: const Icon(Icons.delete_outline_rounded, size: 20),
                   color: const Color(0xFFCC5A4E),
-                  disabledColor: const Color(0xFFB7C0C8),
+                  disabledColor: const Color(0xFFC8D0D8),
                   visualDensity: VisualDensity.compact,
                   splashRadius: 19,
                 ),
@@ -1480,7 +1497,7 @@ class _RulesSection extends StatelessWidget {
                         const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
-                            'Delete Alert Rule',
+                            'ลบกฎแจ้งเตือน',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -1629,7 +1646,7 @@ class _AlertsPageSwitcher extends StatelessWidget {
           child: Row(
             children: [
               _SwitcherButton(
-                label: 'Event History',
+                label: 'เหตุการณ์ล่าสุด',
                 isSelected: selectedPage == _AlertsPage.currentEvents,
                 onTap: () => onChanged(_AlertsPage.currentEvents),
                 selectedColors: const <Color>[
@@ -1642,7 +1659,7 @@ class _AlertsPageSwitcher extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               _SwitcherButton(
-                label: 'All History',
+                label: 'ประวัติทั้งหมด',
                 isSelected: selectedPage == _AlertsPage.allHistory,
                 onTap: () => onChanged(_AlertsPage.allHistory),
                 selectedColors: const <Color>[
@@ -1711,7 +1728,7 @@ class _SwitcherButton extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: isSelected ? Colors.white : const Color(0xFF6E7A86),
+              color: isSelected ? Colors.white : const Color(0xFF53616D),
             ),
           ),
         ),
@@ -1750,8 +1767,7 @@ class _EventsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isHistorySection = onDeleteEvent != null;
-    final shouldShowSubtitle =
-        title != 'Event History' && subtitle.trim().isNotEmpty;
+    final shouldShowSubtitle = isHistorySection && subtitle.trim().isNotEmpty;
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1788,7 +1804,7 @@ class _EventsSection extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: Text(onDeleteEvent == null ? 'Clear' : 'Clear all'),
+                    child: Text(onDeleteEvent == null ? 'ล้าง' : 'ล้างทั้งหมด'),
                   ),
                 if (unreadCount > 0)
                   TextButton(
@@ -1805,7 +1821,7 @@ class _EventsSection extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: const Text('Mark all read'),
+                    child: const Text('อ่านทั้งหมด'),
                   ),
               ],
             ],
@@ -1825,12 +1841,12 @@ class _EventsSection extends StatelessWidget {
           if (events.isEmpty)
             _EmptyEventsCard(
               title: isHistorySection
-                  ? 'No saved history yet'
-                  : 'No current events',
+                  ? 'ยังไม่มีประวัติ'
+                  : 'ยังไม่มีเหตุการณ์ใหม่',
               message: isHistorySection
-                  ? 'ระบบจะบันทึกทุกเหตุการณ์ไว้ในประวัติอัตโนมัติ'
+                  ? 'ระบบจะบันทึกเหตุการณ์ทั้งหมดไว้ที่นี่โดยอัตโนมัติ'
                   : allowClear
-                  ? 'Event ใหม่จะแสดงที่นี่ จนกว่าคุณจะกด Clear หน้านี้'
+                  ? 'เหตุการณ์ใหม่จะแสดงที่นี่จนกว่าคุณจะล้างรายการนี้'
                   : 'บันทึกทุกเหตุการณ์ลงคลังข้อมูลอัตโนมัติ',
             )
           else
@@ -1863,12 +1879,12 @@ class _EmptyRulesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useStackedLayout = constraints.maxWidth < 300;
+          final icon = Container(
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: const Color(0xFF4E9070).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
@@ -1877,38 +1893,40 @@ class _EmptyRulesCard extends StatelessWidget {
             child: const Icon(
               Icons.rule_folder_outlined,
               color: Color(0xFF4E9070),
-              size: 20,
+              size: 21,
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'No alert rules yet',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF20303A),
-                  ),
+          );
+          final copy = Column(
+            crossAxisAlignment: useStackedLayout
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ยังไม่มีกฎแจ้งเตือน',
+                textAlign: useStackedLayout
+                    ? TextAlign.center
+                    : TextAlign.start,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF20303A),
                 ),
-                SizedBox(height: 2),
-                Text(
-                  'สร้างกฎแจ้งเตือนจากวิดเจ็ต เช่น เตือนเมื่อดินแห้ง',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
-                    color: Color(0xFF667587),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'สร้างกฎแจ้งเตือนจากวิดเจ็ต เช่น เตือนเมื่อดินแห้ง',
+                textAlign: useStackedLayout
+                    ? TextAlign.center
+                    : TextAlign.start,
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.38,
+                  color: Color(0xFF667587),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
+              ),
+            ],
+          );
+          final createButton = Container(
             decoration: AppGlassTheme.accentDecoration(
               radius: 14,
               colors: const <Color>[Color(0xFFB6D2F5), Color(0xFF82AEE8)],
@@ -1919,13 +1937,13 @@ class _EmptyRulesCard extends StatelessWidget {
               onPressed: onCreateRule,
               icon: const Icon(Icons.add_alert_rounded, size: 16),
               label: const Text(
-                'Create',
+                'สร้าง',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
               ),
               style: TextButton.styleFrom(
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 14,
                   vertical: 10,
                 ),
                 shape: RoundedRectangleBorder(
@@ -1933,8 +1951,32 @@ class _EmptyRulesCard extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        ],
+          );
+
+          if (useStackedLayout) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                icon,
+                const SizedBox(height: 10),
+                copy,
+                const SizedBox(height: 14),
+                createButton,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              icon,
+              const SizedBox(width: 12),
+              Expanded(child: copy),
+              const SizedBox(width: 12),
+              createButton,
+            ],
+          );
+        },
       ),
     );
   }
@@ -1951,29 +1993,29 @@ class _EmptyEventsCard extends StatelessWidget {
     return _GlassCard(
       child: Column(
         children: [
-          const SizedBox(height: 6),
+          const SizedBox(height: 2),
           const Icon(
             Icons.notifications_none_rounded,
             color: Color(0xFF4E9070),
-            size: 30,
+            size: 28,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Text(
             title,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 19,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               color: Color(0xFF20303A),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             message,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 14,
-              height: 1.45,
+              fontSize: 13,
+              height: 1.4,
               color: Color(0xFF667587),
             ),
           ),
@@ -2200,7 +2242,7 @@ class _AlertEventCard extends StatelessWidget {
                         ),
                         child: IconButton(
                           onPressed: onDelete,
-                          tooltip: 'Delete',
+                          tooltip: 'ลบ',
                           constraints: const BoxConstraints.tightFor(
                             width: 30,
                             height: 30,

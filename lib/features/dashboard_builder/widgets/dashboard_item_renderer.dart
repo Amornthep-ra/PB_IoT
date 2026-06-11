@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../../dashboard/widgets/dashboard_runtime_theme.dart';
 import '../models/dashboard_item.dart';
+import '../models/dashboard_theme_preset.dart';
+import 'dashboard_text_contrast.dart';
+import 'dashboard_value_formatter.dart';
 import 'smart_action_button.dart';
 import 'smart_slider_widget.dart';
-import 'widget_shell_layout.dart';
 
 enum _TileSizeClass { tiny, compact, medium, large }
 
@@ -40,40 +42,19 @@ class _TileMetrics {
   bool get isTiny => sizeClass == _TileSizeClass.tiny;
   bool get showTitle => !isTiny;
 
-  bool _hasBoundDataKey(DashboardItem item) {
-    final key = item.dataKey?.trim();
-    return key != null && key.isNotEmpty;
-  }
-
   String formatPrimaryValue(DashboardItem item) {
-    if (!_hasBoundDataKey(item) &&
-        (item.type == DashboardItemType.slider ||
-            item.type == DashboardItemType.gauge ||
-            item.type == DashboardItemType.valueLabel)) {
-      return '0';
-    }
-
-    final hasWholeNumberValue = item.value % 1 == 0;
-    final valueText = hasWholeNumberValue
-        ? item.value.toStringAsFixed(0)
-        : item.value.toStringAsFixed(1);
-    final unitText = item.unit?.trim() ?? '';
-
-    if (unitText.isEmpty) {
+    final valueText = formatDashboardDisplayValue(item);
+    if (valueText == '--') {
       return valueText;
     }
 
-    final combinedLength = valueText.length + unitText.length;
+    final combinedLength = valueText.length;
     final shouldHideUnit =
         (isTiny && isVeryNarrow && combinedLength >= 4) ||
         (isTiny && valueText.length >= 4) ||
         (isNarrow && valueText.length >= 5);
 
-    if (shouldHideUnit) {
-      return valueText;
-    }
-
-    return '$valueText$unitText';
+    return shouldHideUnit ? valueText.split(' ').first : valueText;
   }
 }
 
@@ -82,20 +63,59 @@ Color _emphasizedTextColor(Color baseColor) {
       baseColor;
 }
 
-Color _titleTextColor(Color baseColor) {
-  return Color.lerp(baseColor, DashboardRuntimeTheme.labelTextColor, 0.30) ??
-      baseColor;
+Color _readableTextColor({
+  required Color preferred,
+  required Color background,
+  Color fallback = DashboardRuntimeTheme.headlineColor,
+  double minRatio = 4.5,
+}) {
+  return DashboardTextContrast.readableTextColor(
+    preferred: preferred,
+    background: background,
+    fallback: fallback,
+    minRatio: minRatio,
+  );
 }
 
-List<Shadow> _titleShadows(Color baseColor) {
+Color _canvasReferenceColor(DashboardThemePreset themePreset) {
+  return themePreset.canvasColors.isEmpty
+      ? themePreset.pageEnd
+      : themePreset.canvasColors.first;
+}
+
+List<Shadow> _lightTitleShadows() {
   return [Shadow(color: Colors.white.withValues(alpha: 0.7), blurRadius: 8)];
+}
+
+List<Shadow> _darkTitleShadows(Color textColor) {
+  final textIsLight =
+      ThemeData.estimateBrightnessForColor(textColor) == Brightness.light;
+  return [
+    Shadow(
+      color: Colors.black.withValues(alpha: textIsLight ? 0.42 : 0.28),
+      blurRadius: textIsLight ? 5 : 3,
+      offset: const Offset(0, 1),
+    ),
+  ];
 }
 
 Color _shellBorderColor(Color baseColor) {
   return baseColor.withValues(alpha: 0.58);
 }
 
-List<Color> _surfaceGradientColors(Color? customSurfaceColor) {
+List<Color> _surfaceGradientColors(
+  Color? customSurfaceColor,
+  DashboardThemePreset? themePreset,
+) {
+  if (customSurfaceColor == null && themePreset?.isDark == true) {
+    return <Color>[
+      Color.lerp(themePreset!.surfaceColor, Colors.white, 0.04) ??
+          themePreset.surfaceColor,
+      Color.lerp(themePreset.cardColor, Colors.black, 0.08) ??
+          themePreset.cardColor,
+    ];
+  }
+
   if (customSurfaceColor == null) {
     return const <Color>[
       DashboardRuntimeTheme.cardHighlightColor,
@@ -128,7 +148,284 @@ bool _canWriteBinding(DashboardItem item) {
   return item.bindingMode == 'write' || item.bindingMode == 'read_write';
 }
 
-const Color _defaultWidgetTitleColor = DashboardRuntimeTheme.headlineColor;
+const Duration _valueAnimationDuration = Duration(milliseconds: 450);
+const Curve _valueAnimationCurve = Curves.easeOutCubic;
+const Color _factoryDefaultWidgetTitleColor = Color(0xFF15212B);
+const Color _neutralInactiveAccent = Color(0xFF94A3B8);
+const Color _standardOffAccent = Color(0xFFD94B4B);
+
+bool _isFactoryDefaultTitleColor(Color? color) {
+  return color == null ||
+      color.toARGB32() == _factoryDefaultWidgetTitleColor.toARGB32();
+}
+
+bool _isFactoryDefaultTitle(DashboardItem item) {
+  return dashboardIsDefaultTitleForType(item.type, item.title);
+}
+
+bool _isTitleHidden(DashboardItem item) {
+  return item.titlePosition.trim().toLowerCase() ==
+      DashboardItemTitlePosition.hidden;
+}
+
+bool _shouldRenderVisibleTitle(DashboardItem item) {
+  return !_isFactoryDefaultTitle(item) &&
+      !_isTitleHidden(item) &&
+      item.title.trim().isNotEmpty;
+}
+
+bool _hasBoundDataKey(DashboardItem item) {
+  final key = item.dataKey?.trim();
+  return key != null && key.isNotEmpty;
+}
+
+bool _isUnboundValueItem(DashboardItem item) {
+  return !_hasBoundDataKey(item) &&
+      (item.type == DashboardItemType.slider ||
+          item.type == DashboardItemType.stepH ||
+          item.type == DashboardItemType.stepV ||
+          item.type == DashboardItemType.gauge ||
+          item.type == DashboardItemType.valueLabel);
+}
+
+Color _resolvedOffAccent(Color? color) {
+  if (color == null || color.toARGB32() == const Color(0xFF64748B).toARGB32()) {
+    return _standardOffAccent;
+  }
+  return color;
+}
+
+bool _isRuntimeDefaultSurfaceColor(Color color) {
+  return color.toARGB32() == DashboardRuntimeTheme.cardColor.toARGB32() ||
+      color.toARGB32() == DashboardRuntimeTheme.cardHighlightColor.toARGB32() ||
+      color.toARGB32() == DashboardRuntimeTheme.surfaceColor.toARGB32();
+}
+
+bool _usesDarkTheme(DashboardThemePreset? themePreset) {
+  return themePreset?.isDark == true;
+}
+
+Color _resolvedTitleTextColor({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+}) {
+  final canvasColor = themePreset == null
+      ? DashboardRuntimeTheme.cardColor
+      : _canvasReferenceColor(themePreset);
+
+  final isCanvasDark =
+      ThemeData.estimateBrightnessForColor(canvasColor) == Brightness.dark;
+
+  final fallback = isCanvasDark
+      ? Colors.white
+      : (themePreset?.headlineColor ?? DashboardRuntimeTheme.headlineColor);
+
+  final rawTitleColor = item.titleColor ?? fallback;
+
+  final preferredColor = _isFactoryDefaultTitleColor(item.titleColor)
+      ? fallback
+      : rawTitleColor;
+
+  final resolvedColor = DashboardTextContrast.readableTextColor(
+    preferred: preferredColor,
+    background: canvasColor,
+    fallback: fallback,
+    minRatio: 4.5,
+  );
+
+  return _isFactoryDefaultTitle(item)
+      ? resolvedColor.withValues(alpha: isCanvasDark ? 0.94 : 0.72)
+      : resolvedColor.withValues(alpha: isCanvasDark ? 0.96 : 1.0);
+}
+
+List<Shadow> _resolvedTitleShadows({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+}) {
+  if (_isFactoryDefaultTitle(item)) {
+    return const <Shadow>[];
+  }
+
+  if (_usesDarkTheme(themePreset)) {
+    return _darkTitleShadows(
+      _resolvedTitleTextColor(item: item, themePreset: themePreset),
+    );
+  }
+
+  return _lightTitleShadows();
+}
+
+Color? _themedDefaultSurfaceColor({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+}) {
+  if (item.buttonInnerColor != null &&
+      !(_usesDarkTheme(themePreset) &&
+          _isRuntimeDefaultSurfaceColor(item.buttonInnerColor!))) {
+    return item.buttonInnerColor;
+  }
+
+  if (_usesDarkTheme(themePreset)) {
+    return themePreset!.surfaceColor;
+  }
+
+  return DashboardRuntimeTheme.cardColor;
+}
+
+Color _resolvedValueBackgroundColor({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+}) {
+  if (_usesDarkTheme(themePreset)) {
+    return _themedDefaultSurfaceColor(item: item, themePreset: themePreset) ??
+        themePreset!.surfaceColor;
+  }
+
+  return _themedDefaultSurfaceColor(item: item, themePreset: themePreset) ??
+      DashboardRuntimeTheme.cardColor;
+}
+
+Color _resolvedValueTextColor({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+  required bool isUnbound,
+}) {
+  final background = _resolvedValueBackgroundColor(
+    item: item,
+    themePreset: themePreset,
+  );
+
+  final fallback =
+      themePreset?.headlineColor ?? DashboardRuntimeTheme.headlineColor;
+
+  if (isUnbound) {
+    return fallback.withValues(alpha: 0.88);
+  }
+
+  return _readableTextColor(
+    preferred: _emphasizedTextColor(item.accentColor),
+    background: background,
+    fallback: fallback,
+  );
+}
+
+Color _themedDefaultBorderColor({
+  required Color accentColor,
+  required DashboardThemePreset? themePreset,
+}) {
+  if (_usesDarkTheme(themePreset)) {
+    return Color.lerp(themePreset!.borderColor, accentColor, 0.24) ??
+        themePreset.borderColor;
+  }
+
+  return accentColor;
+}
+
+Color _darkButtonShellColor(DashboardThemePreset themePreset) {
+  return Color.lerp(themePreset.cardColor, Colors.white, 0.10) ??
+      themePreset.cardColor;
+}
+
+Color _darkButtonInnerColor(DashboardThemePreset themePreset) {
+  return Color.lerp(themePreset.cardColor, Colors.white, 0.14) ??
+      themePreset.cardColor;
+}
+
+Color? _themedButtonShellColor({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+}) {
+  if (!_usesDarkTheme(themePreset)) {
+    return item.buttonShellColor;
+  }
+
+  if (item.buttonShellColor == null ||
+      _isRuntimeDefaultSurfaceColor(item.buttonShellColor!)) {
+    return _darkButtonShellColor(themePreset!);
+  }
+
+  return item.buttonShellColor;
+}
+
+Color? _themedButtonInnerColor({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+}) {
+  if (!_usesDarkTheme(themePreset)) {
+    return item.buttonInnerColor;
+  }
+
+  if (item.buttonInnerColor == null ||
+      _isRuntimeDefaultSurfaceColor(item.buttonInnerColor!)) {
+    return _darkButtonInnerColor(themePreset!);
+  }
+
+  return item.buttonInnerColor;
+}
+
+double _resolvedGlowStrength({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+  required double defaultStrength,
+}) {
+  final rawStrength = item.glowStrength ?? defaultStrength;
+  if (!_usesDarkTheme(themePreset)) {
+    return rawStrength.clamp(0.0, 0.35).toDouble();
+  }
+
+  final glowColor = item.glowColor ?? item.accentColor;
+  final isBrightGlow =
+      ThemeData.estimateBrightnessForColor(glowColor) == Brightness.light;
+  final darkStrength = item.glowStrength == null
+      ? rawStrength * (isBrightGlow ? 0.42 : 0.55)
+      : math.min(rawStrength, isBrightGlow ? 0.12 : 0.16);
+  return darkStrength.clamp(0.0, 0.20).toDouble();
+}
+
+double _resolvedGlowBlur({
+  required DashboardItem item,
+  required DashboardThemePreset? themePreset,
+}) {
+  final rawBlur = item.glowBlur ?? 18.0;
+  if (!_usesDarkTheme(themePreset)) {
+    return rawBlur.clamp(0.0, 40.0).toDouble();
+  }
+
+  final darkBlur = item.glowBlur == null ? math.min(rawBlur, 14.0) : rawBlur;
+  return darkBlur.clamp(0.0, 28.0).toDouble();
+}
+
+List<BoxShadow> _defaultTileShadows({
+  required DashboardItemType type,
+  required DashboardThemePreset? themePreset,
+}) {
+  if (type == DashboardItemType.valueLabel) {
+    return const <BoxShadow>[];
+  }
+
+  if (_usesDarkTheme(themePreset)) {
+    return <BoxShadow>[
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.20),
+        blurRadius: 14,
+        offset: const Offset(0, 8),
+      ),
+    ];
+  }
+
+  return const <BoxShadow>[
+    BoxShadow(
+      color: DashboardRuntimeTheme.shadowLightColor,
+      blurRadius: 12,
+      offset: Offset(-6, -6),
+    ),
+    BoxShadow(
+      color: DashboardRuntimeTheme.shadowDarkColor,
+      blurRadius: 18,
+      offset: Offset(8, 10),
+    ),
+  ];
+}
 
 class _ToggleVisualSpec {
   const _ToggleVisualSpec._();
@@ -142,7 +439,20 @@ double _resolvedTitleFontSize({
   required double minSize,
   required double maxSize,
 }) {
-  return (item.titleFontSize ?? fallbackSize).clamp(minSize, maxSize);
+  final defaultTitleAdjustment =
+      item.titleFontSize == null && _isFactoryDefaultTitle(item) ? -1.0 : 0.0;
+  return ((item.titleFontSize ?? fallbackSize) + defaultTitleAdjustment).clamp(
+    minSize,
+    maxSize,
+  );
+}
+
+FontWeight _resolvedTitleFontWeight(DashboardItem item) {
+  return _isFactoryDefaultTitle(item) ? FontWeight.w600 : FontWeight.w700;
+}
+
+double _resolvedTitleLetterSpacing(DashboardItem item) {
+  return _isFactoryDefaultTitle(item) ? 0.3 : 0.4;
 }
 
 class DashboardItemRenderer extends StatelessWidget {
@@ -150,18 +460,29 @@ class DashboardItemRenderer extends StatelessWidget {
     super.key,
     required this.item,
     this.enableInteraction = true,
+    this.isEditMode = false,
+    this.showTitle = true,
+    this.paintTitle = true,
     this.onItemChanged,
+    this.themePreset,
   });
 
   final DashboardItem item;
   final bool enableInteraction;
+  final bool isEditMode;
+  final bool showTitle;
+  final bool paintTitle;
   final ValueChanged<DashboardItem>? onItemChanged;
+  final DashboardThemePreset? themePreset;
 
   @override
   Widget build(BuildContext context) {
     final activeColor = item.accentColor;
-    final inactiveColor = item.secondaryAccentColor ?? const Color(0xFFCDBD9A);
-    final currentColor = item.type == DashboardItemType.button && !item.enabled
+    final inactiveColor = _resolvedOffAccent(item.secondaryAccentColor);
+    final currentColor =
+        (item.type == DashboardItemType.button ||
+                item.type == DashboardItemType.toggle) &&
+            !item.enabled
         ? inactiveColor
         : activeColor;
     final canWrite = _canWriteBinding(item);
@@ -176,18 +497,78 @@ class DashboardItemRenderer extends StatelessWidget {
           activeColor: activeColor,
           inactiveColor: inactiveColor,
           onItemChanged: onItemChanged,
+          themePreset: themePreset,
+          showTitle: showTitle,
+          paintTitle: paintTitle,
         );
       case DashboardItemType.slider:
+        final darkThemePreset = _usesDarkTheme(themePreset)
+            ? themePreset!
+            : null;
+        final darkTrackGradientColors = darkThemePreset != null
+            ? <Color>[
+                Color.lerp(
+                      darkThemePreset.surfaceColor,
+                      darkThemePreset.cardColor,
+                      0.60,
+                    ) ??
+                    darkThemePreset.surfaceColor,
+                Color.lerp(darkThemePreset.cardColor, Colors.black, 0.12) ??
+                    darkThemePreset.cardColor,
+              ]
+            : null;
+        final darkTrackBorderColor = darkThemePreset?.borderColor.withValues(
+          alpha: 0.48,
+        );
+        final darkTrackShadowColor = darkThemePreset?.isDark == true
+            ? Colors.black.withValues(alpha: 0.20)
+            : null;
         return _SliderTileShell(
           item: item,
           metrics: metrics,
           accentColor: currentColor,
+          themePreset: themePreset,
+          showTitle: showTitle,
+          paintTitle: paintTitle,
           child: SmartSliderControl(
             item: item,
             showValue: !metrics.isVeryNarrow,
             enableInteraction: enableInteraction && canWrite,
+            themePreset: themePreset,
             emitOnDrag: item.sendBehavior == 'on_drag',
+            trackGradientColors: darkTrackGradientColors,
+            trackBorderColor: darkTrackBorderColor,
+            trackShadowColor: darkTrackShadowColor,
             onValueChanged: onItemChanged == null
+                ? null
+                : (value) => onItemChanged!(
+                    item.copyWith(
+                      value: _snapToStep(
+                        value: value,
+                        min: item.minValue,
+                        max: item.maxValue,
+                        step: item.stepValue,
+                      ),
+                    ),
+                  ),
+          ),
+        );
+      case DashboardItemType.stepH:
+      case DashboardItemType.stepV:
+        return _DashboardTileShell(
+          item: item,
+          metrics: metrics,
+          accentColor: currentColor,
+          themePreset: themePreset,
+          showTitleInside: showTitle,
+          child: _StepperContent(
+            item: item,
+            metrics: metrics,
+            themePreset: themePreset,
+            isVertical: item.type == DashboardItemType.stepV,
+            enableInteraction:
+                enableInteraction && canWrite && _hasBoundDataKey(item),
+            onChanged: onItemChanged == null
                 ? null
                 : (value) => onItemChanged!(
                     item.copyWith(
@@ -206,16 +587,27 @@ class DashboardItemRenderer extends StatelessWidget {
           item: item,
           metrics: metrics,
           accentColor: currentColor,
-          child: _GaugeContent(item: item, metrics: metrics),
+          themePreset: themePreset,
+          showTitle: showTitle,
+          paintTitle: paintTitle,
+          child: _GaugeContent(
+            item: item,
+            metrics: metrics,
+            themePreset: themePreset,
+          ),
         );
       case DashboardItemType.toggle:
         return _ToggleTileShell(
           item: item,
           metrics: metrics,
           accentColor: currentColor,
+          themePreset: themePreset,
+          showTitle: showTitle,
+          paintTitle: paintTitle,
           child: _ToggleContent(
             item: item,
             metrics: metrics,
+            themePreset: themePreset,
             enableInteraction: enableInteraction && canWrite,
             onChanged: onItemChanged == null
                 ? null
@@ -229,7 +621,14 @@ class DashboardItemRenderer extends StatelessWidget {
           item: item,
           metrics: metrics,
           accentColor: currentColor,
-          child: _ValueLabelContent(item: item, metrics: metrics),
+          themePreset: themePreset,
+          showTitle: showTitle,
+          paintTitle: paintTitle,
+          child: _ValueLabelContent(
+            item: item,
+            metrics: metrics,
+            themePreset: themePreset,
+          ),
         );
     }
   }
@@ -243,6 +642,9 @@ class _ButtonTileShell extends StatelessWidget {
     required this.activeColor,
     required this.inactiveColor,
     required this.onItemChanged,
+    required this.themePreset,
+    required this.showTitle,
+    required this.paintTitle,
   });
 
   final DashboardItem item;
@@ -251,6 +653,9 @@ class _ButtonTileShell extends StatelessWidget {
   final Color activeColor;
   final Color inactiveColor;
   final ValueChanged<DashboardItem>? onItemChanged;
+  final DashboardThemePreset? themePreset;
+  final bool showTitle;
+  final bool paintTitle;
 
   bool get _isMomentaryButton {
     final normalized = item.sendBehavior.trim().toLowerCase();
@@ -259,71 +664,75 @@ class _ButtonTileShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = item.titleColor ?? _defaultWidgetTitleColor;
     final titleFontSize = _resolvedTitleFontSize(
       item: item,
       fallbackSize: 10,
       minSize: 7,
       maxSize: 12,
     );
+    final shellBaseColor = _themedButtonShellColor(
+      item: item,
+      themePreset: themePreset,
+    );
+    final innerBaseColor = _themedButtonInnerColor(
+      item: item,
+      themePreset: themePreset,
+    );
+    final shellBorderColor =
+        item.buttonBorderColor ??
+        (_usesDarkTheme(themePreset)
+            ? _themedDefaultBorderColor(
+                accentColor: activeColor,
+                themePreset: themePreset,
+              ).withValues(alpha: 0.72)
+            : null);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final layout = buildButtonShellLayout(width: width, height: height);
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: SmartActionButton(
-                isActive: item.enabled,
-                activeColor: activeColor,
-                inactiveColor: inactiveColor,
-                shellBaseColor: item.buttonShellColor,
-                innerBaseColor: item.buttonInnerColor,
-                shellBorderColor: item.buttonBorderColor,
-                shellBorderWidth: item.buttonBorderWidth,
-                glowColor: item.glowColor,
-                glowStrength: item.glowStrength,
-                glowBlur: item.glowBlur,
-                isMomentary: _isMomentaryButton,
-                onTap: onItemChanged == null
-                    ? () {}
-                    : () => onItemChanged!(
-                        item.copyWith(
-                          enabled: !item.enabled,
-                          value: item.enabled ? 0.0 : 1.0,
-                        ),
-                      ),
-                onPressStart: onItemChanged == null
-                    ? null
-                    : () => onItemChanged!(
-                        item.copyWith(enabled: true, value: 1.0),
-                      ),
-                onPressEnd: onItemChanged == null
-                    ? null
-                    : () => onItemChanged!(
-                        item.copyWith(enabled: false, value: 0.0),
-                      ),
-                enableInteraction: enableInteraction,
+    final titleStyle = TextStyle(
+      fontSize: titleFontSize,
+      fontWeight: _resolvedTitleFontWeight(item),
+      letterSpacing: _resolvedTitleLetterSpacing(item),
+      color: _resolvedTitleTextColor(item: item, themePreset: themePreset),
+      shadows: _resolvedTitleShadows(item: item, themePreset: themePreset),
+    );
+    final button = SmartActionButton(
+      isActive: item.enabled,
+      activeColor: activeColor,
+      inactiveColor: inactiveColor,
+      shellBaseColor: shellBaseColor,
+      innerBaseColor: innerBaseColor,
+      shellBorderColor: shellBorderColor,
+      shellBorderWidth: item.buttonBorderWidth,
+      glowColor: item.glowColor,
+      glowStrength: _resolvedGlowStrength(
+        item: item,
+        themePreset: themePreset,
+        defaultStrength: 0.12,
+      ),
+      glowBlur: _resolvedGlowBlur(item: item, themePreset: themePreset),
+      isMomentary: _isMomentaryButton,
+      onTap: onItemChanged == null
+          ? () {}
+          : () => onItemChanged!(
+              item.copyWith(
+                enabled: !item.enabled,
+                value: item.enabled ? 0.0 : 1.0,
               ),
             ),
-            _WidgetTitleOverlay(
-              item: item,
-              layout: layout,
-              style: TextStyle(
-                fontSize: titleFontSize,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: _titleTextColor(titleColor),
-                shadows: _titleShadows(titleColor),
-              ),
-            ),
-          ],
-        );
-      },
+      onPressStart: onItemChanged == null
+          ? null
+          : () => onItemChanged!(item.copyWith(enabled: true, value: 1.0)),
+      onPressEnd: onItemChanged == null
+          ? null
+          : () => onItemChanged!(item.copyWith(enabled: false, value: 0.0)),
+      enableInteraction: enableInteraction,
+    );
+
+    return _WidgetTitleFrame(
+      item: item,
+      style: titleStyle,
+      showTitle: showTitle,
+      paintTitle: paintTitle,
+      child: button,
     );
   }
 }
@@ -333,17 +742,22 @@ class _SliderTileShell extends StatelessWidget {
     required this.item,
     required this.metrics,
     required this.accentColor,
+    required this.themePreset,
+    required this.showTitle,
+    required this.paintTitle,
     required this.child,
   });
 
   final DashboardItem item;
   final _TileMetrics metrics;
   final Color accentColor;
+  final DashboardThemePreset? themePreset;
+  final bool showTitle;
+  final bool paintTitle;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = item.titleColor ?? _defaultWidgetTitleColor;
     final titleFontSize = _resolvedTitleFontSize(
       item: item,
       fallbackSize: 10,
@@ -351,45 +765,25 @@ class _SliderTileShell extends StatelessWidget {
       maxSize: 12,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final layout = buildSliderShellLayout(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-          desiredShellHeight: SmartSliderVisualSpec.desiredShellHeight,
-          shellBottomInsetFor: SmartSliderVisualSpec.shellBottomInsetFor,
-        );
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              top: layout.shellTopInset,
-              bottom: layout.shellBottomInset,
-              child: _DashboardTileShell(
-                item: item,
-                metrics: metrics,
-                accentColor: accentColor,
-                showTitleInside: false,
-                child: child,
-              ),
-            ),
-            _WidgetTitleOverlay(
-              item: item,
-              layout: layout,
-              style: TextStyle(
-                fontSize: titleFontSize,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: _titleTextColor(titleColor),
-                shadows: _titleShadows(titleColor),
-              ),
-            ),
-          ],
-        );
-      },
+    return _WidgetTitleFrame(
+      item: item,
+      showTitle: showTitle,
+      paintTitle: paintTitle,
+      style: TextStyle(
+        fontSize: titleFontSize,
+        fontWeight: _resolvedTitleFontWeight(item),
+        letterSpacing: _resolvedTitleLetterSpacing(item),
+        color: _resolvedTitleTextColor(item: item, themePreset: themePreset),
+        shadows: _resolvedTitleShadows(item: item, themePreset: themePreset),
+      ),
+      child: _DashboardTileShell(
+        item: item,
+        metrics: metrics,
+        accentColor: accentColor,
+        themePreset: themePreset,
+        showTitleInside: false,
+        child: child,
+      ),
     );
   }
 }
@@ -399,17 +793,22 @@ class _GaugeTileShell extends StatelessWidget {
     required this.item,
     required this.metrics,
     required this.accentColor,
+    required this.themePreset,
+    required this.showTitle,
+    required this.paintTitle,
     required this.child,
   });
 
   final DashboardItem item;
   final _TileMetrics metrics;
   final Color accentColor;
+  final DashboardThemePreset? themePreset;
+  final bool showTitle;
+  final bool paintTitle;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = item.titleColor ?? _defaultWidgetTitleColor;
     final titleFontSize = _resolvedTitleFontSize(
       item: item,
       fallbackSize: 10,
@@ -417,39 +816,25 @@ class _GaugeTileShell extends StatelessWidget {
       maxSize: 12,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final layout = buildButtonShellLayout(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-        );
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: _DashboardTileShell(
-                item: item,
-                metrics: metrics,
-                accentColor: accentColor,
-                showTitleInside: false,
-                child: child,
-              ),
-            ),
-            _WidgetTitleOverlay(
-              item: item,
-              layout: layout,
-              style: TextStyle(
-                fontSize: titleFontSize,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: _titleTextColor(titleColor),
-                shadows: _titleShadows(titleColor),
-              ),
-            ),
-          ],
-        );
-      },
+    return _WidgetTitleFrame(
+      item: item,
+      showTitle: showTitle,
+      paintTitle: paintTitle,
+      style: TextStyle(
+        fontSize: titleFontSize,
+        fontWeight: _resolvedTitleFontWeight(item),
+        letterSpacing: _resolvedTitleLetterSpacing(item),
+        color: _resolvedTitleTextColor(item: item, themePreset: themePreset),
+        shadows: _resolvedTitleShadows(item: item, themePreset: themePreset),
+      ),
+      child: _DashboardTileShell(
+        item: item,
+        metrics: metrics,
+        accentColor: accentColor,
+        themePreset: themePreset,
+        showTitleInside: false,
+        child: child,
+      ),
     );
   }
 }
@@ -459,17 +844,22 @@ class _ToggleTileShell extends StatelessWidget {
     required this.item,
     required this.metrics,
     required this.accentColor,
+    required this.themePreset,
+    required this.showTitle,
+    required this.paintTitle,
     required this.child,
   });
 
   final DashboardItem item;
   final _TileMetrics metrics;
   final Color accentColor;
+  final DashboardThemePreset? themePreset;
+  final bool showTitle;
+  final bool paintTitle;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = item.titleColor ?? _defaultWidgetTitleColor;
     final titleFontSize = _resolvedTitleFontSize(
       item: item,
       fallbackSize: 10,
@@ -477,39 +867,25 @@ class _ToggleTileShell extends StatelessWidget {
       maxSize: 12,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final layout = buildButtonShellLayout(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-        );
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: _DashboardTileShell(
-                item: item,
-                metrics: metrics,
-                accentColor: accentColor,
-                showTitleInside: false,
-                child: child,
-              ),
-            ),
-            _WidgetTitleOverlay(
-              item: item,
-              layout: layout,
-              style: TextStyle(
-                fontSize: titleFontSize,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: _titleTextColor(titleColor),
-                shadows: _titleShadows(titleColor),
-              ),
-            ),
-          ],
-        );
-      },
+    return _WidgetTitleFrame(
+      item: item,
+      showTitle: showTitle,
+      paintTitle: paintTitle,
+      style: TextStyle(
+        fontSize: titleFontSize,
+        fontWeight: _resolvedTitleFontWeight(item),
+        letterSpacing: _resolvedTitleLetterSpacing(item),
+        color: _resolvedTitleTextColor(item: item, themePreset: themePreset),
+        shadows: _resolvedTitleShadows(item: item, themePreset: themePreset),
+      ),
+      child: _DashboardTileShell(
+        item: item,
+        metrics: metrics,
+        accentColor: accentColor,
+        themePreset: themePreset,
+        showTitleInside: false,
+        child: child,
+      ),
     );
   }
 }
@@ -519,65 +895,58 @@ class _ValueLabelTileShell extends StatelessWidget {
     required this.item,
     required this.metrics,
     required this.accentColor,
+    required this.themePreset,
+    required this.showTitle,
+    required this.paintTitle,
     required this.child,
   });
 
   final DashboardItem item;
   final _TileMetrics metrics;
   final Color accentColor;
+  final DashboardThemePreset? themePreset;
+  final bool showTitle;
+  final bool paintTitle;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = item.titleColor ?? _defaultWidgetTitleColor;
     final titleFontSize = _resolvedTitleFontSize(
       item: item,
       fallbackSize: 10,
       minSize: 7,
       maxSize: 12,
     );
-    final valueLabelBackgroundColor =
-        item.buttonInnerColor ?? DashboardRuntimeTheme.cardColor;
+    final valueLabelBackgroundColor = _themedDefaultSurfaceColor(
+      item: item,
+      themePreset: themePreset,
+    );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final layout = buildButtonShellLayout(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-        );
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: _DashboardTileShell(
-                item: item,
-                metrics: metrics,
-                accentColor: accentColor,
-                showTitleInside: false,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: valueLabelBackgroundColor,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: child,
-                ),
-              ),
-            ),
-            _WidgetTitleOverlay(
-              item: item,
-              layout: layout,
-              style: TextStyle(
-                fontSize: titleFontSize,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: _titleTextColor(titleColor),
-                shadows: _titleShadows(titleColor),
-              ),
-            ),
-          ],
-        );
-      },
+    return _WidgetTitleFrame(
+      item: item,
+      showTitle: showTitle,
+      paintTitle: paintTitle,
+      style: TextStyle(
+        fontSize: titleFontSize,
+        fontWeight: _resolvedTitleFontWeight(item),
+        letterSpacing: _resolvedTitleLetterSpacing(item),
+        color: _resolvedTitleTextColor(item: item, themePreset: themePreset),
+        shadows: _resolvedTitleShadows(item: item, themePreset: themePreset),
+      ),
+      child: _DashboardTileShell(
+        item: item,
+        metrics: metrics,
+        accentColor: accentColor,
+        themePreset: themePreset,
+        showTitleInside: false,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: valueLabelBackgroundColor,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -587,6 +956,7 @@ class _DashboardTileShell extends StatelessWidget {
     required this.item,
     required this.metrics,
     required this.accentColor,
+    required this.themePreset,
     this.showTitleInside = true,
     required this.child,
   });
@@ -594,6 +964,7 @@ class _DashboardTileShell extends StatelessWidget {
   final DashboardItem item;
   final _TileMetrics metrics;
   final Color accentColor;
+  final DashboardThemePreset? themePreset;
   final bool showTitleInside;
   final Widget child;
 
@@ -630,6 +1001,17 @@ class _DashboardTileShell extends StatelessWidget {
       }
     }
 
+    if (item.type == DashboardItemType.stepH ||
+        item.type == DashboardItemType.stepV) {
+      if (metrics.isTiny) {
+        return 4;
+      }
+      if (metrics.isVeryShort || metrics.isVeryNarrow) {
+        return 5;
+      }
+      return metrics.sizeClass == _TileSizeClass.large ? 10 : 7;
+    }
+
     if (metrics.isTiny) {
       return 5;
     }
@@ -662,6 +1044,11 @@ class _DashboardTileShell extends StatelessWidget {
       }
     }
 
+    if (item.type == DashboardItemType.stepH ||
+        item.type == DashboardItemType.stepV) {
+      return metrics.isShort ? 2 : 4;
+    }
+
     if (metrics.isTiny) {
       return 2;
     }
@@ -691,20 +1078,30 @@ class _DashboardTileShell extends StatelessWidget {
       minSize: 8,
       maxSize: 18,
     );
+    final isStepper =
+        item.type == DashboardItemType.stepH ||
+        item.type == DashboardItemType.stepV;
     final customSurfaceColor = item.type == DashboardItemType.valueLabel
-        ? (item.buttonInnerColor ?? DashboardRuntimeTheme.cardColor)
+        ? _themedDefaultSurfaceColor(item: item, themePreset: themePreset)
         : item.type == DashboardItemType.gauge
-        ? (item.buttonInnerColor ?? DashboardRuntimeTheme.cardColor)
+        ? _themedDefaultSurfaceColor(item: item, themePreset: themePreset)
         : item.type == DashboardItemType.slider
-        ? (item.buttonInnerColor ?? DashboardRuntimeTheme.cardColor)
+        ? _themedDefaultSurfaceColor(item: item, themePreset: themePreset)
+        : isStepper
+        ? _themedDefaultSurfaceColor(item: item, themePreset: themePreset)
         : item.type == DashboardItemType.toggle
-        ? (item.buttonInnerColor ?? DashboardRuntimeTheme.cardColor)
+        ? _themedDefaultSurfaceColor(item: item, themePreset: themePreset)
         : null;
-    final valueLabelBorderBaseColor = item.buttonShellColor ?? accentColor;
+    final defaultBorderColor = _themedDefaultBorderColor(
+      accentColor: accentColor,
+      themePreset: themePreset,
+    );
+    final valueLabelBorderBaseColor =
+        item.buttonShellColor ?? defaultBorderColor;
     final gaugeBorderBaseColor =
-        item.buttonShellColor ?? _shellBorderColor(accentColor);
+        item.buttonShellColor ?? _shellBorderColor(defaultBorderColor);
     final toggleBorderBaseColor =
-        item.buttonShellColor ?? _shellBorderColor(accentColor);
+        item.buttonShellColor ?? _shellBorderColor(defaultBorderColor);
     final valueLabelBorderWidth =
         (item.valueLabelBorderWidth ?? _defaultValueLabelBorderWidth).clamp(
           0.0,
@@ -716,8 +1113,8 @@ class _DashboardTileShell extends StatelessWidget {
         (item.sliderBorderWidth ?? _defaultSliderBorderWidth).clamp(0.0, 4.0);
     final toggleBorderWidth =
         (item.toggleBorderWidth ?? _defaultToggleBorderWidth).clamp(0.0, 4.0);
-    final borderColor = item.type == DashboardItemType.slider
-        ? (item.buttonShellColor ?? accentColor.withValues(alpha: 0.34))
+    final borderColor = item.type == DashboardItemType.slider || isStepper
+        ? (item.buttonShellColor ?? defaultBorderColor.withValues(alpha: 0.34))
         : item.type == DashboardItemType.valueLabel
         ? valueLabelBorderBaseColor.withValues(alpha: 0.42)
         : item.type == DashboardItemType.gauge
@@ -726,33 +1123,28 @@ class _DashboardTileShell extends StatelessWidget {
         ? toggleBorderBaseColor
         : customSurfaceColor != null
         ? _shellBorderColor(
-            Color.lerp(customSurfaceColor, accentColor, 0.35) ?? accentColor,
+            Color.lerp(customSurfaceColor, defaultBorderColor, 0.35) ??
+                defaultBorderColor,
           )
-        : _shellBorderColor(accentColor);
+        : _shellBorderColor(defaultBorderColor);
     final defaultGlowStrength = item.type == DashboardItemType.valueLabel
         ? 0.0
-        : item.type == DashboardItemType.slider
+        : item.type == DashboardItemType.slider || isStepper
         ? 0.08
+        : item.type == DashboardItemType.toggle && !item.enabled
+        ? 0.03
         : 0.12;
     final glowColor = item.glowColor ?? accentColor;
-    final glowStrength = (item.glowStrength ?? defaultGlowStrength)
-        .clamp(0.0, 0.35)
-        .toDouble();
-    final glowBlur = (item.glowBlur ?? 18.0).clamp(0.0, 40.0).toDouble();
-    final baseShadows = item.type == DashboardItemType.valueLabel
-        ? const <BoxShadow>[]
-        : const <BoxShadow>[
-            BoxShadow(
-              color: DashboardRuntimeTheme.shadowLightColor,
-              blurRadius: 12,
-              offset: Offset(-6, -6),
-            ),
-            BoxShadow(
-              color: DashboardRuntimeTheme.shadowDarkColor,
-              blurRadius: 18,
-              offset: Offset(8, 10),
-            ),
-          ];
+    final glowStrength = _resolvedGlowStrength(
+      item: item,
+      themePreset: themePreset,
+      defaultStrength: defaultGlowStrength,
+    );
+    final glowBlur = _resolvedGlowBlur(item: item, themePreset: themePreset);
+    final baseShadows = _defaultTileShadows(
+      type: item.type,
+      themePreset: themePreset,
+    );
     final shellRadius = item.type == DashboardItemType.toggle ? 999.0 : 24.0;
 
     return DecoratedBox(
@@ -766,17 +1158,17 @@ class _DashboardTileShell extends StatelessWidget {
             item.type == DashboardItemType.valueLabel ||
                 item.type == DashboardItemType.toggle
             ? null
-            : item.type == DashboardItemType.slider &&
+            : (item.type == DashboardItemType.slider || isStepper) &&
                   customSurfaceColor != null
             ? LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: _surfaceGradientColors(customSurfaceColor),
+                colors: _surfaceGradientColors(customSurfaceColor, themePreset),
               )
             : LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: _surfaceGradientColors(customSurfaceColor),
+                colors: _surfaceGradientColors(customSurfaceColor, themePreset),
               ),
         borderRadius: BorderRadius.circular(shellRadius),
         border: Border.all(
@@ -786,6 +1178,8 @@ class _DashboardTileShell extends StatelessWidget {
               : item.type == DashboardItemType.gauge
               ? gaugeBorderWidth
               : item.type == DashboardItemType.slider
+              ? sliderBorderWidth
+              : isStepper
               ? sliderBorderWidth
               : item.type == DashboardItemType.toggle
               ? toggleBorderWidth
@@ -806,19 +1200,27 @@ class _DashboardTileShell extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (showTitleInside && metrics.showTitle) ...[
-              Text(
-                item.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: resolvedTitleFontSize,
-                  fontWeight: FontWeight.w700,
-                  color: _titleTextColor(
-                    item.titleColor ?? _defaultWidgetTitleColor,
-                  ),
-                  shadows: _titleShadows(
-                    item.titleColor ?? _defaultWidgetTitleColor,
+            if (showTitleInside &&
+                metrics.showTitle &&
+                _shouldRenderVisibleTitle(item)) ...[
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  item.title.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: resolvedTitleFontSize,
+                    fontWeight: _resolvedTitleFontWeight(item),
+                    color: _resolvedTitleTextColor(
+                      item: item,
+                      themePreset: themePreset,
+                    ),
+                    shadows: _resolvedTitleShadows(
+                      item: item,
+                      themePreset: themePreset,
+                    ),
                   ),
                 ),
               ),
@@ -833,16 +1235,19 @@ class _DashboardTileShell extends StatelessWidget {
 }
 
 class _GaugeContent extends StatelessWidget {
-  const _GaugeContent({required this.item, required this.metrics});
-
-  static const Duration _valueAnimationDuration = Duration(milliseconds: 450);
-  static const Curve _valueAnimationCurve = Curves.easeOutCubic;
+  const _GaugeContent({
+    required this.item,
+    required this.metrics,
+    required this.themePreset,
+  });
 
   final DashboardItem item;
   final _TileMetrics metrics;
+  final DashboardThemePreset? themePreset;
 
   @override
   Widget build(BuildContext context) {
+    final isUnbound = _isUnboundValueItem(item);
     final useTinyGaugeFallback =
         metrics.isTiny && (metrics.w <= 6 || metrics.h <= 4);
     if (useTinyGaugeFallback) {
@@ -861,7 +1266,9 @@ class _GaugeContent extends StatelessWidget {
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: item.accentColor,
+                    color: isUnbound
+                        ? _neutralInactiveAccent
+                        : item.accentColor,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -873,8 +1280,12 @@ class _GaugeContent extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: _emphasizedTextColor(item.accentColor),
+                      fontWeight: isUnbound ? FontWeight.w800 : FontWeight.w700,
+                      color: _resolvedValueTextColor(
+                        item: item,
+                        themePreset: themePreset,
+                        isUnbound: isUnbound,
+                      ),
                     ),
                   ),
                 ),
@@ -915,7 +1326,10 @@ class _GaugeContent extends StatelessWidget {
         final gaugeSize = math.min(usableWidth, usableHeight);
         final strokeWidth = (gaugeSize * 0.12).clamp(6.0, 11.0).toDouble();
         final valueFont = (gaugeSize * 0.21)
-            .clamp(baseValueFont, baseValueFont + 6.0)
+            .clamp(
+              isUnbound ? baseValueFont + 2.0 : baseValueFont,
+              baseValueFont + 7.0,
+            )
             .toDouble();
         final opticalOffsetY =
             (gaugeSize * 0.035).clamp(1.5, 4.0).toDouble() +
@@ -940,8 +1354,11 @@ class _GaugeContent extends StatelessWidget {
                         value: animatedValue,
                         minValue: item.minValue,
                         maxValue: item.maxValue,
-                        color: item.accentColor,
+                        color: isUnbound
+                            ? _neutralInactiveAccent
+                            : item.accentColor,
                         strokeWidth: strokeWidth,
+                        isEmpty: isUnbound,
                       ),
                       child: Center(
                         child: FittedBox(
@@ -952,8 +1369,14 @@ class _GaugeContent extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: valueFont,
-                              fontWeight: FontWeight.w700,
-                              color: _emphasizedTextColor(item.accentColor),
+                              fontWeight: isUnbound
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                              color: _resolvedValueTextColor(
+                                item: item,
+                                themePreset: themePreset,
+                                isUnbound: isUnbound,
+                              ),
                             ),
                           ),
                         ),
@@ -974,32 +1397,41 @@ class _ToggleContent extends StatelessWidget {
   const _ToggleContent({
     required this.item,
     required this.metrics,
+    required this.themePreset,
     required this.enableInteraction,
     this.onChanged,
   });
 
   final DashboardItem item;
   final _TileMetrics metrics;
+  final DashboardThemePreset? themePreset;
   final bool enableInteraction;
   final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final offColor = item.secondaryAccentColor ?? const Color(0xFFD86E6E);
+    final offColor = _resolvedOffAccent(item.secondaryAccentColor);
     final onColor = item.accentColor;
-    final activeColor = item.enabled ? onColor : offColor;
-    final offTextColor = DashboardRuntimeTheme.errorTextColor;
     final labelFontSize = metrics.isTiny ? 11.0 : 12.0;
     final showKnobLabel =
         !metrics.isTiny && !metrics.isVeryShort && !metrics.isVeryNarrow;
-    final glowColor = item.glowColor ?? activeColor;
-    final glowStrength = (item.glowStrength ?? 0.12)
-        .clamp(0.0, 0.35)
+    final glowColor = item.enabled ? (item.glowColor ?? onColor) : offColor;
+    final glowStrength = _resolvedGlowStrength(
+      item: item,
+      themePreset: themePreset,
+      defaultStrength: 0.12,
+    );
+    final glowBlur = _resolvedGlowBlur(item: item, themePreset: themePreset);
+    final effectiveGlowStrength = item.enabled
+        ? glowStrength
+        : math.min(glowStrength * 0.18, 0.025);
+    final hasGlow = effectiveGlowStrength > 0 && glowBlur > 0;
+    final trackGlowAlpha = (effectiveGlowStrength * 0.78)
+        .clamp(0.0, 0.30)
         .toDouble();
-    final glowBlur = (item.glowBlur ?? 18.0).clamp(0.0, 40.0).toDouble();
-    final hasGlow = glowStrength > 0 && glowBlur > 0;
-    final trackGlowAlpha = (glowStrength * 0.78).clamp(0.0, 0.30).toDouble();
-    final knobGlowAlpha = (glowStrength * 0.92).clamp(0.0, 0.34).toDouble();
+    final knobGlowAlpha = (effectiveGlowStrength * 0.92)
+        .clamp(0.0, 0.34)
+        .toDouble();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1013,9 +1445,24 @@ class _ToggleContent extends StatelessWidget {
           math.max(0.0, trackHeight - 6),
           math.max(0.0, trackWidth * 0.42),
         );
+        final knobStartColor = item.enabled
+            ? Color.lerp(onColor, Colors.white, 0.25)!
+            : Color.lerp(offColor, Colors.white, 0.84)!;
+        final knobEndColor = item.enabled
+            ? Color.lerp(onColor, Colors.black, 0.08)!
+            : Color.lerp(offColor, Colors.white, 0.56)!;
+        final knobReferenceColor = item.enabled ? onColor : knobEndColor;
         final resolvedLabelColor = item.enabled
             ? DashboardRuntimeTheme.headlineColor
-            : offTextColor;
+            : offColor;
+        final knobContentColor = _readableTextColor(
+          preferred: resolvedLabelColor,
+          background: knobReferenceColor,
+          fallback: item.enabled
+              ? Colors.white
+              : DashboardRuntimeTheme.headlineColor,
+        );
+        final fallbackIconSize = (knobSize * 0.58).clamp(12.0, 18.0).toDouble();
 
         return Center(
           child: GestureDetector(
@@ -1039,14 +1486,14 @@ class _ToggleContent extends StatelessWidget {
                             onColor.withValues(alpha: 0.72),
                           ]
                         : [
-                            Color.lerp(offColor, Colors.white, 0.60)!,
-                            offColor.withValues(alpha: 0.72),
+                            Color.lerp(offColor, Colors.white, 0.90)!,
+                            Color.lerp(offColor, Colors.white, 0.74)!,
                           ],
                   ),
                   border: Border.all(
                     color: item.enabled
                         ? onColor.withValues(alpha: 0.62)
-                        : offColor.withValues(alpha: 0.70),
+                        : offColor.withValues(alpha: 0.44),
                   ),
                   boxShadow: [
                     if (hasGlow)
@@ -1075,10 +1522,7 @@ class _ToggleContent extends StatelessWidget {
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [
-                                Color.lerp(activeColor, Colors.white, 0.25)!,
-                                Color.lerp(activeColor, Colors.black, 0.08)!,
-                              ],
+                              colors: [knobStartColor, knobEndColor],
                             ),
                             boxShadow: [
                               if (hasGlow)
@@ -1103,14 +1547,20 @@ class _ToggleContent extends StatelessWidget {
                                   child: Text(
                                     item.enabled ? 'ON' : 'OFF',
                                     style: TextStyle(
-                                      color: resolvedLabelColor,
+                                      color: knobContentColor,
                                       fontSize: labelFontSize,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 0.2,
                                     ),
                                   ),
                                 )
-                              : null,
+                              : Icon(
+                                  item.enabled
+                                      ? Icons.check_rounded
+                                      : Icons.close_rounded,
+                                  size: fallbackIconSize,
+                                  color: knobContentColor,
+                                ),
                         ),
                       ),
                     ],
@@ -1125,12 +1575,179 @@ class _ToggleContent extends StatelessWidget {
   }
 }
 
-class _ValueLabelContent extends StatelessWidget {
-  const _ValueLabelContent({required this.item, required this.metrics});
+class _StepperContent extends StatelessWidget {
+  const _StepperContent({
+    required this.item,
+    required this.metrics,
+    required this.themePreset,
+    required this.isVertical,
+    required this.enableInteraction,
+    this.onChanged,
+  });
 
   final DashboardItem item;
   final _TileMetrics metrics;
+  final DashboardThemePreset? themePreset;
+  final bool isVertical;
+  final bool enableInteraction;
+  final ValueChanged<double>? onChanged;
 
+  void _emitStep(double direction) {
+    final step = item.stepValue <= 0 ? 1.0 : item.stepValue;
+    final next = _snapToStep(
+      value: item.value + (step * direction),
+      min: item.minValue,
+      max: item.maxValue,
+      step: step,
+    );
+    if (next == item.value) {
+      return;
+    }
+    onChanged?.call(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = metrics.formatPrimaryValue(item);
+    final isUnbound = _isUnboundValueItem(item);
+    final active = enableInteraction && onChanged != null;
+    final valueColor = _resolvedValueTextColor(
+      item: item,
+      themePreset: themePreset,
+      isUnbound: isUnbound,
+    );
+    final buttonColor = active ? item.accentColor : _neutralInactiveAccent;
+    final valueFont = metrics.isTiny
+        ? 14.0
+        : metrics.isVeryNarrow || metrics.isVeryShort
+        ? 15.0
+        : switch (metrics.sizeClass) {
+            _TileSizeClass.tiny => 14.0,
+            _TileSizeClass.compact => 17.0,
+            _TileSizeClass.medium => 20.0,
+            _TileSizeClass.large => 24.0,
+          };
+    final value = Expanded(
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            displayValue,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: valueFont,
+              fontWeight: FontWeight.w800,
+              color: valueColor,
+            ),
+          ),
+        ),
+      ),
+    );
+    final minusButton = _StepperIconButton(
+      icon: Icons.remove_rounded,
+      tooltip: 'ลดค่า',
+      color: buttonColor,
+      enabled: active,
+      onTap: () => _emitStep(-1),
+    );
+    final plusButton = _StepperIconButton(
+      icon: Icons.add_rounded,
+      tooltip: 'เพิ่มค่า',
+      color: buttonColor,
+      enabled: active,
+      onTap: () => _emitStep(1),
+    );
+
+    if (isVertical) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [plusButton, value, minusButton],
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [minusButton, value, plusButton],
+    );
+  }
+}
+
+class _StepperIconButton extends StatelessWidget {
+  const _StepperIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(999),
+          child: Ink(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.lerp(color, Colors.white, enabled ? 0.18 : 0.42)!,
+                  color.withValues(alpha: enabled ? 0.92 : 0.36),
+                ],
+              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+              boxShadow: enabled
+                  ? [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.20),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : const <BoxShadow>[],
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: enabled
+                  ? Colors.white
+                  : DashboardRuntimeTheme.mutedTextColor.withValues(
+                      alpha: 0.72,
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ValueLabelContent extends StatelessWidget {
+  const _ValueLabelContent({
+    required this.item,
+    required this.metrics,
+    required this.themePreset,
+  });
+
+  final DashboardItem item;
+  final _TileMetrics metrics;
+  final DashboardThemePreset? themePreset;
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -1140,9 +1757,8 @@ class _ValueLabelContent extends StatelessWidget {
           constraints.maxHeight,
         );
         final displayValue = metrics.formatPrimaryValue(item);
-        final rawValueDigits = item.value % 1 == 0
-            ? item.value.toStringAsFixed(0).length
-            : item.value.toStringAsFixed(1).length;
+        final isUnbound = _isUnboundValueItem(item);
+        final displayLength = displayValue.length;
         final baseValueFont = metrics.isTiny
             ? 12.0
             : metrics.isVeryShort || metrics.isVeryNarrow
@@ -1153,13 +1769,16 @@ class _ValueLabelContent extends StatelessWidget {
                 _TileSizeClass.medium => 18.0,
                 _TileSizeClass.large => 22.0,
               };
-        final lengthPenalty = rawValueDigits >= 5
+        final lengthPenalty = displayLength >= 6
             ? 2.5
-            : rawValueDigits == 4
+            : displayLength == 5
             ? 1.5
             : 0.0;
         final valueFont = (shortestSide * 0.22)
-            .clamp(baseValueFont - lengthPenalty, baseValueFont + 3.0)
+            .clamp(
+              isUnbound ? baseValueFont : baseValueFont - lengthPenalty,
+              baseValueFont + (isUnbound ? 4.0 : 3.0),
+            )
             .toDouble();
 
         return SizedBox.expand(
@@ -1176,7 +1795,11 @@ class _ValueLabelContent extends StatelessWidget {
                   style: TextStyle(
                     fontSize: valueFont,
                     fontWeight: FontWeight.w800,
-                    color: _emphasizedTextColor(item.accentColor),
+                    color: _resolvedValueTextColor(
+                      item: item,
+                      themePreset: themePreset,
+                      isUnbound: isUnbound,
+                    ),
                   ),
                 ),
               ),
@@ -1195,6 +1818,7 @@ class _GaugePainter extends CustomPainter {
     required this.maxValue,
     required this.color,
     required this.strokeWidth,
+    this.isEmpty = false,
   });
 
   final double value;
@@ -1202,6 +1826,7 @@ class _GaugePainter extends CustomPainter {
   final double maxValue;
   final Color color;
   final double strokeWidth;
+  final bool isEmpty;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1217,7 +1842,7 @@ class _GaugePainter extends CustomPainter {
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
       ..color = DashboardRuntimeTheme.surfaceBorderColor.withValues(
-        alpha: 0.82,
+        alpha: isEmpty ? 0.95 : 0.82,
       );
     final glow = Paint()
       ..style = PaintingStyle.stroke
@@ -1281,56 +1906,78 @@ class _GaugePainter extends CustomPainter {
     return oldDelegate.value != value ||
         oldDelegate.minValue != minValue ||
         oldDelegate.maxValue != maxValue ||
-        oldDelegate.color != color;
+        oldDelegate.color != color ||
+        oldDelegate.isEmpty != isEmpty;
   }
 }
 
-enum _ResolvedTitlePosition { topOutside, bottomOutside }
+enum _ResolvedTitlePosition { topOutside, bottomOutside, hidden }
 
-class _WidgetTitleOverlay extends StatelessWidget {
-  const _WidgetTitleOverlay({
+class _WidgetTitleFrame extends StatelessWidget {
+  const _WidgetTitleFrame({
     required this.item,
-    required this.layout,
     required this.style,
+    required this.showTitle,
+    required this.paintTitle,
+    required this.child,
   });
 
   final DashboardItem item;
-  final WidgetShellLayoutSpec layout;
   final TextStyle style;
-  static const double _topTitleLift = 6.0;
+  final bool showTitle;
+  final bool paintTitle;
+  final Widget child;
 
   _ResolvedTitlePosition _resolvePosition(String raw) {
     final normalized = raw.trim().toLowerCase();
+
+    if (normalized == DashboardItemTitlePosition.hidden) {
+      return _ResolvedTitlePosition.hidden;
+    }
+
     if (normalized == DashboardItemTitlePosition.bottomOutside) {
       return _ResolvedTitlePosition.bottomOutside;
     }
+
     return _ResolvedTitlePosition.topOutside;
   }
 
   @override
   Widget build(BuildContext context) {
     final position = _resolvePosition(item.titlePosition);
-    final title = item.title.toUpperCase();
+    if (!showTitle ||
+        !_shouldRenderVisibleTitle(item) ||
+        position == _ResolvedTitlePosition.hidden) {
+      return child;
+    }
+
+    final titleHeight = _FloatingWidgetTitle.heightFor(style);
+    final title = IgnorePointer(
+      child: SizedBox(
+        height: titleHeight,
+        child: paintTitle
+            ? _FloatingWidgetTitle(text: item.title.toUpperCase(), style: style)
+            : null,
+      ),
+    );
 
     switch (position) {
       case _ResolvedTitlePosition.topOutside:
-        return Positioned(
-          left: 0,
-          right: 0,
-          top: layout.titleTop - _topTitleLift,
-          child: IgnorePointer(
-            child: _FloatingWidgetTitle(text: title, style: style),
-          ),
+        return Column(
+          children: [
+            title,
+            Expanded(child: child),
+          ],
         );
       case _ResolvedTitlePosition.bottomOutside:
-        return Positioned(
-          left: 0,
-          right: 0,
-          bottom: layout.titleTop - _topTitleLift,
-          child: IgnorePointer(
-            child: _FloatingWidgetTitle(text: title, style: style),
-          ),
+        return Column(
+          children: [
+            Expanded(child: child),
+            title,
+          ],
         );
+      case _ResolvedTitlePosition.hidden:
+        return child;
     }
   }
 }
@@ -1341,6 +1988,10 @@ class _FloatingWidgetTitle extends StatelessWidget {
   final String text;
   final TextStyle style;
 
+  static double heightFor(TextStyle style) {
+    return ((style.fontSize ?? 10.0) * 1.4).clamp(12.0, 24.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -1348,11 +1999,10 @@ class _FloatingWidgetTitle extends StatelessWidget {
         final width = constraints.hasBoundedWidth
             ? constraints.maxWidth
             : 200.0;
-        final height = ((style.fontSize ?? 10.0) * 1.4).clamp(12.0, 24.0);
         return Center(
           child: SizedBox(
             width: width,
-            height: height,
+            height: heightFor(style),
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.center,

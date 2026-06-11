@@ -10,9 +10,14 @@ import '../../dashboard_builder/models/dashboard_item.dart';
 import '../../../theme/app_theme.dart';
 
 class DevicesScreen extends StatefulWidget {
-  const DevicesScreen({super.key, required this.runtimeController});
+  const DevicesScreen({
+    super.key,
+    required this.runtimeController,
+    this.bottomContentPadding = 0,
+  });
 
   final DashboardRuntimeController runtimeController;
+  final double bottomContentPadding;
 
   @override
   State<DevicesScreen> createState() => _DevicesScreenState();
@@ -71,7 +76,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Devices',
+                  'อุปกรณ์',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -127,7 +132,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
   Widget build(BuildContext context) {
     final snapshot = _runtimeController.snapshot;
     final isLoading = _runtimeController.isLoading;
-    final showLegacyHeader = DateTime.now().millisecondsSinceEpoch < 0;
 
     return SafeArea(
       child: RefreshIndicator(
@@ -135,32 +139,15 @@ class _DevicesScreenState extends State<DevicesScreen> {
         onRefresh: _runtimeController.refreshSnapshotFromServer,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            18,
+            20,
+            widget.bottomContentPadding,
+          ),
           children: [
             _buildHeader(isLoading: isLoading),
             const SizedBox(height: 18),
-            if (showLegacyHeader) ...[
-              const SizedBox.shrink(),
-              const Text(
-                'Devices',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                  color: DashboardRuntimeTheme.fieldTextColor,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'ตรวจสอบสถานะการเชื่อมต่อและวิเคราะห์ปัญหาอุปกรณ์ได้ครบในจุดเดียว',
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.4,
-                  color: DashboardRuntimeTheme.mutedTextColor,
-                ),
-              ),
-              const SizedBox(height: 18),
-            ],
             _buildStatusCard(snapshot),
             const SizedBox(height: 18),
             if (isLoading && snapshot == null)
@@ -262,13 +249,13 @@ class _DevicesScreenState extends State<DevicesScreen> {
             runSpacing: 10,
             children: [
               _StatusPill(
-                label: 'Status',
+                label: 'สถานะ',
                 value: title,
                 background: pillColor,
                 foreground: accentColor,
               ),
               _StatusPill(
-                label: 'Updated',
+                label: 'อัปเดต',
                 value: updatedLabel,
                 background: DashboardRuntimeTheme.surfaceColor,
                 foreground: DashboardRuntimeTheme.labelTextColor,
@@ -282,22 +269,29 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   Widget _buildVirtualPinSection(DeviceSnapshotModel? snapshot) {
     final pinWidgetIndex = _buildPinWidgetIndex(_runtimeController.items);
-    final snapshotPins = snapshot?.virtualPins ?? const <String, dynamic>{};
+    final rawSnapshotPins = snapshot?.virtualPins ?? const <String, dynamic>{};
+    final snapshotPins = <String, dynamic>{
+      for (final entry in rawSnapshotPins.entries)
+        if (entry.key.trim().isNotEmpty)
+          entry.key.trim().toUpperCase(): entry.value,
+    };
 
-    // Only show pins that are actually bound to a widget. With V0-V255 possible
-    // pins on the device, showing unused ones would clutter the screen.
     final allPins = pinWidgetIndex.keys.toList()..sort(_comparePinNames);
 
-    final liveCount = allPins
-        .where((pin) => snapshotPins.containsKey(pin))
+    final liveCount = allPins.where((pin) => snapshotPins[pin] != null).length;
+    final waitingCount = allPins
+        .where(
+          (pin) =>
+              (pinWidgetIndex[pin]?.isNotEmpty ?? false) &&
+              snapshotPins[pin] == null,
+        )
         .length;
-    final waitingCount = allPins.length - liveCount;
     final normalizedSearch = _pinSearchQuery.trim().toLowerCase();
     final filteredPins = allPins.where((pin) {
       final boundItems = pinWidgetIndex[pin] ?? const <DashboardItem>[];
-      final value = snapshotPins.containsKey(pin)
-          ? _formatPinValue(snapshotPins[pin])
-          : null;
+      final value = snapshotPins[pin] == null
+          ? null
+          : _formatPinValue(snapshotPins[pin]);
       return _matchesPinFilter(
             pin: pin,
             snapshotPins: snapshotPins,
@@ -333,7 +327,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'ค่าพินแบบ Real-time พร้อมดูว่าแต่ละพินถูกใช้โดย widget ใดบน dashboard',
+                      'ค่าพินแบบ Real-time พร้อมดูว่าแต่ละพินถูกใช้โดย Widget ใดบน Dashboard',
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.4,
@@ -352,14 +346,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
               runSpacing: 8,
               children: [
                 _StatusPill(
-                  label: 'กำลังใช้งาน',
+                  label: 'Live',
                   value: '$liveCount',
                   background: const Color(0xFFE5F4EB),
                   foreground: const Color(0xFF4E9070),
                 ),
                 if (waitingCount > 0)
                   _StatusPill(
-                    label: 'รอการใช้งาน',
+                    label: 'รอข้อมูล',
                     value: '$waitingCount',
                     background: const Color(0xFFFFF1DC),
                     foreground: const Color(0xFFBF8741),
@@ -384,7 +378,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 shadows: AppGlassTheme.shadowSm,
               ),
               child: const Text(
-                'ยังไม่มี widget ใดผูกกับ virtual pin — สร้าง widget จากหน้า Dashboard แล้ว bind pin เพื่อเริ่มติดตามค่า',
+                'ยังไม่มีข้อมูล Virtual Pin และยังไม่มี Widget ใดผูกกับพิน — สร้าง Widget จากหน้า Dashboard แล้ว Bind Pin เพื่อเริ่มติดตามค่า',
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.4,
@@ -400,9 +394,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 for (var i = 0; i < filteredPins.length; i++) ...[
                   _PinRow(
                     pin: filteredPins[i],
-                    value: snapshotPins.containsKey(filteredPins[i])
-                        ? _formatPinValue(snapshotPins[filteredPins[i]])
-                        : null,
+                    value: snapshotPins[filteredPins[i]] == null
+                        ? null
+                        : _formatPinValue(snapshotPins[filteredPins[i]]),
                     boundItems:
                         pinWidgetIndex[filteredPins[i]] ??
                         const <DashboardItem>[],
@@ -450,7 +444,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           ),
           decoration: InputDecoration(
             isDense: true,
-            hintText: 'Search pin, widget, or type',
+            hintText: 'ค้นหา Pin, Widget หรือประเภท',
             hintStyle: const TextStyle(
               color: DashboardRuntimeTheme.mutedTextColor,
             ),
@@ -503,7 +497,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           runSpacing: 8,
           children: [
             _PinFilterChip(
-              label: 'All',
+              label: 'ทั้งหมด',
               selected: _pinListFilter == _PinListFilter.all,
               onTap: () => _setPinFilter(_PinListFilter.all),
             ),
@@ -513,12 +507,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
               onTap: () => _setPinFilter(_PinListFilter.live),
             ),
             _PinFilterChip(
-              label: 'Waiting',
+              label: 'รอข้อมูล',
               selected: _pinListFilter == _PinListFilter.waiting,
               onTap: () => _setPinFilter(_PinListFilter.waiting),
             ),
             _PinFilterChip(
-              label: 'Multiple widgets',
+              label: 'หลาย Widget',
               selected: _pinListFilter == _PinListFilter.multiple,
               onTap: () => _setPinFilter(_PinListFilter.multiple),
             ),
@@ -542,7 +536,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
         shadows: AppGlassTheme.shadowSm,
       ),
       child: const Text(
-        'No pins match the current search or filter.',
+        'ไม่พบ Pin ที่ตรงกับการค้นหาหรือตัวกรอง',
         style: TextStyle(
           fontSize: 13,
           height: 1.4,
@@ -566,8 +560,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }) {
     return switch (_pinListFilter) {
       _PinListFilter.all => true,
-      _PinListFilter.live => snapshotPins.containsKey(pin),
-      _PinListFilter.waiting => !snapshotPins.containsKey(pin),
+      _PinListFilter.live => snapshotPins[pin] != null,
+      _PinListFilter.waiting => snapshotPins[pin] == null,
       _PinListFilter.multiple => boundItems.length > 1,
     };
   }
@@ -603,8 +597,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
     if (value == null || value.isEmpty) {
       return null;
     }
-    final match = RegExp(r'V\d+', caseSensitive: false).firstMatch(value);
-    return match?.group(0)?.toUpperCase();
+    final directMatch = RegExp(
+      r'^V\d+$',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (directMatch != null) {
+      return value.toUpperCase();
+    }
+    final pathMatch = RegExp(
+      r'^virtualPins\.(V\d+)$',
+      caseSensitive: false,
+    ).firstMatch(value);
+    return pathMatch?.group(1)?.toUpperCase();
   }
 
   int _comparePinNames(String a, String b) {
@@ -663,7 +667,35 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
     final second = local.second.toString().padLeft(2, '0');
-    return '$hour:$minute:$second';
+    final time = '$hour:$minute:$second';
+    final now = DateTime.now();
+    if (local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day) {
+      return time;
+    }
+    return '${local.day} ${_thaiShortMonth(local.month)} ${local.year} $time';
+  }
+
+  String _thaiShortMonth(int month) {
+    const months = <String>[
+      'ม.ค.',
+      'ก.พ.',
+      'มี.ค.',
+      'เม.ย.',
+      'พ.ค.',
+      'มิ.ย.',
+      'ก.ค.',
+      'ส.ค.',
+      'ก.ย.',
+      'ต.ค.',
+      'พ.ย.',
+      'ธ.ค.',
+    ];
+    if (month < 1 || month > months.length) {
+      return '';
+    }
+    return months[month - 1];
   }
 }
 
@@ -887,7 +919,7 @@ class _PinWidgetPickerSheet extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '${items.length} widgets use this pin',
+                                '${items.length} Widget ใช้ Pin นี้',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -1050,7 +1082,7 @@ class _MultiWidgetBadge extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            '$count widgets',
+            '$count Widget',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
@@ -1076,18 +1108,14 @@ class _PinRow extends StatelessWidget {
   final List<DashboardItem> boundItems;
   final VoidCallback onTap;
 
-  bool get _isBound => boundItems.isNotEmpty;
   bool get _hasValue => value != null;
   bool get _hasMultipleWidgets => boundItems.length > 1;
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = _isBound
-        ? const Color(0xFF4E9070)
-        : const Color(0xFFBF8741);
-    final pinBadgeBackground = _isBound
-        ? const Color(0xFFE5F4EB)
-        : const Color(0xFFFFF1DC);
+    assert(boundItems.isNotEmpty);
+    const accentColor = Color(0xFF4E9070);
+    const pinBadgeBackground = Color(0xFFE5F4EB);
 
     final row = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1133,7 +1161,7 @@ class _PinRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Text(
-            _hasValue ? value! : '—',
+            _hasValue ? value! : '--',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w800,
@@ -1143,39 +1171,27 @@ class _PinRow extends StatelessWidget {
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          if (_isBound) ...[
-            const SizedBox(width: 8),
-            if (_hasMultipleWidgets)
-              _MultiWidgetBadge(count: boundItems.length)
-            else
-              Icon(
-                Icons.open_in_new_rounded,
-                size: 16,
-                color: accentColor.withValues(alpha: 0.78),
-              ),
-          ],
+          const SizedBox(width: 8),
+          if (_hasMultipleWidgets)
+            _MultiWidgetBadge(count: boundItems.length)
+          else
+            Icon(
+              Icons.open_in_new_rounded,
+              size: 16,
+              color: accentColor.withValues(alpha: 0.78),
+            ),
         ],
       ),
     );
 
     return GestureDetector(
-      onTap: _isBound ? onTap : null,
+      onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: row,
     );
   }
 
   Widget _buildBindingLabel() {
-    if (!_isBound) {
-      return const Text(
-        'Unused pin',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF9B7637),
-        ),
-      );
-    }
     final primary = boundItems.first;
     final label = _widgetLabel(primary);
     return Text(
@@ -1191,20 +1207,6 @@ class _PinRow extends StatelessWidget {
   }
 
   Widget _buildBindingSubtitle() {
-    if (!_isBound) {
-      return Text(
-        _hasValue
-            ? 'ค่าส่งจากอุปกรณ์แต่ยังไม่ถูกใช้โดย widget'
-            : 'ยังไม่มีค่าและไม่ได้ผูกกับ widget',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 11.5,
-          color: DashboardRuntimeTheme.mutedTextColor,
-        ),
-      );
-    }
-
     final primary = boundItems.first;
     final typeLabel = _widgetTypeLabel(primary.type);
     final unit = primary.unit?.trim();
@@ -1252,15 +1254,19 @@ String _widgetSubtitle(DashboardItem item) {
 String _widgetTypeLabel(DashboardItemType type) {
   switch (type) {
     case DashboardItemType.button:
-      return 'Button';
+      return 'ปุ่ม';
     case DashboardItemType.slider:
-      return 'Slider';
+      return 'สไลด์';
+    case DashboardItemType.stepH:
+      return 'ปรับค่า H';
+    case DashboardItemType.stepV:
+      return 'ปรับค่า V';
     case DashboardItemType.gauge:
-      return 'Gauge';
+      return 'เกจ';
     case DashboardItemType.toggle:
-      return 'Toggle';
+      return 'สวิตช์';
     case DashboardItemType.valueLabel:
-      return 'Value';
+      return 'แสดงค่า';
   }
 }
 
@@ -1270,6 +1276,10 @@ IconData _widgetIcon(DashboardItemType type) {
       return Icons.power_settings_new_rounded;
     case DashboardItemType.slider:
       return Icons.tune_rounded;
+    case DashboardItemType.stepH:
+      return Icons.swap_horiz_rounded;
+    case DashboardItemType.stepV:
+      return Icons.swap_vert_rounded;
     case DashboardItemType.gauge:
       return Icons.speed_rounded;
     case DashboardItemType.toggle:
@@ -1309,7 +1319,7 @@ class _LoadingCard extends StatelessWidget {
                 ),
                 SizedBox(height: 14),
                 Text(
-                  'Loading device status...',
+                  'กำลังโหลดสถานะอุปกรณ์...',
                   style: TextStyle(
                     fontSize: 14,
                     color: DashboardRuntimeTheme.mutedTextColor,

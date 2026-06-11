@@ -65,8 +65,9 @@ class DashboardRuntimeController extends ChangeNotifier
   /// and flash-highlight a specific widget (identified by [DashboardItem.id]).
   /// Consumers call [requestHighlightItem]; listeners on this notifier react
   /// to the new id and then call [consumeHighlightRequest] once handled.
-  final ValueNotifier<String?> highlightItemIdNotifier =
-      ValueNotifier<String?>(null);
+  final ValueNotifier<String?> highlightItemIdNotifier = ValueNotifier<String?>(
+    null,
+  );
 
   void requestHighlightItem(String itemId) {
     highlightItemIdNotifier.value = itemId;
@@ -202,51 +203,47 @@ class DashboardRuntimeController extends ChangeNotifier
         _startPolling();
       }
     } on DashboardServiceException catch (error) {
-      themePreset = await _layoutStorage.loadDashboardThemePreset();
-      final storedItems = await _layoutStorage.loadItems();
-      final snapshot = _dashboardService.buildMockSnapshot();
-      final alertRules = await _notificationService.loadRules();
-      final nextItems = await _runtimeValueStorage.applyToItems(
-        storedItems ?? const <DashboardItem>[],
-      );
-      await _runtimeValueStorage.pruneForItems(nextItems);
-      final hydratedItems = _applySnapshotToItems(nextItems, snapshot);
-      _dashboardTitle = dashboardTitle;
-      _themePreset = themePreset;
-      _items = hydratedItems;
-      _snapshot = snapshot;
-      _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
-      _errorText = error.message;
-      _isLoading = false;
-      _notifyIfActive();
-      await _evaluateAlertRules(
-        previousItems: const <DashboardItem>[],
-        nextItems: hydratedItems,
+      await _loadOfflineRuntimeFallback(
+        dashboardTitle: dashboardTitle,
+        errorText: error.message,
       );
     } catch (_) {
-      themePreset = await _layoutStorage.loadDashboardThemePreset();
-      final storedItems = await _layoutStorage.loadItems();
-      final snapshot = _dashboardService.buildMockSnapshot();
-      final alertRules = await _notificationService.loadRules();
-      final nextItems = await _runtimeValueStorage.applyToItems(
-        storedItems ?? const <DashboardItem>[],
+      await _loadOfflineRuntimeFallback(
+        dashboardTitle: dashboardTitle,
+        errorText: initialLoad
+            ? 'ไม่สามารถโหลดข้อมูล Dashboard ได้ในขณะนี้'
+            : 'ไม่สามารถรีเฟรชข้อมูล Dashboard ได้ในขณะนี้',
       );
-      await _runtimeValueStorage.pruneForItems(nextItems);
-      final hydratedItems = _applySnapshotToItems(nextItems, snapshot);
-      _dashboardTitle = dashboardTitle;
-      _themePreset = themePreset;
-      _items = hydratedItems;
-      _snapshot = snapshot;
-      _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
-      _errorText = initialLoad
-          ? 'ไม่สามารถโหลดข้อมูล Dashboard ได้ในขณะนี้'
-          : 'ไม่สามารถรีเฟรชข้อมูล Dashboard ได้ในขณะนี้';
-      _isLoading = false;
-      _notifyIfActive();
-      await _evaluateAlertRules(
-        previousItems: const <DashboardItem>[],
-        nextItems: hydratedItems,
-      );
+    }
+  }
+
+  Future<void> _loadOfflineRuntimeFallback({
+    required String dashboardTitle,
+    required String errorText,
+  }) async {
+    final themePreset = await _layoutStorage.loadDashboardThemePreset();
+    final storedItems = await _layoutStorage.loadItems();
+    final alertRules = await _notificationService.loadRules();
+    final nextItems = await _runtimeValueStorage.applyToItems(
+      storedItems ?? const <DashboardItem>[],
+    );
+    await _runtimeValueStorage.pruneForItems(nextItems);
+    final snapshot = DeviceSnapshotModel(error: errorText);
+
+    _dashboardTitle = dashboardTitle;
+    _themePreset = themePreset;
+    _items = nextItems;
+    _snapshot = snapshot;
+    _alertRules = List<AlertRuleModel>.unmodifiable(alertRules);
+    _errorText = errorText;
+    _isLoading = false;
+    _notifyIfActive();
+    await _evaluateAlertRules(
+      previousItems: const <DashboardItem>[],
+      nextItems: nextItems,
+    );
+    if (_isAppInForeground) {
+      _startPolling();
     }
   }
 
@@ -377,6 +374,8 @@ class DashboardRuntimeController extends ChangeNotifier
                 value: enabled ? 1.0 : 0.0,
               );
             case DashboardItemType.slider:
+            case DashboardItemType.stepH:
+            case DashboardItemType.stepV:
             case DashboardItemType.gauge:
             case DashboardItemType.valueLabel:
               final numeric = _coerceDouble(incoming);
@@ -508,6 +507,8 @@ class DashboardRuntimeController extends ChangeNotifier
     }
     return switch (item.type) {
       DashboardItemType.slider ||
+      DashboardItemType.stepH ||
+      DashboardItemType.stepV ||
       DashboardItemType.gauge ||
       DashboardItemType.valueLabel => item.value,
       DashboardItemType.button ||
@@ -522,6 +523,8 @@ class DashboardRuntimeController extends ChangeNotifier
     return switch (item.type) {
       DashboardItemType.button || DashboardItemType.toggle => item.enabled,
       DashboardItemType.slider ||
+      DashboardItemType.stepH ||
+      DashboardItemType.stepV ||
       DashboardItemType.gauge ||
       DashboardItemType.valueLabel => _coerceBool(item.value),
     };
@@ -531,6 +534,8 @@ class DashboardRuntimeController extends ChangeNotifier
     return switch (item.type) {
       DashboardItemType.button || DashboardItemType.toggle => item.enabled,
       DashboardItemType.slider ||
+      DashboardItemType.stepH ||
+      DashboardItemType.stepV ||
       DashboardItemType.gauge ||
       DashboardItemType.valueLabel => item.value,
     };

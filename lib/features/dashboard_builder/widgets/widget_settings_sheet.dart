@@ -11,6 +11,11 @@ import '../models/widget_settings_result.dart';
 import '../../../theme/app_theme.dart';
 import 'dashboard_item_renderer.dart';
 
+bool _isAutoTitleColor(Color? color) {
+  return color == null ||
+      color.toARGB32() == const Color(0xFF15212B).toARGB32();
+}
+
 BoxDecoration _glassSheetDecoration({
   required double radius,
   Color? tint,
@@ -52,6 +57,27 @@ Widget _buildGlassSheetShell({
         ),
         child: child,
       ),
+    ),
+  );
+}
+
+Widget _buildStableGlassSheetShell({
+  required Widget child,
+  required double radius,
+  Color? tint,
+  double opacity = 0.88,
+  bool elevated = true,
+}) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: DecoratedBox(
+      decoration: _glassSheetDecoration(
+        radius: radius,
+        tint: tint,
+        opacity: opacity,
+        elevated: elevated,
+      ),
+      child: child,
     ),
   );
 }
@@ -247,7 +273,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       <_BindingCatalogEntry>[
         _BindingCatalogEntry(
           key: 'V0',
-          name: 'Switch Command',
+          name: 'คำสั่งสวิตช์',
           dataType: 'bool',
           rangeLabel: '0-1',
           description: '0 = Off, 1 = On',
@@ -262,7 +288,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         ),
         _BindingCatalogEntry(
           key: 'V1',
-          name: 'Switch State',
+          name: 'สถานะสวิตช์',
           dataType: 'integer',
           rangeLabel: '0-1',
           description: '0 = Off, 1 = On',
@@ -278,12 +304,14 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         ),
         _BindingCatalogEntry(
           key: 'V2',
-          name: 'Seconds',
+          name: 'วินาที',
           dataType: 'integer',
           rangeLabel: '0-1000000',
           description: 'ค่าระยะเวลาเป็นวินาทีแบบจำนวนเต็ม',
           recommendedFor: <DashboardItemType>[
             DashboardItemType.slider,
+            DashboardItemType.stepH,
+            DashboardItemType.stepV,
             DashboardItemType.valueLabel,
             DashboardItemType.gauge,
           ],
@@ -294,7 +322,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         ),
         _BindingCatalogEntry(
           key: 'V3',
-          name: 'Temperature',
+          name: 'อุณหภูมิ',
           dataType: 'number',
           rangeLabel: '0-100',
           description: 'ค่าอุณหภูมิ',
@@ -319,6 +347,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   final GlobalKey _bindingFieldKey = GlobalKey();
   Color _accentColor = _defaultAccentColor;
   Color _titleColor = _defaultTitleColor;
+  bool _titleColorAuto = true;
   Color _secondaryAccentColor = _defaultButtonOffColor;
   Color _buttonShellColor = DashboardRuntimeTheme.surfaceColor;
   Color _buttonInnerColor = _defaultButtonInnerColor;
@@ -379,6 +408,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   static double _defaultGlowStrengthForType(DashboardItemType type) {
     return switch (type) {
       DashboardItemType.slider => _defaultSliderGlowStrength,
+      DashboardItemType.stepH ||
+      DashboardItemType.stepV => _defaultSliderGlowStrength,
       DashboardItemType.valueLabel => _defaultValueLabelGlowStrength,
       DashboardItemType.button ||
       DashboardItemType.gauge ||
@@ -393,6 +424,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   Size get _miniPreviewSize => switch (widget.item.type) {
     DashboardItemType.button => const Size(72, 72),
     DashboardItemType.slider => const Size(150, 60),
+    DashboardItemType.stepH => const Size(150, 62),
+    DashboardItemType.stepV => const Size(86, 136),
     DashboardItemType.gauge => const Size(92, 92),
     DashboardItemType.toggle => const Size(118, 62),
     DashboardItemType.valueLabel => const Size(132, 72),
@@ -401,6 +434,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   GridRect get _miniPreviewRect => switch (widget.item.type) {
     DashboardItemType.button => const GridRect(x: 0, y: 0, w: 7, h: 7),
     DashboardItemType.slider => const GridRect(x: 0, y: 0, w: 14, h: 5),
+    DashboardItemType.stepH => const GridRect(x: 0, y: 0, w: 14, h: 5),
+    DashboardItemType.stepV => const GridRect(x: 0, y: 0, w: 8, h: 10),
     DashboardItemType.gauge => const GridRect(x: 0, y: 0, w: 8, h: 8),
     DashboardItemType.toggle => const GridRect(x: 0, y: 0, w: 11, h: 5),
     DashboardItemType.valueLabel => const GridRect(x: 0, y: 0, w: 12, h: 6),
@@ -410,6 +445,14 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     DashboardItemType.slider => const EdgeInsets.symmetric(
       horizontal: 8,
       vertical: 2,
+    ),
+    DashboardItemType.stepH => const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 4,
+    ),
+    DashboardItemType.stepV => const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 8,
     ),
     DashboardItemType.button => const EdgeInsets.symmetric(
       horizontal: 6,
@@ -428,6 +471,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   double get _miniPreviewRadius => switch (widget.item.type) {
     DashboardItemType.slider => 16,
+    DashboardItemType.stepH || DashboardItemType.stepV => 18,
     DashboardItemType.gauge => 24,
     DashboardItemType.button => 24,
     _ => 20,
@@ -435,12 +479,15 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   Offset get _miniPreviewVisualOffset => switch (widget.item.type) {
     DashboardItemType.slider => const Offset(0, -3),
+    DashboardItemType.stepH => const Offset(0, -2),
     _ => Offset.zero,
   };
 
   BoxDecoration get _miniPreviewCardDecoration {
     final isHorizontalWidget =
         widget.item.type == DashboardItemType.slider ||
+        widget.item.type == DashboardItemType.stepH ||
+        widget.item.type == DashboardItemType.stepV ||
         widget.item.type == DashboardItemType.button ||
         widget.item.type == DashboardItemType.toggle ||
         widget.item.type == DashboardItemType.valueLabel;
@@ -535,13 +582,23 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       rect: _miniPreviewRect,
       title: '',
       value: _previewDisplayValue,
-      minValue: (_isSliderWidget || _isGaugeWidget || _isValueLabelWidget)
+      minValue:
+          (_isSliderWidget ||
+              _isStepperWidget ||
+              _isGaugeWidget ||
+              _isValueLabelWidget)
           ? _previewMinValue
           : widget.item.minValue,
-      maxValue: (_isSliderWidget || _isGaugeWidget || _isValueLabelWidget)
+      maxValue:
+          (_isSliderWidget ||
+              _isStepperWidget ||
+              _isGaugeWidget ||
+              _isValueLabelWidget)
           ? _previewMaxValue
           : widget.item.maxValue,
-      stepValue: _isSliderWidget ? _previewStepValue : widget.item.stepValue,
+      stepValue: (_isSliderWidget || _isStepperWidget)
+          ? _previewStepValue
+          : widget.item.stepValue,
       unit: previewUnit,
       clearUnit: previewUnit == null,
       dataKey: previewDataKey,
@@ -557,7 +614,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           ? _selectedSendBehavior
           : widget.item.sendBehavior,
       accentColor: _accentColor,
-      titleColor: _titleColor,
+      titleColor: _titleColorAuto ? null : _titleColor,
+      clearTitleColor: _titleColorAuto,
       titleFontSize: _titleFontSize,
       titlePosition: _selectedTitlePosition,
       secondaryAccentColor: (_isButtonWidget || _isToggleWidget)
@@ -568,7 +626,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           (_isButtonWidget ||
               _isValueLabelWidget ||
               _isGaugeWidget ||
-              _isSliderWidget ||
+              _isSliderLikeNumericControl ||
               _isToggleWidget)
           ? _buttonShellColor
           : widget.item.buttonShellColor,
@@ -577,7 +635,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           (_isButtonWidget ||
               _isValueLabelWidget ||
               _isGaugeWidget ||
-              _isSliderWidget ||
+              _isSliderLikeNumericControl ||
               _isToggleWidget)
           ? _buttonInnerColor
           : widget.item.buttonInnerColor,
@@ -598,10 +656,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           ? _gaugeBorderWidth
           : widget.item.gaugeBorderWidth,
       clearGaugeBorderWidth: !_isGaugeWidget,
-      sliderBorderWidth: _isSliderWidget
+      sliderBorderWidth: _isSliderLikeNumericControl
           ? _sliderBorderWidth
           : widget.item.sliderBorderWidth,
-      clearSliderBorderWidth: !_isSliderWidget,
+      clearSliderBorderWidth: !_isSliderLikeNumericControl,
       toggleBorderWidth: _isToggleWidget
           ? _toggleBorderWidth
           : widget.item.toggleBorderWidth,
@@ -628,6 +686,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         child: DashboardItemRenderer(
           item: _previewItem,
           enableInteraction: false,
+          isEditMode: false,
         ),
       ),
     );
@@ -743,7 +802,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     );
     _titleFocusNode = FocusNode()..addListener(_handleFocusChanged);
     _accentColor = widget.item.accentColor;
-    _titleColor = widget.item.titleColor ?? _defaultTitleColor;
+    _titleColorAuto = _isAutoTitleColor(widget.item.titleColor);
+    _titleColor = _titleColorAuto
+        ? DashboardRuntimeTheme.headlineColor
+        : widget.item.titleColor!;
     _titleFontSize = (widget.item.titleFontSize ?? _recommendedTitleFontSize)
         .clamp(_minTitleFontSize, _maxTitleFontSize);
     _glowColorLinkedToAccent = widget.item.glowColor == null;
@@ -765,7 +827,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
             ? _effectiveDefaultValueLabelShellColor()
             : _isGaugeWidget
             ? _effectiveDefaultGaugeBorderColor()
-            : _isSliderWidget
+            : _isSliderLikeNumericControl
             ? _effectiveDefaultSliderBorderColor()
             : _isToggleWidget
             ? _effectiveDefaultToggleBorderColor()
@@ -776,7 +838,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
             ? _effectiveDefaultValueLabelBackgroundColor()
             : _isGaugeWidget
             ? _effectiveDefaultGaugeBackgroundColor()
-            : _isSliderWidget
+            : _isSliderLikeNumericControl
             ? _effectiveDefaultSliderBackgroundColor()
             : _isToggleWidget
             ? _effectiveDefaultToggleBackgroundColor()
@@ -876,12 +938,16 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   bool get _isButtonWidget => widget.item.type == DashboardItemType.button;
   bool get _isSliderWidget => widget.item.type == DashboardItemType.slider;
+  bool get _isStepperWidget =>
+      widget.item.type == DashboardItemType.stepH ||
+      widget.item.type == DashboardItemType.stepV;
+  bool get _isSliderLikeNumericControl => _isSliderWidget || _isStepperWidget;
   bool get _isGaugeWidget => widget.item.type == DashboardItemType.gauge;
   bool get _isToggleWidget => widget.item.type == DashboardItemType.toggle;
   bool get _isValueLabelWidget =>
       widget.item.type == DashboardItemType.valueLabel;
   bool get _isWritableWidget =>
-      _isButtonWidget || _isSliderWidget || _isToggleWidget;
+      _isButtonWidget || _isSliderWidget || _isStepperWidget || _isToggleWidget;
   bool get _hasSelectedBinding => _selectedBindingKey.trim().isNotEmpty;
   bool get _isBindingModeConfigurable => false;
   bool get _bindingIsRequired => true;
@@ -891,6 +957,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       DashboardItemType.button => 'read_write',
       DashboardItemType.toggle => 'read_write',
       DashboardItemType.slider => 'read_write',
+      DashboardItemType.stepH => 'read_write',
+      DashboardItemType.stepV => 'read_write',
       DashboardItemType.gauge => 'read',
       DashboardItemType.valueLabel => 'read',
     };
@@ -925,7 +993,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   String _displayUnit(String? unit) {
     final normalized = unit?.trim();
     if (normalized == null || normalized.isEmpty) {
-      return 'None';
+      return 'ไม่มี';
     }
     return normalized;
   }
@@ -935,6 +1003,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     const allowed = <String>{
       DashboardItemTitlePosition.topOutside,
       DashboardItemTitlePosition.bottomOutside,
+      DashboardItemTitlePosition.hidden,
     };
     if (!allowed.contains(normalized)) {
       return DashboardItemTitlePosition.topOutside;
@@ -944,8 +1013,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   List<MapEntry<String, String>> _titlePositionOptions() {
     return const <MapEntry<String, String>>[
-      MapEntry(DashboardItemTitlePosition.topOutside, 'Top'),
-      MapEntry(DashboardItemTitlePosition.bottomOutside, 'Bottom'),
+      MapEntry(DashboardItemTitlePosition.topOutside, 'ด้านบน'),
+      MapEntry(DashboardItemTitlePosition.bottomOutside, 'ด้านล่าง'),
+      MapEntry(DashboardItemTitlePosition.hidden, 'ซ่อน'),
     ];
   }
 
@@ -971,11 +1041,13 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   String _widgetTypeLabel(DashboardItemType type) {
     return switch (type) {
-      DashboardItemType.button => 'Button',
-      DashboardItemType.slider => 'Slider',
-      DashboardItemType.gauge => 'Gauge',
-      DashboardItemType.toggle => 'Toggle',
-      DashboardItemType.valueLabel => 'Value',
+      DashboardItemType.button => 'ปุ่ม',
+      DashboardItemType.slider => 'สไลเดอร์',
+      DashboardItemType.stepH => 'ปรับค่า H',
+      DashboardItemType.stepV => 'ปรับค่า V',
+      DashboardItemType.gauge => 'เกจ',
+      DashboardItemType.toggle => 'สวิตช์',
+      DashboardItemType.valueLabel => 'แสดงค่า',
     };
   }
 
@@ -1001,7 +1073,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     final normalizedUnit = unit?.trim();
     if (normalizedUnit != null &&
         normalizedUnit.isNotEmpty &&
-        normalizedUnit.toLowerCase() != 'none') {
+        normalizedUnit.toLowerCase() != 'ไม่มี') {
       parts.add(normalizedUnit);
     }
     return parts.join(', ');
@@ -1032,7 +1104,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   String _bindingLabelFor(String key) {
     final normalizedKey = key.trim().toUpperCase();
     if (normalizedKey.isEmpty) {
-      return 'None';
+      return 'ไม่มี';
     }
     final catalogEntry = _catalogEntryFor(normalizedKey);
     if (catalogEntry != null) {
@@ -1355,7 +1427,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Delete Custom Data Key?',
+                          'ลบคีย์ข้อมูลที่กำหนดเอง?',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
@@ -1399,7 +1471,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                             elevation: 0,
                           ),
                           child: const Text(
-                            'Cancel',
+                            'ยกเลิก',
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -1436,7 +1508,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                               ),
                             ),
                             child: const Text(
-                              'Delete',
+                              'ลบ',
                               style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
@@ -1499,12 +1571,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
   List<MapEntry<String, String>> _bindingModeOptions() {
     if (_isWritableWidget) {
       return const <MapEntry<String, String>>[
-        MapEntry('read_write', 'Read + Write'),
-        MapEntry('read', 'Read only'),
-        MapEntry('write', 'Write only'),
+        MapEntry('read_write', 'อ่าน + เขียน'),
+        MapEntry('read', 'อ่านอย่างเดียว'),
+        MapEntry('write', 'เขียนอย่างเดียว'),
       ];
     }
-    return const <MapEntry<String, String>>[MapEntry('read', 'Read only')];
+    return const <MapEntry<String, String>>[MapEntry('read', 'อ่านอย่างเดียว')];
   }
 
   List<MapEntry<String, String>> _dataTypeOptions() {
@@ -1522,13 +1594,13 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     }
     if (_isSliderWidget) {
       return const <MapEntry<String, String>>[
-        MapEntry('on_release', 'Send on Release'),
-        MapEntry('on_drag', 'Send on Drag'),
+        MapEntry('on_release', 'ส่งเมื่อปล่อย'),
+        MapEntry('on_drag', 'ส่งระหว่างลาก'),
       ];
     }
     if (_isWritableWidget) {
       return const <MapEntry<String, String>>[
-        MapEntry('on_release', 'Send on Press'),
+        MapEntry('on_release', 'ส่งเมื่อกด'),
       ];
     }
     return const <MapEntry<String, String>>[];
@@ -1536,8 +1608,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   List<MapEntry<String, String>> _buttonModeOptions() {
     return const <MapEntry<String, String>>[
-      MapEntry('switch', 'Switch'),
-      MapEntry('push', 'Push'),
+      MapEntry('switch', 'สวิตช์'),
+      MapEntry('push', 'กดค้าง'),
     ];
   }
 
@@ -1581,10 +1653,10 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   Map<String, String> _reservedBindingMap() {
     return const <String, String>{
-      'V0': 'Switch Command',
-      'V1': 'Switch State',
-      'V2': 'Seconds',
-      'V3': 'Temperature',
+      'V0': 'คำสั่งสวิตช์',
+      'V1': 'สถานะสวิตช์',
+      'V2': 'วินาที',
+      'V3': 'อุณหภูมิ',
     };
   }
 
@@ -1658,7 +1730,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                       ),
                       SizedBox(height: 10 * scale),
                       Text(
-                        'Select Data Key (V Pin)',
+                        'เลือกข้อมูลที่เชื่อมต่อ (V Pin)',
                         style: TextStyle(
                           color: DashboardRuntimeTheme.headlineColor,
                           fontWeight: FontWeight.w700,
@@ -1683,17 +1755,17 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                               title:
                                   selected.isNotEmpty &&
                                       !_isCatalogKey(selected)
-                                  ? 'Edit Custom Data Key'
-                                  : 'Add Custom Data Key',
+                                  ? 'แก้ไขคีย์ข้อมูลที่กำหนดเอง'
+                                  : 'เพิ่มคีย์ข้อมูลที่กำหนดเอง',
                               subtitle:
-                                  'Define a key name, data type, range, and unit for this widget binding.',
+                                  'กำหนดชื่อคีย์ ประเภทข้อมูล ช่วงค่า และหน่วยสำหรับการเชื่อมต่อนี้',
                               onTap: () =>
                                   Navigator.of(context).pop('__custom__'),
                             ),
                             SizedBox(height: 14 * scale),
                             if (customEntries.isNotEmpty) ...[
                               _buildPickerSectionLabel(
-                                label: 'Custom Keys',
+                                label: 'คีย์กำหนดเอง',
                                 scale: scale,
                               ),
                               for (final entry in customEntries) ...[
@@ -1722,7 +1794,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                               0) ==
                                           0)
                                       ? IconButton(
-                                          tooltip: 'Delete Custom Data Key',
+                                          tooltip: 'ลบคีย์ข้อมูลที่กำหนดเอง',
                                           onPressed: () => Navigator.of(
                                             context,
                                           ).pop('__delete__:${entry.key}'),
@@ -1749,7 +1821,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                               ],
                             ],
                             _buildPickerSectionLabel(
-                              label: 'Starter Keys',
+                              label: 'คีย์เริ่มต้น',
                               scale: scale,
                             ),
                             for (final entry in catalogEntries) ...[
@@ -1816,7 +1888,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                       ),
                       SizedBox(height: 10 * scale),
                       Text(
-                        'Select Data Key (V Pin)',
+                        'เลือกข้อมูลที่เชื่อมต่อ (V Pin)',
                         style: TextStyle(
                           color: DashboardRuntimeTheme.headlineColor,
                           fontWeight: FontWeight.w700,
@@ -1843,7 +1915,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                               title: Text(
                                 selected.isNotEmpty && !_isCatalogKey(selected)
                                     ? 'แก้ไขคีย์ข้อมูลกำหนดเอง'
-                                    : 'Add Custom Data Key',
+                                    : 'เพิ่มคีย์ข้อมูลที่กำหนดเอง',
                                 style: TextStyle(
                                   color: DashboardRuntimeTheme.buttonEndColor,
                                   fontWeight: FontWeight.w700,
@@ -1916,7 +1988,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                             0) ==
                                         0)
                                     ? IconButton(
-                                        tooltip: 'Delete Custom Data Key',
+                                        tooltip: 'ลบคีย์ข้อมูลที่กำหนดเอง',
                                         onPressed: () => Navigator.of(context).pop(
                                           '__delete__:${entry.key}',
                                         ),
@@ -2325,7 +2397,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     _showBindingValidationError = false;
     _selectedDataType = _normalizeDataType(customResult.dataType);
     if (customResult.unit.trim().isEmpty ||
-        customResult.unit.trim().toLowerCase() == 'none') {
+        customResult.unit.trim().toLowerCase() == 'ไม่มี') {
       _selectedUnit = null;
     } else {
       _selectedUnit = customResult.unit.trim();
@@ -2616,38 +2688,36 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                     .clamp(minValue, maxValue))
           .toDouble(),
     );
+    final usesControlSurfaceColors =
+        _isButtonWidget ||
+        _isValueLabelWidget ||
+        _isGaugeWidget ||
+        _isSliderLikeNumericControl ||
+        _isToggleWidget;
+    final defaultShellColor = _isValueLabelWidget
+        ? _effectiveDefaultValueLabelShellColor()
+        : _isGaugeWidget
+        ? _effectiveDefaultGaugeBorderColor()
+        : _isSliderLikeNumericControl
+        ? _effectiveDefaultSliderBorderColor()
+        : _isToggleWidget
+        ? _effectiveDefaultToggleBorderColor()
+        : _effectiveDefaultButtonShellColor();
+    final defaultInnerColor = _isValueLabelWidget
+        ? _effectiveDefaultValueLabelBackgroundColor()
+        : _isGaugeWidget
+        ? _effectiveDefaultGaugeBackgroundColor()
+        : _isSliderLikeNumericControl
+        ? _effectiveDefaultSliderBackgroundColor()
+        : _isToggleWidget
+        ? _effectiveDefaultToggleBackgroundColor()
+        : _effectiveDefaultButtonInnerColor();
     final shouldClearButtonShellColor =
-        (_isButtonWidget ||
-            _isValueLabelWidget ||
-            _isGaugeWidget ||
-            _isSliderWidget ||
-            _isToggleWidget) &&
-        _buttonShellColor.toARGB32() ==
-            (_isValueLabelWidget
-                ? _effectiveDefaultValueLabelShellColor().toARGB32()
-                : _isGaugeWidget
-                ? _effectiveDefaultGaugeBorderColor().toARGB32()
-                : _isSliderWidget
-                ? _effectiveDefaultSliderBorderColor().toARGB32()
-                : _isToggleWidget
-                ? _effectiveDefaultToggleBorderColor().toARGB32()
-                : _effectiveDefaultButtonShellColor().toARGB32());
+        usesControlSurfaceColors &&
+        _buttonShellColor.toARGB32() == defaultShellColor.toARGB32();
     final shouldClearButtonInnerColor =
-        (_isButtonWidget ||
-            _isValueLabelWidget ||
-            _isGaugeWidget ||
-            _isSliderWidget ||
-            _isToggleWidget) &&
-        _buttonInnerColor.toARGB32() ==
-            (_isValueLabelWidget
-                ? _effectiveDefaultValueLabelBackgroundColor().toARGB32()
-                : _isGaugeWidget
-                ? _effectiveDefaultGaugeBackgroundColor().toARGB32()
-                : _isSliderWidget
-                ? _effectiveDefaultSliderBackgroundColor().toARGB32()
-                : _isToggleWidget
-                ? _effectiveDefaultToggleBackgroundColor().toARGB32()
-                : _effectiveDefaultButtonInnerColor().toARGB32());
+        usesControlSurfaceColors &&
+        _buttonInnerColor.toARGB32() == defaultInnerColor.toARGB32();
     final shouldClearButtonBorderColor =
         !_isButtonWidget ||
         _buttonBorderColor.toARGB32() ==
@@ -2662,7 +2732,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         !_isGaugeWidget ||
         (_gaugeBorderWidth - _defaultGaugeBorderWidth).abs() < 0.001;
     final shouldClearSliderBorderWidth =
-        !_isSliderWidget ||
+        !_isSliderLikeNumericControl ||
         (_sliderBorderWidth - _defaultSliderBorderWidth).abs() < 0.001;
     final shouldClearToggleBorderWidth =
         !_isToggleWidget ||
@@ -2697,22 +2767,27 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           dataType: _selectedDataType,
           minValue:
               (_isSliderWidget ||
+                  _isStepperWidget ||
                   widget.item.type == DashboardItemType.gauge ||
                   widget.item.type == DashboardItemType.valueLabel)
               ? minValue
               : widget.item.minValue,
           maxValue:
               (_isSliderWidget ||
+                  _isStepperWidget ||
                   widget.item.type == DashboardItemType.gauge ||
                   widget.item.type == DashboardItemType.valueLabel)
               ? maxValue
               : widget.item.maxValue,
-          stepValue: _isSliderWidget ? stepValue : widget.item.stepValue,
+          stepValue: (_isSliderWidget || _isStepperWidget)
+              ? stepValue
+              : widget.item.stepValue,
           sendBehavior: _isWritableWidget
               ? _selectedSendBehavior
               : widget.item.sendBehavior,
           accentColor: _accentColor,
-          titleColor: _titleColor,
+          titleColor: _titleColorAuto ? null : _titleColor,
+          clearTitleColor: _titleColorAuto,
           titleFontSize: _titleFontSize,
           titlePosition: _selectedTitlePosition,
           locked: _locked,
@@ -2724,7 +2799,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
               (_isButtonWidget ||
                       _isValueLabelWidget ||
                       _isGaugeWidget ||
-                      _isSliderWidget ||
+                      _isSliderLikeNumericControl ||
                       _isToggleWidget) &&
                   !shouldClearButtonShellColor
               ? _buttonShellColor
@@ -2733,14 +2808,14 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
               (!(_isButtonWidget ||
                   _isValueLabelWidget ||
                   _isGaugeWidget ||
-                  _isSliderWidget ||
+                  _isSliderLikeNumericControl ||
                   _isToggleWidget)) ||
               shouldClearButtonShellColor,
           buttonInnerColor:
               (_isButtonWidget ||
                       _isValueLabelWidget ||
                       _isGaugeWidget ||
-                      _isSliderWidget ||
+                      _isSliderLikeNumericControl ||
                       _isToggleWidget) &&
                   !shouldClearButtonInnerColor
               ? _buttonInnerColor
@@ -2749,7 +2824,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
               (!(_isButtonWidget ||
                   _isValueLabelWidget ||
                   _isGaugeWidget ||
-                  _isSliderWidget ||
+                  _isSliderLikeNumericControl ||
                   _isToggleWidget)) ||
               shouldClearButtonInnerColor,
           buttonBorderColor: _isButtonWidget && !shouldClearButtonBorderColor
@@ -2769,7 +2844,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
               ? _gaugeBorderWidth
               : null,
           clearGaugeBorderWidth: shouldClearGaugeBorderWidth,
-          sliderBorderWidth: _isSliderWidget && !shouldClearSliderBorderWidth
+          sliderBorderWidth:
+              _isSliderLikeNumericControl && !shouldClearSliderBorderWidth
               ? _sliderBorderWidth
               : null,
           clearSliderBorderWidth: shouldClearSliderBorderWidth,
@@ -2816,6 +2892,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     required String title,
     required Color initialColor,
     required ValueChanged<Color> onColorPicked,
+    VoidCallback? onResetToAuto,
   }) async {
     final hexController = TextEditingController(
       text: '#${_hexFromColor(initialColor)}',
@@ -2876,6 +2953,27 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                             ),
                           ),
                         ),
+                        if (onResetToAuto != null) ...[
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: TextButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                setState(onResetToAuto);
+                              },
+                              icon: const Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('ใช้อัตโนมัติตามธีม'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: DashboardRuntimeTheme
+                                    .surfaceBorderFocusColor,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 14),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(18),
@@ -2897,7 +2995,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        const _SettingsLabel('Hex Color'),
+                        const _SettingsLabel('ค่าสี Hex'),
                         const SizedBox(height: 8),
                         _buildFieldShell(
                           child: TextField(
@@ -2942,7 +3040,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                   backgroundColor: const Color(0xFFC96868),
                                 ),
                                 child: const Text(
-                                  'Cancel',
+                                  'ยกเลิก',
                                   style: TextStyle(fontWeight: FontWeight.w700),
                                 ),
                               ),
@@ -2974,7 +3072,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                   elevation: 0,
                                 ),
                                 child: const Text(
-                                  'Apply',
+                                  'ใช้สีนี้',
                                   style: TextStyle(fontWeight: FontWeight.w700),
                                 ),
                               ),
@@ -3185,7 +3283,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                       borderColor: const Color(0xFF6AA796),
                       glowColor: const Color(0xFFA9D3C7),
                     ),
-                    label: 'Save',
+                    label: 'บันทึก',
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -3205,7 +3303,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                       glowColor: const Color(0xFFE08A82),
                     ),
                     foregroundColor: const Color(0xFFFFFBFB),
-                    label: 'Remove',
+                    label: 'ลบ',
                   ),
                 ),
               ],
@@ -3227,7 +3325,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                       glowColor: const Color(0xFFE08A82),
                     ),
                     foregroundColor: const Color(0xFFFFFBFB),
-                    label: 'Remove',
+                    label: 'ลบ',
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -3243,7 +3341,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                       borderColor: const Color(0xFF6AA796),
                       glowColor: const Color(0xFFA9D3C7),
                     ),
-                    label: 'Save',
+                    label: 'บันทึก',
                   ),
                 ),
               ],
@@ -3328,13 +3426,13 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
         children: [
           buildTab(
             page: _WidgetSettingsPage.setting,
-            label: 'Content',
+            label: 'ข้อมูล',
             icon: Icons.settings_outlined,
           ),
           const SizedBox(width: 6),
           buildTab(
             page: _WidgetSettingsPage.design,
-            label: 'Design',
+            label: 'ออกแบบ',
             icon: Icons.palette_outlined,
           ),
         ],
@@ -3346,7 +3444,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SettingsLabel('Color Style'),
+        const _SettingsLabel('รูปแบบสี'),
         const SizedBox(height: 10),
         if (_isButtonWidget)
           Column(
@@ -3356,12 +3454,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'ON State',
+                      title: 'สถานะเปิด',
                       badge: 'ON',
-                      label: 'ON color',
+                      label: 'สีตอนเปิด',
                       color: _accentColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom ON Color',
+                        title: 'สีตอนเปิดของปุ่ม',
                         initialColor: _accentColor,
                         onColorPicked: (color) {
                           _accentColor = color;
@@ -3376,12 +3474,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildColorTile(
-                      title: 'OFF State',
+                      title: 'สถานะปิด',
                       badge: 'OFF',
-                      label: 'OFF color',
+                      label: 'สีตอนปิด',
                       color: _secondaryAccentColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom OFF Color',
+                        title: 'สีตอนปิดของปุ่ม',
                         initialColor: _secondaryAccentColor,
                         onColorPicked: (color) {
                           _secondaryAccentColor = color;
@@ -3401,12 +3499,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Outer Surface',
+                      title: 'พื้นผิวนอก',
                       badge: 'BG',
-                      label: 'Outer background',
+                      label: 'พื้นหลังนอก',
                       color: _buttonShellColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Shell Background',
+                        title: 'พื้นหลังนอกของปุ่ม',
                         initialColor: _buttonShellColor,
                         onColorPicked: (color) => _buttonShellColor = color,
                       ),
@@ -3415,12 +3513,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Inner Surface',
+                      title: 'พื้นผิวใน',
                       badge: 'CORE',
-                      label: 'Inner background',
+                      label: 'พื้นหลังใน',
                       color: _buttonInnerColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Inner Background',
+                        title: 'พื้นหลังในของปุ่ม',
                         initialColor: _buttonInnerColor,
                         onColorPicked: (color) => _buttonInnerColor = color,
                       ),
@@ -3434,12 +3532,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Border',
+                      title: 'สีขอบ',
                       badge: 'LINE',
-                      label: 'Border color',
+                      label: 'สีขอบ',
                       color: _buttonBorderColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Button Border',
+                        title: 'สีขอบของปุ่ม',
                         initialColor: _buttonBorderColor,
                         onColorPicked: (color) {
                           _buttonBorderColor = color;
@@ -3456,63 +3554,81 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
               ),
             ],
           )
-        else if (_isSliderWidget)
-          Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        else if (_isSliderLikeNumericControl)
+          Builder(
+            builder: (context) {
+              final controlTitle = _isStepperWidget ? 'ตัวควบคุม' : 'สไลเดอร์';
+              final controlColorLabel = _isStepperWidget
+                  ? 'สีตัวควบคุม'
+                  : 'สีสไลเดอร์';
+              final controlColorPickerTitle = _isStepperWidget
+                  ? 'สีตัวควบคุมกำหนดเอง'
+                  : 'สีสไลเดอร์กำหนดเอง';
+              final backgroundPickerTitle = _isStepperWidget
+                  ? 'พื้นหลังของตัวควบคุม'
+                  : 'พื้นหลังของสไลเดอร์';
+              final borderPickerTitle = _isStepperWidget
+                  ? 'สีขอบของตัวควบคุม'
+                  : 'สีขอบของสไลเดอร์';
+
+              return Column(
                 children: [
-                  Expanded(
-                    child: _buildColorTile(
-                      title: 'Slider',
-                      badge: 'MAIN',
-                      label: 'Slider color',
-                      color: _accentColor,
-                      onTap: () => _openColorPicker(
-                        title: 'Custom Slider Color',
-                        initialColor: _accentColor,
-                        onColorPicked: (color) => _accentColor = color,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildColorTile(
+                          title: controlTitle,
+                          badge: 'MAIN',
+                          label: controlColorLabel,
+                          color: _accentColor,
+                          onTap: () => _openColorPicker(
+                            title: controlColorPickerTitle,
+                            initialColor: _accentColor,
+                            onColorPicked: (color) => _accentColor = color,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildColorTile(
+                          title: 'พื้นหลัง',
+                          badge: 'BG',
+                          label: 'สีพื้นหลัง',
+                          color: _buttonInnerColor,
+                          onTap: () => _openColorPicker(
+                            title: backgroundPickerTitle,
+                            initialColor: _buttonInnerColor,
+                            onColorPicked: (color) => _buttonInnerColor = color,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildColorTile(
-                      title: 'Background',
-                      badge: 'BG',
-                      label: 'Background color',
-                      color: _buttonInnerColor,
-                      onTap: () => _openColorPicker(
-                        title: 'Custom Slider Background',
-                        initialColor: _buttonInnerColor,
-                        onColorPicked: (color) => _buttonInnerColor = color,
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildColorTile(
+                          title: 'สีขอบ',
+                          badge: 'LINE',
+                          label: 'สีขอบ',
+                          color: _buttonShellColor,
+                          onTap: () => _openColorPicker(
+                            title: borderPickerTitle,
+                            initialColor: _buttonShellColor,
+                            onColorPicked: (color) => _buttonShellColor = color,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildTitleColorTile()),
+                    ],
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildColorTile(
-                      title: 'Border',
-                      badge: 'LINE',
-                      label: 'Border color',
-                      color: _buttonShellColor,
-                      onTap: () => _openColorPicker(
-                        title: 'Custom Slider Border',
-                        initialColor: _buttonShellColor,
-                        onColorPicked: (color) => _buttonShellColor = color,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: _buildTitleColorTile()),
-                ],
-              ),
-            ],
+              );
+            },
           )
         else if (_isToggleWidget)
           Column(
@@ -3522,12 +3638,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'ON',
+                      title: 'เปิด',
                       badge: 'ON',
-                      label: 'On color',
+                      label: 'สีตอนเปิด',
                       color: _accentColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Toggle ON Color',
+                        title: 'สีตอนเปิดของสวิตช์',
                         initialColor: _accentColor,
                         onColorPicked: (color) => _accentColor = color,
                       ),
@@ -3536,12 +3652,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildColorTile(
-                      title: 'OFF',
+                      title: 'ปิด',
                       badge: 'OFF',
-                      label: 'Off color',
+                      label: 'สีตอนปิด',
                       color: _secondaryAccentColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Toggle OFF Color',
+                        title: 'สีตอนปิดของสวิตช์',
                         initialColor: _secondaryAccentColor,
                         onColorPicked: (color) => _secondaryAccentColor = color,
                       ),
@@ -3555,12 +3671,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Background',
+                      title: 'พื้นหลัง',
                       badge: 'BG',
-                      label: 'Background color',
+                      label: 'สีพื้นหลัง',
                       color: _buttonInnerColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Toggle Background',
+                        title: 'พื้นหลังของสวิตช์',
                         initialColor: _buttonInnerColor,
                         onColorPicked: (color) => _buttonInnerColor = color,
                       ),
@@ -3569,12 +3685,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Border',
+                      title: 'สีขอบ',
                       badge: 'LINE',
-                      label: 'Border color',
+                      label: 'สีขอบ',
                       color: _buttonShellColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Toggle Border',
+                        title: 'สีขอบของสวิตช์',
                         initialColor: _buttonShellColor,
                         onColorPicked: (color) => _buttonShellColor = color,
                       ),
@@ -3588,12 +3704,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Border',
+                      title: 'สีขอบ',
                       badge: 'LINE',
-                      label: 'Border color',
+                      label: 'สีขอบ',
                       color: _buttonBorderColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Button Border',
+                        title: 'สีขอบของปุ่ม',
                         initialColor: _buttonBorderColor,
                         onColorPicked: (color) => _buttonBorderColor = color,
                       ),
@@ -3613,12 +3729,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Value Text',
+                      title: 'ข้อความค่า',
                       badge: 'TEXT',
-                      label: 'Text color',
+                      label: 'สีข้อความ',
                       color: _accentColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Value Text Color',
+                        title: 'สีข้อความของค่า',
                         initialColor: _accentColor,
                         onColorPicked: (color) {
                           _accentColor = color;
@@ -3632,12 +3748,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Background',
+                      title: 'พื้นหลัง',
                       badge: 'BG',
-                      label: 'Background color',
+                      label: 'สีพื้นหลัง',
                       color: _buttonInnerColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Value Label Background',
+                        title: 'พื้นหลังของแสดงค่า',
                         initialColor: _buttonInnerColor,
                         onColorPicked: (color) => _buttonInnerColor = color,
                       ),
@@ -3651,12 +3767,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Border',
+                      title: 'สีขอบ',
                       badge: 'LINE',
-                      label: 'Border color',
+                      label: 'สีขอบ',
                       color: _buttonShellColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Value Label Border',
+                        title: 'สีขอบของแสดงค่า',
                         initialColor: _buttonShellColor,
                         onColorPicked: (color) {
                           _buttonShellColor = color;
@@ -3680,12 +3796,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Gauge',
+                      title: 'เกจ',
                       badge: 'ARC',
-                      label: 'Gauge/value color',
+                      label: 'สีเกจ/ค่า',
                       color: _accentColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Gauge Color',
+                        title: 'สีเกจ',
                         initialColor: _accentColor,
                         onColorPicked: (color) => _accentColor = color,
                       ),
@@ -3694,12 +3810,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Background',
+                      title: 'พื้นหลัง',
                       badge: 'BG',
-                      label: 'Background color',
+                      label: 'สีพื้นหลัง',
                       color: _buttonInnerColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Gauge Background',
+                        title: 'พื้นหลังของเกจ',
                         initialColor: _buttonInnerColor,
                         onColorPicked: (color) => _buttonInnerColor = color,
                       ),
@@ -3713,12 +3829,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 children: [
                   Expanded(
                     child: _buildColorTile(
-                      title: 'Border',
+                      title: 'สีขอบ',
                       badge: 'LINE',
-                      label: 'Border color',
+                      label: 'สีขอบ',
                       color: _buttonShellColor,
                       onTap: () => _openColorPicker(
-                        title: 'Custom Gauge Border',
+                        title: 'สีขอบของเกจ',
                         initialColor: _buttonShellColor,
                         onColorPicked: (color) => _buttonShellColor = color,
                       ),
@@ -3736,12 +3852,12 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
             children: [
               Expanded(
                 child: _buildColorTile(
-                  title: 'Accent',
+                  title: 'สีหลัก',
                   badge: 'MAIN',
-                  label: 'Accent color',
+                  label: 'สีหลัก',
                   color: _accentColor,
                   onTap: () => _openColorPicker(
-                    title: 'Custom Accent Color',
+                    title: 'สีหลักกำหนดเอง',
                     initialColor: _accentColor,
                     onColorPicked: (color) => _accentColor = color,
                   ),
@@ -3757,14 +3873,21 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
 
   Widget _buildTitleColorTile() {
     return _buildColorTile(
-      title: 'Title Color',
-      badge: 'TEXT',
-      label: 'Title text',
+      title: 'สีชื่อวิดเจ็ต',
+      badge: _titleColorAuto ? 'AUTO' : 'TEXT',
+      label: _titleColorAuto ? 'อัตโนมัติ' : 'สีข้อความ',
       color: _titleColor,
       onTap: () => _openColorPicker(
-        title: 'Custom Title Color',
+        title: 'สีชื่อวิดเจ็ต',
         initialColor: _titleColor,
-        onColorPicked: (color) => _titleColor = color,
+        onColorPicked: (color) {
+          _titleColorAuto = false;
+          _titleColor = color;
+        },
+        onResetToAuto: () {
+          _titleColorAuto = true;
+          _titleColor = _defaultTitleColor;
+        },
       ),
     );
   }
@@ -3788,7 +3911,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           size: 18,
         ),
         title: const Text(
-          'Lock Widget',
+          'ล็อกวิดเจ็ต',
           style: TextStyle(
             color: DashboardRuntimeTheme.headlineColor,
             fontSize: 13,
@@ -3813,7 +3936,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SettingsLabel('Border Width'),
+          const _SettingsLabel('ความหนาขอบ'),
           const SizedBox(height: 10),
           _buildFieldShell(
             child: Padding(
@@ -3900,11 +4023,11 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       );
     }
 
-    if (_isSliderWidget) {
+    if (_isSliderLikeNumericControl) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SettingsLabel('Border Width'),
+          _SettingsLabel(_isStepperWidget ? 'ขอบตัวควบคุม' : 'ความหนาขอบ'),
           const SizedBox(height: 10),
           _buildFieldShell(
             child: Padding(
@@ -3995,7 +4118,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SettingsLabel('Border Width'),
+          const _SettingsLabel('ความหนาขอบ'),
           const SizedBox(height: 10),
           _buildFieldShell(
             child: Padding(
@@ -4086,7 +4209,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SettingsLabel('Border Width'),
+          const _SettingsLabel('ความหนาขอบ'),
           const SizedBox(height: 10),
           _buildFieldShell(
             child: Padding(
@@ -4177,7 +4300,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SettingsLabel('Border Width'),
+          const _SettingsLabel('ความหนาขอบ'),
           const SizedBox(height: 10),
           _buildFieldShell(
             child: Padding(
@@ -4270,7 +4393,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SettingsLabel('Glow'),
+        const _SettingsLabel('แสงเรือง'),
         const SizedBox(height: 10),
         _buildFieldShell(
           child: Padding(
@@ -4283,14 +4406,14 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                   children: [
                     Expanded(
                       child: _buildColorTile(
-                        title: 'Glow Color',
+                        title: 'สีแสงเรือง',
                         badge: _glowColorLinkedToAccent ? 'AUTO' : 'GLOW',
                         label: _glowColorLinkedToAccent
-                            ? 'Auto from main color'
-                            : 'Custom glow',
+                            ? 'อัตโนมัติจากสีหลัก'
+                            : 'แสงเรืองกำหนดเอง',
                         color: glowColor,
                         onTap: () => _openColorPicker(
-                          title: 'Custom Glow Color',
+                          title: 'สีแสงเรืองกำหนดเอง',
                           initialColor: glowColor,
                           onColorPicked: (color) {
                             _glowColorLinkedToAccent = false;
@@ -4305,7 +4428,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Mode',
+                            'โหมด',
                             style: TextStyle(
                               color: DashboardRuntimeTheme.labelTextColor,
                               fontSize: 11,
@@ -4326,7 +4449,9 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                               size: 16,
                             ),
                             label: Text(
-                              _glowColorLinkedToAccent ? 'Auto' : 'Use Auto',
+                              _glowColorLinkedToAccent
+                                  ? 'อัตโนมัติ'
+                                  : 'ใช้อัตโนมัติ',
                             ),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: glowColor,
@@ -4346,7 +4471,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 ),
                 const SizedBox(height: 14),
                 _buildGlowSlider(
-                  label: 'Strength',
+                  label: 'ความแรง',
                   valueLabel: '$strengthPercent%',
                   value: _glowStrength,
                   min: _minGlowStrength,
@@ -4363,7 +4488,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 ),
                 const SizedBox(height: 12),
                 _buildGlowSlider(
-                  label: 'Softness',
+                  label: 'ความนุ่ม',
                   valueLabel: '${_glowBlur.toStringAsFixed(0)}px',
                   value: _glowBlur,
                   min: _minGlowBlur,
@@ -4477,7 +4602,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (includeTitleField) ...[
-          const _SettingsLabel('Widget Title'),
+          const _SettingsLabel('ชื่อวิดเจ็ต'),
           const SizedBox(height: 8),
           _buildFieldShell(
             focused: _titleFocusNode.hasFocus,
@@ -4547,7 +4672,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
           Row(
             children: [
               const Text(
-                'Title size',
+                'ขนาดชื่อ',
                 style: TextStyle(
                   color: DashboardRuntimeTheme.headlineColor,
                   fontSize: 12,
@@ -4600,7 +4725,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 ),
                 const Spacer(),
                 Text(
-                  'Range',
+                  'ช่วง',
                   style: const TextStyle(
                     color: DashboardRuntimeTheme.mutedTextColor,
                     fontSize: 10,
@@ -4640,8 +4765,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  // Use distinct soft tones so Switch and Push feel different while
-                  // staying within the app's muted neumorphic palette.
+                  // แยกโทนสีให้สวิตช์และกดค้างดูต่างกัน แต่ยังคงอยู่ในโทนแอปเดียวกัน
                   decoration: (() {
                     final isSelected = _selectedSendBehavior == options[i].key;
                     final isSwitch = options[i].key == 'switch';
@@ -4791,7 +4915,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                 radius: 999,
                                 child: IconButton(
                                   onPressed: () => Navigator.of(context).pop(),
-                                  tooltip: 'Close',
+                                  tooltip: 'ปิด',
                                   iconSize: 18,
                                   splashRadius: 18,
                                   constraints: const BoxConstraints.tightFor(
@@ -4836,7 +4960,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                               ),
                               const SizedBox(height: 10),
                               const Text(
-                                'Widget Settings',
+                                'ตั้งค่าวิดเจ็ต',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 18,
@@ -4869,7 +4993,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                             includeTitleField: true,
                           ),
                           const SizedBox(height: 14),
-                          const _SettingsLabel('Data Key (V Pin)'),
+                          const _SettingsLabel('ข้อมูลที่เชื่อมต่อ'),
                           const SizedBox(height: 8),
                           KeyedSubtree(
                             key: _bindingFieldKey,
@@ -4968,13 +5092,13 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                           ),
                           const SizedBox(height: 14),
                           if (_isButtonWidget) ...[
-                            const _SettingsLabel('Button Mode'),
+                            const _SettingsLabel('โหมดปุ่ม'),
                             const SizedBox(height: 8),
                             _buildButtonModeSelector(),
                             const SizedBox(height: 14),
                           ],
-                          if (_isSliderWidget) ...[
-                            const _SettingsLabel('Range'),
+                          if (_isSliderLikeNumericControl) ...[
+                            const _SettingsLabel('ช่วงค่า'),
                             const SizedBox(height: 8),
                             Row(
                               children: [
@@ -4993,7 +5117,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                             decimal: true,
                                           ),
                                       decoration: _fieldDecoration(
-                                        hint: 'Min',
+                                        hint: 'ต่ำสุด',
                                         prefixIcon: Icons.south_rounded,
                                       ),
                                     ),
@@ -5015,7 +5139,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                             decimal: true,
                                           ),
                                       decoration: _fieldDecoration(
-                                        hint: 'Max',
+                                        hint: 'สูงสุด',
                                         prefixIcon: Icons.north_rounded,
                                       ),
                                     ),
@@ -5024,7 +5148,7 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                               ],
                             ),
                             const SizedBox(height: 14),
-                            const _SettingsLabel('Step'),
+                            const _SettingsLabel('ขั้น'),
                             const SizedBox(height: 8),
                             _buildFieldShell(
                               child: TextField(
@@ -5039,14 +5163,14 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                                       decimal: true,
                                     ),
                                 decoration: _fieldDecoration(
-                                  hint: 'Step value',
+                                  hint: 'ค่าขั้น',
                                   prefixIcon: Icons.straighten_rounded,
                                 ),
                               ),
                             ),
                           ],
                           const SizedBox(height: 14),
-                          const _SettingsLabel('Unit'),
+                          const _SettingsLabel('หน่วย'),
                           const SizedBox(height: 8),
                           _buildFieldShell(
                             child: Padding(
@@ -5089,17 +5213,17 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet> {
                             includeTitleField: false,
                           ),
                           const SizedBox(height: 14),
-                          const _SettingsLabel('Layout Lock'),
+                          const _SettingsLabel('ล็อกเลย์เอาต์'),
                           const SizedBox(height: 8),
                           _buildLockWidgetControl(),
                           const SizedBox(height: 14),
-                          const _SettingsLabel('Title Position'),
+                          const _SettingsLabel('ตำแหน่งชื่อ'),
                           const SizedBox(height: 8),
                           _buildFieldShell(
                             child: InkWell(
                               borderRadius: BorderRadius.circular(14),
                               onTap: () => _openOptionPicker(
-                                title: 'Title Position',
+                                title: 'ตำแหน่งชื่อ',
                                 options: _titlePositionOptions(),
                                 selectedValue: _selectedTitlePosition,
                                 onSelected: (value) {
@@ -5225,13 +5349,14 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
   late final TextEditingController _defaultController;
   late final TextEditingController _minController;
   late final TextEditingController _maxController;
+  late final Map<FocusNode, GlobalKey> _focusFieldKeys;
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _defaultFocusNode = FocusNode();
   final FocusNode _minFocusNode = FocusNode();
   final FocusNode _maxFocusNode = FocusNode();
   late String _selectedVPin;
   late String _selectedType;
-  String _selectedUnit = 'None';
+  String _selectedUnit = 'ไม่มี';
 
   @override
   void initState() {
@@ -5245,12 +5370,24 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     _minController = TextEditingController(text: widget.initialMinValue);
     _maxController = TextEditingController(text: widget.initialMaxValue);
     _selectedUnit = widget.initialUnit.trim().isEmpty
-        ? 'None'
+        ? 'ไม่มี'
         : widget.initialUnit.trim();
+    _focusFieldKeys = <FocusNode, GlobalKey>{
+      _nameFocusNode: _nameFieldKey,
+      _defaultFocusNode: _defaultFieldKey,
+      _minFocusNode: _minFieldKey,
+      _maxFocusNode: _maxFieldKey,
+    };
+    for (final focusNode in _focusFieldKeys.keys) {
+      focusNode.addListener(_handleInputFocusChanged);
+    }
   }
 
   @override
   void dispose() {
+    for (final focusNode in _focusFieldKeys.keys) {
+      focusNode.removeListener(_handleInputFocusChanged);
+    }
     _nameController.dispose();
     _defaultController.dispose();
     _minController.dispose();
@@ -5262,11 +5399,51 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     super.dispose();
   }
 
+  void _handleInputFocusChanged() {
+    FocusNode? focusedNode;
+    for (final entry in _focusFieldKeys.entries) {
+      if (entry.key.hasFocus) {
+        focusedNode = entry.key;
+        break;
+      }
+    }
+    if (focusedNode == null) {
+      return;
+    }
+
+    final activeFocusNode = focusedNode;
+    final fieldKey = _focusFieldKeys[activeFocusNode]!;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !activeFocusNode.hasFocus) {
+        return;
+      }
+      _scrollFocusedFieldIntoView(fieldKey);
+    });
+  }
+
+  Future<void> _scrollFocusedFieldIntoView(GlobalKey fieldKey) async {
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    if (!mounted) {
+      return;
+    }
+    final context = fieldKey.currentContext;
+    if (context == null) {
+      return;
+    }
+
+    await Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: 0.22,
+    );
+  }
+
   List<String> _unitOptionsForType() {
     final options = switch (_selectedType) {
-      'bool' || 'string' => <String>['None'],
+      'bool' || 'string' => <String>['ไม่มี'],
       _ => <String>[
-        'None',
+        'ไม่มี',
         '%',
         '°C',
         'ppm',
@@ -5300,17 +5477,6 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
   bool _isLockedVPin(String vpin) {
     return _starterVPins.contains(vpin) ||
         (widget.lockedMap.containsKey(vpin) && _selectedVPin != vpin);
-  }
-
-  String? _lockedVPinReason(String vpin) {
-    if (_starterVPins.contains(vpin)) {
-      return '$vpin - Starter Data Key';
-    }
-    final label = widget.lockedMap[vpin]?.trim();
-    if (label == null || label.isEmpty) {
-      return null;
-    }
-    return '$vpin - $label';
   }
 
   String? _validateDefaultValue(String? value) {
@@ -5394,103 +5560,9 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        final scale = _pickerScale(context);
-        final allVPins = <String>[for (var i = 0; i <= 255; i += 1) 'V$i'];
-        return Material(
-          color: Colors.transparent,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                18 * scale,
-                0,
-                18 * scale,
-                14 * scale,
-              ),
-              child: _buildGlassSheetShell(
-                radius: 22 * scale,
-                blur: 18,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.sizeOf(context).height * 0.72,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(height: 8 * scale),
-                      Container(
-                        width: 38 * scale,
-                        height: 3 * scale,
-                        decoration: BoxDecoration(
-                          color: DashboardRuntimeTheme.surfaceBorderColor,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      SizedBox(height: 10 * scale),
-                      Text(
-                        'Select Data Key (VPin)',
-                        style: TextStyle(
-                          color: DashboardRuntimeTheme.headlineColor,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15 * scale,
-                        ),
-                      ),
-                      SizedBox(height: 6 * scale),
-                      Flexible(
-                        child: ListView(
-                          padding: EdgeInsets.zero,
-                          shrinkWrap: true,
-                          children: [
-                            for (final vpin in allVPins)
-                              ListTile(
-                                dense: scale < 0.95,
-                                visualDensity: scale < 0.95
-                                    ? const VisualDensity(vertical: -1)
-                                    : VisualDensity.standard,
-                                enabled: !_isLockedVPin(vpin),
-                                onTap: _isLockedVPin(vpin)
-                                    ? null
-                                    : () => Navigator.of(context).pop(vpin),
-                                title: Text(
-                                  _lockedVPinReason(vpin) ?? vpin,
-                                  style: TextStyle(
-                                    color: _isLockedVPin(vpin)
-                                        ? DashboardRuntimeTheme.mutedTextColor
-                                        : (_selectedVPin == vpin
-                                              ? DashboardRuntimeTheme
-                                                    .headlineColor
-                                              : DashboardRuntimeTheme
-                                                    .fieldTextColor),
-                                    fontWeight: _selectedVPin == vpin
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                    fontSize: 14 * scale,
-                                  ),
-                                ),
-                                trailing: _isLockedVPin(vpin)
-                                    ? const Icon(
-                                        Icons.lock_rounded,
-                                        size: 16,
-                                        color: DashboardRuntimeTheme
-                                            .mutedTextColor,
-                                      )
-                                    : (_selectedVPin == vpin
-                                          ? const Icon(
-                                              Icons.check_rounded,
-                                              color: DashboardRuntimeTheme
-                                                  .surfaceBorderFocusColor,
-                                            )
-                                          : null),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+        return _CustomVPinPickerSheet(
+          selectedVPin: _selectedVPin,
+          lockedMap: widget.lockedMap,
         );
       },
     );
@@ -5504,12 +5576,160 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     });
   }
 
+  Widget _buildCustomBindingFooter() {
+    return Row(
+      children: [
+        Expanded(
+          child: DecoratedBox(
+            decoration: AppGlassTheme.accentDecoration(
+              radius: 999,
+              colors: const <Color>[Color(0xFFEA7A70), Color(0xFFD95C54)],
+              borderColor: const Color(0xFFC96868),
+              glowColor: const Color(0xFFE08A82),
+            ),
+            child: OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide.none,
+                foregroundColor: const Color(0xFFFFFBFB),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                backgroundColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'ยกเลิก',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: DecoratedBox(
+            decoration: AppGlassTheme.accentDecoration(
+              radius: 999,
+              colors: const <Color>[Color(0xFF7EBFAF), Color(0xFF5E9E8B)],
+              borderColor: const Color(0xFF6AA796),
+              glowColor: const Color(0xFFA9D3C7),
+            ),
+            child: FilledButton(
+              onPressed: _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                widget.isEditing ? 'บันทึก' : 'เพิ่ม',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _openCustomTypePicker() async {
     final result = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
         final scale = _pickerScale(context);
+        String typeSubtitle(String key) {
+          return switch (key) {
+            'number' => 'มีทศนิยมได้',
+            'integer' => 'จำนวนเต็มเท่านั้น',
+            'bool' => 'ค่า 0 หรือ 1',
+            'string' => 'ข้อความ',
+            _ => '',
+          };
+        }
+
+        Widget typeTile(MapEntry<String, String> entry) {
+          final selected = entry.key == _selectedType;
+          return Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 10 * scale,
+              vertical: 3 * scale,
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16 * scale),
+              onTap: () => Navigator.of(context).pop(entry.key),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 14 * scale,
+                  vertical: 10 * scale,
+                ),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? DashboardRuntimeTheme.surfaceBorderFocusColor
+                            .withValues(alpha: 0.14)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16 * scale),
+                  border: Border.all(
+                    color: selected
+                        ? DashboardRuntimeTheme.surfaceBorderFocusColor
+                              .withValues(alpha: 0.32)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.value,
+                            style: TextStyle(
+                              color: selected
+                                  ? DashboardRuntimeTheme.headlineColor
+                                  : DashboardRuntimeTheme.fieldTextColor,
+                              fontWeight: selected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              fontSize: 14 * scale,
+                            ),
+                          ),
+                          SizedBox(height: 2 * scale),
+                          Text(
+                            typeSubtitle(entry.key),
+                            style: TextStyle(
+                              color: DashboardRuntimeTheme.mutedTextColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11.5 * scale,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: 10 * scale),
+                    SizedBox(
+                      width: 24 * scale,
+                      child: selected
+                          ? const Icon(
+                              Icons.check_rounded,
+                              color:
+                                  DashboardRuntimeTheme.surfaceBorderFocusColor,
+                            )
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         return Material(
           color: Colors.transparent,
           child: SafeArea(
@@ -5521,14 +5741,11 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                 18 * scale,
                 14 * scale,
               ),
-              child: DecoratedBox(
-                decoration: DashboardRuntimeTheme.cardDecoration(
-                  radius: 22 * scale,
-                  color: DashboardRuntimeTheme.cardColor,
-                ),
+              child: _buildStableGlassSheetShell(
+                radius: 22 * scale,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxHeight: MediaQuery.sizeOf(context).height * 0.56,
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.46,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -5544,7 +5761,7 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                       ),
                       SizedBox(height: 10 * scale),
                       Text(
-                        'Select Type',
+                        'เลือกประเภทข้อมูล',
                         style: TextStyle(
                           color: DashboardRuntimeTheme.headlineColor,
                           fontWeight: FontWeight.w700,
@@ -5554,37 +5771,11 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                       SizedBox(height: 6 * scale),
                       Flexible(
                         child: ListView(
-                          padding: EdgeInsets.zero,
+                          padding: EdgeInsets.only(bottom: 8 * scale),
                           shrinkWrap: true,
                           children: [
                             for (final entry in widget.dataTypeOptions)
-                              ListTile(
-                                dense: scale < 0.95,
-                                visualDensity: scale < 0.95
-                                    ? const VisualDensity(vertical: -1)
-                                    : VisualDensity.standard,
-                                onTap: () =>
-                                    Navigator.of(context).pop(entry.key),
-                                title: Text(
-                                  entry.value,
-                                  style: TextStyle(
-                                    color: entry.key == _selectedType
-                                        ? DashboardRuntimeTheme.headlineColor
-                                        : DashboardRuntimeTheme.fieldTextColor,
-                                    fontWeight: entry.key == _selectedType
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                    fontSize: 14 * scale,
-                                  ),
-                                ),
-                                trailing: entry.key == _selectedType
-                                    ? const Icon(
-                                        Icons.check_rounded,
-                                        color: DashboardRuntimeTheme
-                                            .surfaceBorderFocusColor,
-                                      )
-                                    : null,
-                              ),
+                              typeTile(entry),
                           ],
                         ),
                       ),
@@ -5605,7 +5796,7 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     setState(() {
       _selectedType = result;
       if (_selectedType == 'bool' || _selectedType == 'string') {
-        _selectedUnit = 'None';
+        _selectedUnit = 'ไม่มี';
       }
     });
   }
@@ -5632,11 +5823,8 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                 18 * scale,
                 14 * scale,
               ),
-              child: DecoratedBox(
-                decoration: DashboardRuntimeTheme.cardDecoration(
-                  radius: 22 * scale,
-                  color: DashboardRuntimeTheme.cardColor,
-                ),
+              child: _buildStableGlassSheetShell(
+                radius: 22 * scale,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.sizeOf(context).height * 0.56,
@@ -5655,7 +5843,7 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
                       ),
                       SizedBox(height: 10 * scale),
                       Text(
-                        'Select Unit',
+                        'เลือกหน่วย',
                         style: TextStyle(
                           color: DashboardRuntimeTheme.headlineColor,
                           fontWeight: FontWeight.w700,
@@ -5755,7 +5943,7 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
         minValue: minValue,
         maxValue: maxValue,
         defaultValue: defaultValue,
-        unit: _selectedUnit == 'None' ? '' : _selectedUnit,
+        unit: _selectedUnit == 'ไม่มี' ? '' : _selectedUnit,
       ),
     );
   }
@@ -5778,12 +5966,15 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: DashboardRuntimeTheme.backgroundColor,
       appBar: AppBar(
         backgroundColor: DashboardRuntimeTheme.backgroundColor,
         elevation: 0,
         title: Text(
-          widget.isEditing ? 'Edit Custom Data Key' : 'Add Custom Data Key',
+          widget.isEditing
+              ? 'แก้ไขคีย์ข้อมูลที่กำหนดเอง'
+              : 'เพิ่มคีย์ข้อมูลที่กำหนดเอง',
           style: const TextStyle(
             color: DashboardRuntimeTheme.headlineColor,
             fontWeight: FontWeight.w700,
@@ -5795,472 +5986,443 @@ class _CustomBindingPageState extends State<_CustomBindingPage> {
       ),
       body: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: _buildGlassSheetShell(
-                radius: 26,
-                blur: 20,
-                opacity: 0.78,
-                elevated: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (widget.isEditing) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: _glassInsetDecoration(radius: 14),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.info_outline_rounded,
-                                  size: 18,
-                                  color: DashboardRuntimeTheme.labelTextColor,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    _usageLabel,
-                                    style: const TextStyle(
-                                      color:
-                                          DashboardRuntimeTheme.fieldTextColor,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        _buildGlassControlShell(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: _openCustomVPinPicker,
-                            child: InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Data Key (คีย์ข้อมูล)',
-                                labelStyle: strongerLabelStyle,
-                                filled: true,
-                                fillColor: DashboardRuntimeTheme.surfaceColor,
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderColor,
-                                  ),
-                                ),
-                                disabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderColor,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderFocusColor,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: _buildStableGlassSheetShell(
+                          radius: 26,
+                          opacity: 0.78,
+                          elevated: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      _selectedVPin,
-                                      style: const TextStyle(
-                                        color: DashboardRuntimeTheme
-                                            .fieldTextColor,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                  if (widget.isEditing) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12,
                                       ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    size: 20,
-                                    color: DashboardRuntimeTheme.mutedTextColor,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildGlassControlShell(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: _openCustomTypePicker,
-                            child: InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Type (ประเภทข้อมูล)',
-                                labelStyle: strongerLabelStyle,
-                                filled: true,
-                                fillColor: DashboardRuntimeTheme.surfaceColor,
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderColor,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderFocusColor,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      widget.dataTypeOptions
-                                          .firstWhere(
-                                            (entry) =>
-                                                entry.key == _selectedType,
-                                            orElse: () => MapEntry(
-                                              _selectedType,
-                                              _selectedType,
+                                      decoration: _glassInsetDecoration(
+                                        radius: 14,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.info_outline_rounded,
+                                            size: 18,
+                                            color: DashboardRuntimeTheme
+                                                .labelTextColor,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              _usageLabel,
+                                              style: const TextStyle(
+                                                color: DashboardRuntimeTheme
+                                                    .fieldTextColor,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
-                                          )
-                                          .value,
-                                      style: const TextStyle(
-                                        color: DashboardRuntimeTheme
-                                            .fieldTextColor,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                  const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    size: 20,
-                                    color: DashboardRuntimeTheme.mutedTextColor,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        KeyedSubtree(
-                          key: _nameFieldKey,
-                          child: _buildGlassControlShell(
-                            child: TextFormField(
-                              controller: _nameController,
-                              focusNode: _nameFocusNode,
-                              style: const TextStyle(
-                                color: DashboardRuntimeTheme.fieldTextColor,
-                                fontSize: 14,
-                              ),
-                              decoration: const InputDecoration(
-                                labelText: 'Name (ตั้งชื่อของคีย์ข้อมูล)',
-                                hintText: 'ยกตัวอย่างเช่น knob_value',
-                                floatingLabelBehavior:
-                                    FloatingLabelBehavior.always,
-                                labelStyle: strongerLabelStyle,
-                                hintStyle: TextStyle(
-                                  color: DashboardRuntimeTheme.mutedTextColor,
-                                ),
-                                filled: true,
-                                fillColor: DashboardRuntimeTheme.surfaceColor,
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderColor,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderFocusColor,
-                                  ),
-                                ),
-                              ),
-                              validator: (value) {
-                                final raw = (value ?? '').trim();
-                                if (raw.isEmpty) {
-                                  return 'โปรดตั้งชื่อคีย์ข้อมูลก่อนใช้งาน';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        KeyedSubtree(
-                          key: _defaultFieldKey,
-                          child: _buildGlassControlShell(
-                            child: TextFormField(
-                              controller: _defaultController,
-                              focusNode: _defaultFocusNode,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                    signed: false,
-                                  ),
-                              style: const TextStyle(
-                                color: DashboardRuntimeTheme.fieldTextColor,
-                                fontSize: 14,
-                              ),
-                              decoration: const InputDecoration(
-                                labelText: 'Default Value (ค่าเริ่มต้น)',
-                                labelStyle: strongerLabelStyle,
-                                filled: true,
-                                fillColor: DashboardRuntimeTheme.surfaceColor,
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderColor,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderFocusColor,
-                                  ),
-                                ),
-                              ),
-                              validator: _validateDefaultValue,
-                            ),
-                          ),
-                        ),
-                        if (_selectedType != 'bool' &&
-                            _selectedType != 'string') ...[
-                          const SizedBox(height: 12),
-                          KeyedSubtree(
-                            key: _minFieldKey,
-                            child: _buildGlassControlShell(
-                              child: TextFormField(
-                                controller: _minController,
-                                focusNode: _minFocusNode,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                      signed: false,
-                                    ),
-                                style: const TextStyle(
-                                  color: DashboardRuntimeTheme.fieldTextColor,
-                                  fontSize: 14,
-                                ),
-                                decoration: const InputDecoration(
-                                  labelText: 'Min Value (ค่าต่ำสุด)',
-                                  labelStyle: strongerLabelStyle,
-                                  filled: true,
-                                  fillColor: DashboardRuntimeTheme.surfaceColor,
-                                  enabledBorder: OutlineInputBorder(
-                                    borderSide: BorderSide(
-                                      color: DashboardRuntimeTheme
-                                          .surfaceBorderColor,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderSide: BorderSide(
-                                      color: DashboardRuntimeTheme
-                                          .surfaceBorderFocusColor,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) =>
-                                    _validateMinMaxValue(value, 'min'),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          KeyedSubtree(
-                            key: _maxFieldKey,
-                            child: _buildGlassControlShell(
-                              child: TextFormField(
-                                controller: _maxController,
-                                focusNode: _maxFocusNode,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                      signed: false,
-                                    ),
-                                style: const TextStyle(
-                                  color: DashboardRuntimeTheme.fieldTextColor,
-                                  fontSize: 14,
-                                ),
-                                decoration: const InputDecoration(
-                                  labelText: 'Max Value (ค่าสูงสุด)',
-                                  labelStyle: strongerLabelStyle,
-                                  filled: true,
-                                  fillColor: DashboardRuntimeTheme.surfaceColor,
-                                  enabledBorder: OutlineInputBorder(
-                                    borderSide: BorderSide(
-                                      color: DashboardRuntimeTheme
-                                          .surfaceBorderColor,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderSide: BorderSide(
-                                      color: DashboardRuntimeTheme
-                                          .surfaceBorderFocusColor,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) =>
-                                    _validateMinMaxValue(value, 'max'),
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        _buildGlassControlShell(
-                          enabled: _isUnitSelectable,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: _isUnitSelectable
-                                ? _openCustomUnitPicker
-                                : null,
-                            child: InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Unit (ระบุหรือไม่ก็ได้)',
-                                labelStyle: strongerLabelStyle,
-                                hintText: 'e.g. %, C, ppm',
-                                hintStyle: TextStyle(
-                                  color: DashboardRuntimeTheme.mutedTextColor,
-                                ),
-                                filled: true,
-                                fillColor: DashboardRuntimeTheme.surfaceColor,
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderColor,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderFocusColor,
-                                  ),
-                                ),
-                                disabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: DashboardRuntimeTheme
-                                        .surfaceBorderColor,
-                                  ),
-                                ),
-                              ),
-                              isEmpty: _selectedUnit.trim().isEmpty,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _selectedUnit,
-                                      style: TextStyle(
-                                        color: _isUnitSelectable
-                                            ? DashboardRuntimeTheme
-                                                  .fieldTextColor
-                                            : DashboardRuntimeTheme
+                                    const SizedBox(height: 12),
+                                  ],
+                                  _buildGlassControlShell(
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: _openCustomVPinPicker,
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(
+                                          labelText: 'ข้อมูลที่เชื่อมต่อ',
+                                          labelStyle: strongerLabelStyle,
+                                          filled: true,
+                                          fillColor: DashboardRuntimeTheme
+                                              .surfaceColor,
+                                          enabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderColor,
+                                            ),
+                                          ),
+                                          disabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderColor,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderFocusColor,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                _selectedVPin,
+                                                style: const TextStyle(
+                                                  color: DashboardRuntimeTheme
+                                                      .fieldTextColor,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            const Icon(
+                                              Icons.keyboard_arrow_down_rounded,
+                                              size: 20,
+                                              color: DashboardRuntimeTheme
                                                   .mutedTextColor,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    size: 20,
-                                    color: _isUnitSelectable
-                                        ? DashboardRuntimeTheme.mutedTextColor
-                                        : DashboardRuntimeTheme
-                                              .surfaceBorderColor,
+                                  const SizedBox(height: 12),
+                                  _buildGlassControlShell(
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: _openCustomTypePicker,
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(
+                                          labelText: 'ประเภทข้อมูล',
+                                          labelStyle: strongerLabelStyle,
+                                          filled: true,
+                                          fillColor: DashboardRuntimeTheme
+                                              .surfaceColor,
+                                          enabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderColor,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderFocusColor,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                widget.dataTypeOptions
+                                                    .firstWhere(
+                                                      (entry) =>
+                                                          entry.key ==
+                                                          _selectedType,
+                                                      orElse: () => MapEntry(
+                                                        _selectedType,
+                                                        _selectedType,
+                                                      ),
+                                                    )
+                                                    .value,
+                                                style: const TextStyle(
+                                                  color: DashboardRuntimeTheme
+                                                      .fieldTextColor,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            const Icon(
+                                              Icons.keyboard_arrow_down_rounded,
+                                              size: 20,
+                                              color: DashboardRuntimeTheme
+                                                  .mutedTextColor,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  KeyedSubtree(
+                                    key: _nameFieldKey,
+                                    child: _buildGlassControlShell(
+                                      child: TextFormField(
+                                        controller: _nameController,
+                                        focusNode: _nameFocusNode,
+                                        style: const TextStyle(
+                                          color: DashboardRuntimeTheme
+                                              .fieldTextColor,
+                                          fontSize: 14,
+                                        ),
+                                        decoration: const InputDecoration(
+                                          labelText: 'ชื่อ',
+                                          hintText: 'ยกตัวอย่างเช่น knob_value',
+                                          floatingLabelBehavior:
+                                              FloatingLabelBehavior.always,
+                                          labelStyle: strongerLabelStyle,
+                                          hintStyle: TextStyle(
+                                            color: DashboardRuntimeTheme
+                                                .mutedTextColor,
+                                          ),
+                                          filled: true,
+                                          fillColor: DashboardRuntimeTheme
+                                              .surfaceColor,
+                                          enabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderColor,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderFocusColor,
+                                            ),
+                                          ),
+                                        ),
+                                        validator: (value) {
+                                          final raw = (value ?? '').trim();
+                                          if (raw.isEmpty) {
+                                            return 'โปรดตั้งชื่อคีย์ข้อมูลก่อนใช้งาน';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  KeyedSubtree(
+                                    key: _defaultFieldKey,
+                                    child: _buildGlassControlShell(
+                                      child: TextFormField(
+                                        controller: _defaultController,
+                                        focusNode: _defaultFocusNode,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                              signed: false,
+                                            ),
+                                        style: const TextStyle(
+                                          color: DashboardRuntimeTheme
+                                              .fieldTextColor,
+                                          fontSize: 14,
+                                        ),
+                                        decoration: const InputDecoration(
+                                          labelText: 'ค่าเริ่มต้น',
+                                          labelStyle: strongerLabelStyle,
+                                          filled: true,
+                                          fillColor: DashboardRuntimeTheme
+                                              .surfaceColor,
+                                          enabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderColor,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderFocusColor,
+                                            ),
+                                          ),
+                                        ),
+                                        validator: _validateDefaultValue,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_selectedType != 'bool' &&
+                                      _selectedType != 'string') ...[
+                                    const SizedBox(height: 12),
+                                    KeyedSubtree(
+                                      key: _minFieldKey,
+                                      child: _buildGlassControlShell(
+                                        child: TextFormField(
+                                          controller: _minController,
+                                          focusNode: _minFocusNode,
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                                signed: false,
+                                              ),
+                                          style: const TextStyle(
+                                            color: DashboardRuntimeTheme
+                                                .fieldTextColor,
+                                            fontSize: 14,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            labelText: 'ค่าต่ำสุด',
+                                            labelStyle: strongerLabelStyle,
+                                            filled: true,
+                                            fillColor: DashboardRuntimeTheme
+                                                .surfaceColor,
+                                            enabledBorder: OutlineInputBorder(
+                                              borderSide: BorderSide(
+                                                color: DashboardRuntimeTheme
+                                                    .surfaceBorderColor,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderSide: BorderSide(
+                                                color: DashboardRuntimeTheme
+                                                    .surfaceBorderFocusColor,
+                                              ),
+                                            ),
+                                          ),
+                                          validator: (value) =>
+                                              _validateMinMaxValue(
+                                                value,
+                                                'min',
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    KeyedSubtree(
+                                      key: _maxFieldKey,
+                                      child: _buildGlassControlShell(
+                                        child: TextFormField(
+                                          controller: _maxController,
+                                          focusNode: _maxFocusNode,
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                                signed: false,
+                                              ),
+                                          style: const TextStyle(
+                                            color: DashboardRuntimeTheme
+                                                .fieldTextColor,
+                                            fontSize: 14,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            labelText: 'ค่าสูงสุด',
+                                            labelStyle: strongerLabelStyle,
+                                            filled: true,
+                                            fillColor: DashboardRuntimeTheme
+                                                .surfaceColor,
+                                            enabledBorder: OutlineInputBorder(
+                                              borderSide: BorderSide(
+                                                color: DashboardRuntimeTheme
+                                                    .surfaceBorderColor,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderSide: BorderSide(
+                                                color: DashboardRuntimeTheme
+                                                    .surfaceBorderFocusColor,
+                                              ),
+                                            ),
+                                          ),
+                                          validator: (value) =>
+                                              _validateMinMaxValue(
+                                                value,
+                                                'max',
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 12),
+                                  _buildGlassControlShell(
+                                    enabled: _isUnitSelectable,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: _isUnitSelectable
+                                          ? _openCustomUnitPicker
+                                          : null,
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(
+                                          labelText: 'หน่วย',
+                                          labelStyle: strongerLabelStyle,
+                                          hintText: 'เช่น %, C, ppm',
+                                          hintStyle: TextStyle(
+                                            color: DashboardRuntimeTheme
+                                                .mutedTextColor,
+                                          ),
+                                          filled: true,
+                                          fillColor: DashboardRuntimeTheme
+                                              .surfaceColor,
+                                          enabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderColor,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderFocusColor,
+                                            ),
+                                          ),
+                                          disabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: DashboardRuntimeTheme
+                                                  .surfaceBorderColor,
+                                            ),
+                                          ),
+                                        ),
+                                        isEmpty: _selectedUnit.trim().isEmpty,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                _selectedUnit,
+                                                style: TextStyle(
+                                                  color: _isUnitSelectable
+                                                      ? DashboardRuntimeTheme
+                                                            .fieldTextColor
+                                                      : DashboardRuntimeTheme
+                                                            .mutedTextColor,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.keyboard_arrow_down_rounded,
+                                              size: 20,
+                                              color: _isUnitSelectable
+                                                  ? DashboardRuntimeTheme
+                                                        .mutedTextColor
+                                                  : DashboardRuntimeTheme
+                                                        .surfaceBorderColor,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DecoratedBox(
-                                decoration: AppGlassTheme.accentDecoration(
-                                  radius: 999,
-                                  colors: const <Color>[
-                                    Color(0xFFEA7A70),
-                                    Color(0xFFD95C54),
-                                  ],
-                                  borderColor: const Color(0xFFC96868),
-                                  glowColor: const Color(0xFFE08A82),
-                                ),
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide.none,
-                                    foregroundColor: const Color(0xFFFFFBFB),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 15,
-                                    ),
-                                    backgroundColor: Colors.transparent,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: const Text(
-                                    'Cancel',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: DecoratedBox(
-                                decoration: AppGlassTheme.accentDecoration(
-                                  radius: 999,
-                                  colors: const <Color>[
-                                    Color(0xFF7EBFAF),
-                                    Color(0xFF5E9E8B),
-                                  ],
-                                  borderColor: const Color(0xFF6AA796),
-                                  glowColor: const Color(0xFFA9D3C7),
-                                ),
-                                child: FilledButton(
-                                  onPressed: _submit,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    shadowColor: Colors.transparent,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 15,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: Text(
-                                    widget.isEditing ? 'Save' : 'Add',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 16),
+                _buildCustomBindingFooter(),
+              ],
             ),
           ),
         ),
@@ -6287,4 +6449,258 @@ class _CustomBindingConfig {
   final double? defaultValue;
   final double? minValue;
   final double? maxValue;
+}
+
+class _CustomVPinPickerSheet extends StatefulWidget {
+  const _CustomVPinPickerSheet({
+    required this.selectedVPin,
+    required this.lockedMap,
+  });
+
+  final String selectedVPin;
+  final Map<String, String> lockedMap;
+
+  @override
+  State<_CustomVPinPickerSheet> createState() => _CustomVPinPickerSheetState();
+}
+
+class _CustomVPinPickerSheetState extends State<_CustomVPinPickerSheet> {
+  static const Set<String> _starterVPins = <String>{'V0', 'V1', 'V2', 'V3'};
+
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  double _pickerScale(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return (width / 390).clamp(0.86, 1.08);
+  }
+
+  bool _isLockedVPin(String vpin) {
+    return _starterVPins.contains(vpin) ||
+        (widget.lockedMap.containsKey(vpin) && widget.selectedVPin != vpin);
+  }
+
+  String? _lockedVPinReason(String vpin) {
+    if (_starterVPins.contains(vpin)) {
+      return '$vpin - คีย์เริ่มต้น';
+    }
+    final label = widget.lockedMap[vpin]?.trim();
+    if (label == null || label.isEmpty) {
+      return null;
+    }
+    return '$vpin - $label';
+  }
+
+  Future<void> _closeWithVPin(String vpin) async {
+    _searchFocusNode.unfocus();
+    FocusScope.of(context).unfocus();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(vpin);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = _pickerScale(context);
+    final allVPins = <String>[for (var i = 0; i <= 255; i += 1) 'V$i'];
+    final filteredVPins = allVPins.where((vpin) {
+      final searchText = <String>[
+        vpin,
+        _lockedVPinReason(vpin) ?? '',
+        widget.lockedMap[vpin] ?? '',
+      ].join(' ').toLowerCase();
+      return _searchQuery.isEmpty ||
+          searchText.contains(_searchQuery.trim().toLowerCase());
+    }).toList();
+    final selectableVPins = filteredVPins
+        .where((vpin) => !_isLockedVPin(vpin))
+        .toList();
+    final lockedVPins = filteredVPins
+        .where((vpin) => _isLockedVPin(vpin))
+        .toList();
+
+    Widget sectionLabel(String label) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          14 * scale,
+          12 * scale,
+          14 * scale,
+          4 * scale,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: DashboardRuntimeTheme.labelTextColor,
+            fontSize: 11 * scale,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+
+    Widget vpinTile(String vpin) {
+      final locked = _isLockedVPin(vpin);
+      final selected = widget.selectedVPin == vpin;
+      return ListTile(
+        dense: scale < 0.95,
+        visualDensity: scale < 0.95
+            ? const VisualDensity(vertical: -1)
+            : VisualDensity.standard,
+        enabled: !locked,
+        onTap: locked ? null : () => _closeWithVPin(vpin),
+        title: Text(
+          _lockedVPinReason(vpin) ?? vpin,
+          style: TextStyle(
+            color: locked
+                ? DashboardRuntimeTheme.mutedTextColor
+                : (selected
+                      ? DashboardRuntimeTheme.headlineColor
+                      : DashboardRuntimeTheme.fieldTextColor),
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 14 * scale,
+          ),
+        ),
+        trailing: locked
+            ? const Icon(
+                Icons.lock_rounded,
+                size: 16,
+                color: DashboardRuntimeTheme.mutedTextColor,
+              )
+            : (selected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      color: DashboardRuntimeTheme.surfaceBorderFocusColor,
+                    )
+                  : null),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(18 * scale, 0, 18 * scale, 14 * scale),
+          child: _buildStableGlassSheetShell(
+            radius: 22 * scale,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.76,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(height: 8 * scale),
+                  Container(
+                    width: 38 * scale,
+                    height: 3 * scale,
+                    decoration: BoxDecoration(
+                      color: DashboardRuntimeTheme.surfaceBorderColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  SizedBox(height: 10 * scale),
+                  Text(
+                    'เลือกข้อมูลที่เชื่อมต่อ (V Pin)',
+                    style: TextStyle(
+                      color: DashboardRuntimeTheme.headlineColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15 * scale,
+                    ),
+                  ),
+                  SizedBox(height: 10 * scale),
+                  Container(
+                    decoration: _glassInsetDecoration(radius: 16),
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
+                      textInputAction: TextInputAction.search,
+                      style: TextStyle(
+                        color: DashboardRuntimeTheme.fieldTextColor,
+                        fontSize: 14 * scale,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'ค้นหา V Pin',
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          size: 16,
+                          color: DashboardRuntimeTheme.labelTextColor,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14 * scale,
+                          vertical: 14 * scale,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                                icon: const Icon(Icons.clear_rounded, size: 18),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8 * scale),
+                  Flexible(
+                    child: filteredVPins.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: 18 * scale,
+                              ),
+                              child: Text(
+                                'ไม่พบข้อมูลที่ตรงกับคำค้น',
+                                style: TextStyle(
+                                  color: DashboardRuntimeTheme.mutedTextColor,
+                                  fontSize: 13 * scale,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                        : ListView(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            children: [
+                              if (selectableVPins.isNotEmpty)
+                                sectionLabel('เลือกได้'),
+                              for (final vpin in selectableVPins)
+                                vpinTile(vpin),
+                              if (lockedVPins.isNotEmpty)
+                                sectionLabel('ใช้งานไม่ได้'),
+                              for (final vpin in lockedVPins) vpinTile(vpin),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

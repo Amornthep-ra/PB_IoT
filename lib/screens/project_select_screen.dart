@@ -14,6 +14,7 @@ const _labelTextColor = Color(0xFF4B5A69);
 const _buttonStartColor = Color(0xFF7FC39C);
 const _buttonEndColor = Color(0xFF4E9070);
 const _buttonGlowColor = Color(0xFF9CCCB0);
+const _dangerColor = Color(0xFFC4525C);
 const _projectIconKeys = <String>[
   'sprout',
   'greenhouse',
@@ -96,7 +97,8 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
 
     try {
       final projects = await _projectStorageService.loadProjects();
-      final selectedProject = await _projectStorageService.loadSelectedProject();
+      final selectedProject = await _projectStorageService
+          .loadSelectedProject();
       if (!mounted) {
         return;
       }
@@ -113,7 +115,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
 
       setState(() {
         _isLoading = false;
-        _errorText = 'Unable to load projects.';
+        _errorText = 'ไม่สามารถโหลดโปรเจกต์ได้';
       });
     }
   }
@@ -153,7 +155,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
       }
 
       setState(() {
-        _errorText = 'Unable to create project.';
+        _errorText = 'ไม่สามารถสร้างโปรเจกต์ได้';
       });
       return;
     } finally {
@@ -188,7 +190,8 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
         iconKey: result.iconKey,
       );
       final projects = await _projectStorageService.loadProjects();
-      final selectedProject = await _projectStorageService.loadSelectedProject();
+      final selectedProject = await _projectStorageService
+          .loadSelectedProject();
       if (!mounted) {
         return;
       }
@@ -206,7 +209,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
       }
 
       setState(() {
-        _errorText = 'Unable to update project.';
+        _errorText = 'ไม่สามารถแก้ไขโปรเจกต์ได้';
       });
     } finally {
       if (mounted) {
@@ -237,7 +240,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
       }
 
       setState(() {
-        _errorText = 'Unable to open project.';
+        _errorText = 'ไม่สามารถเปิดโปรเจกต์ได้';
       });
     } finally {
       if (mounted) {
@@ -262,7 +265,8 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
     try {
       await _projectStorageService.deleteProject(project.id);
       final projects = await _projectStorageService.loadProjects();
-      final selectedProject = await _projectStorageService.loadSelectedProject();
+      final selectedProject = await _projectStorageService
+          .loadSelectedProject();
       if (!mounted) {
         return;
       }
@@ -280,7 +284,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
       }
 
       setState(() {
-        _errorText = 'Unable to delete project.';
+        _errorText = 'ไม่สามารถลบโปรเจกต์ได้';
       });
     } finally {
       if (mounted) {
@@ -333,14 +337,14 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
                           ),
                           child: const Icon(
                             Icons.delete_outline_rounded,
-                            color: Color(0xFFC4525C),
+                            color: _dangerColor,
                             size: 22,
                           ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
                           child: Text(
-                            'Delete Project',
+                            'ลบโปรเจกต์',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -354,7 +358,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Delete "${project.name}"',
+                      'ลบ "${project.name}"',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -379,7 +383,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
                       children: [
                         Expanded(
                           child: _ProjectActionButton(
-                            label: 'Cancel',
+                            label: 'ยกเลิก',
                             isSecondary: true,
                             onPressed: () => Navigator.of(context).pop(false),
                           ),
@@ -387,7 +391,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: _ProjectActionButton(
-                            label: 'Delete',
+                            label: 'ลบ',
                             isDanger: true,
                             onPressed: () => Navigator.of(context).pop(true),
                           ),
@@ -449,12 +453,17 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
               backgroundColor: _buttonEndColor,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Project'),
+              label: const Text('สร้างโปรเจกต์'),
             ),
     );
   }
 
   Widget _buildHeader(MediaQueryData mediaQuery) {
+    final isCompactWidth = mediaQuery.size.width < 390;
+    final headerVerticalPadding = isCompactWidth ? 16.0 : 18.0;
+    final headerIconSize = isCompactWidth ? 44.0 : 46.0;
+    final headerIconRadius = isCompactWidth ? 15.0 : 16.0;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -462,9 +471,9 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
         child: Container(
           padding: EdgeInsets.fromLTRB(
             20,
-            mediaQuery.size.width < 390 ? 18 : 22,
+            headerVerticalPadding,
             20,
-            mediaQuery.size.width < 390 ? 18 : 22,
+            headerVerticalPadding,
           ),
           decoration: AppGlassTheme.surfaceDecoration(
             radius: 24,
@@ -478,10 +487,10 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: headerIconSize,
+                height: headerIconSize,
                 decoration: AppGlassTheme.accentDecoration(
-                  radius: 16,
+                  radius: headerIconRadius,
                   colors: const <Color>[_buttonStartColor, _buttonEndColor],
                   borderColor: Colors.white,
                   glowColor: _buttonGlowColor,
@@ -489,7 +498,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
                 child: const Icon(
                   Icons.folder_open_rounded,
                   color: Colors.white,
-                  size: 26,
+                  size: 25,
                 ),
               ),
               const SizedBox(width: 14),
@@ -498,7 +507,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Select Project',
+                      'เลือกโปรเจกต์',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -622,7 +631,7 @@ class _EmptyProjectState extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Create your first project',
+                'สร้างโปรเจกต์แรกของคุณ',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
@@ -632,7 +641,7 @@ class _EmptyProjectState extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Projects keep each farm dashboard separate.',
+                'แยกแดชบอร์ดของแต่ละพื้นที่ทำงานให้เป็นระเบียบ',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
@@ -647,7 +656,7 @@ class _EmptyProjectState extends StatelessWidget {
               ],
               const SizedBox(height: 22),
               _ProjectActionButton(
-                label: isBusy ? 'Creating...' : 'Create Project',
+                label: isBusy ? 'กำลังสร้าง...' : 'สร้างโปรเจกต์',
                 onPressed: isBusy ? null : onCreateProject,
               ),
             ],
@@ -706,137 +715,151 @@ class _ProjectNameDialogState extends State<_ProjectNameDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final maxDialogHeight =
-        (mediaQuery.size.height - mediaQuery.viewInsets.bottom - 48).clamp(
-          220.0,
-          mediaQuery.size.height * 0.82,
-        );
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final maxDialogHeight = (mediaQuery.size.height - keyboardInset - 72).clamp(
+      220.0,
+      mediaQuery.size.height * (keyboardInset > 0 ? 0.64 : 0.82),
+    );
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxDialogHeight),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-              decoration: AppGlassTheme.surfaceDecoration(
-                radius: 22,
-                borderAlpha: 0.60,
-                colors: <Color>[
-                  const Color(0xFFFFFFFF).withValues(alpha: 0.78),
-                  const Color(0xFFF4FBF7).withValues(alpha: 0.52),
-                ],
-                shadows: AppGlassTheme.shadowMd,
-              ),
-              child: SingleChildScrollView(
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        _isEditing ? 'Edit Project' : 'Create Project',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: _headlineColor,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Project Icon',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: _labelTextColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final iconKey in _projectIconKeys)
-                            _ProjectIconChoice(
-                              icon: _projectIconData(iconKey),
-                              colors: _projectIconColors(iconKey),
-                              isSelected: iconKey == _selectedIconKey,
-                              onTap: () {
-                                setState(() {
-                                  _selectedIconKey = iconKey;
-                                });
-                              },
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Project Name',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: _labelTextColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _controller,
-                        autofocus: true,
-                        textInputAction: TextInputAction.done,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: _headlineColor,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'ตัวอย่าง: PB IoT',
-                          hintStyle: const TextStyle(color: _mutedTextColor),
-                          filled: true,
-                          fillColor: Colors.white.withValues(alpha: 0.72),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 14,
-                          ),
-                        ),
-                        validator: (value) {
-                          final trimmed = value?.trim() ?? '';
-                          if (trimmed.isEmpty) {
-                            return 'กรุณาใส่ชื่อโปรเจกต์';
-                          }
-                          return null;
-                        },
-                        onFieldSubmitted: (_) => _submit(),
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ProjectActionButton(
-                              label: 'Cancel',
-                              isSecondary: true,
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _ProjectActionButton(
-                              label: _isEditing ? 'Save' : 'Create',
-                              onPressed: _submit,
-                            ),
-                          ),
-                        ],
-                      ),
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxDialogHeight),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+                  decoration: AppGlassTheme.surfaceDecoration(
+                    radius: 22,
+                    borderAlpha: 0.60,
+                    colors: <Color>[
+                      const Color(0xFFFFFFFF).withValues(alpha: 0.78),
+                      const Color(0xFFF4FBF7).withValues(alpha: 0.52),
                     ],
+                    shadows: AppGlassTheme.shadowMd,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            _isEditing ? 'แก้ไขโปรเจกต์' : 'สร้างโปรเจกต์',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: _headlineColor,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'ไอคอนโปรเจกต์',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: _labelTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final iconKey in _projectIconKeys)
+                                _ProjectIconChoice(
+                                  icon: _projectIconData(iconKey),
+                                  colors: _projectIconColors(iconKey),
+                                  isSelected: iconKey == _selectedIconKey,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedIconKey = iconKey;
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'ชื่อโปรเจกต์',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: _labelTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _controller,
+                            autofocus: true,
+                            textInputAction: TextInputAction.done,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _headlineColor,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'ตัวอย่าง: PB IoT',
+                              hintStyle: const TextStyle(
+                                color: _mutedTextColor,
+                              ),
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.72),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 14,
+                              ),
+                            ),
+                            validator: (value) {
+                              final trimmed = value?.trim() ?? '';
+                              if (trimmed.isEmpty) {
+                                return 'กรุณาใส่ชื่อโปรเจกต์';
+                              }
+                              return null;
+                            },
+                            onFieldSubmitted: (_) => _submit(),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _ProjectActionButton(
+                                  label: 'ยกเลิก',
+                                  isSecondary: true,
+                                  onPressed: () => Navigator.of(context).pop(),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _ProjectActionButton(
+                                  label: _isEditing ? 'บันทึก' : 'สร้าง',
+                                  onPressed: _submit,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -990,7 +1013,7 @@ class _ProjectTile extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Updated ${_formatProjectDate(project.updatedAt)}',
+                          'แก้ไขล่าสุด ${_formatProjectDate(project.updatedAt)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -1002,38 +1025,20 @@ class _ProjectTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Icon(
-                    isSelected
-                        ? Icons.check_circle_rounded
-                        : Icons.chevron_right_rounded,
-                    color: isSelected ? _buttonEndColor : _mutedTextColor,
-                    size: isSelected ? 24 : 26,
-                  ),
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 36,
-                    height: 40,
-                    child: IconButton(
-                      tooltip: 'Edit project',
-                      onPressed: isBusy ? null : onEdit,
-                      icon: const Icon(Icons.edit_outlined),
+                  const SizedBox(width: 8),
+                  if (isSelected)
+                    const _SelectedProjectChip()
+                  else
+                    const Icon(
+                      Icons.chevron_right_rounded,
                       color: _mutedTextColor,
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
+                      size: 26,
                     ),
-                  ),
-                  SizedBox(
-                    width: 36,
-                    height: 40,
-                    child: IconButton(
-                      tooltip: 'Delete project',
-                      onPressed: isBusy ? null : onDelete,
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      color: const Color(0xFFC4525C),
-                      iconSize: 21,
-                      padding: EdgeInsets.zero,
-                    ),
+                  const SizedBox(width: 2),
+                  _ProjectTileMenu(
+                    isEnabled: !isBusy,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
                   ),
                 ],
               ),
@@ -1046,9 +1051,138 @@ class _ProjectTile extends StatelessWidget {
 
   static String _formatProjectDate(DateTime value) {
     final local = value.toLocal();
-    final day = local.day.toString().padLeft(2, '0');
-    final month = local.month.toString().padLeft(2, '0');
-    return '$day/$month/${local.year}';
+    const monthLabels = <String>[
+      'ม.ค.',
+      'ก.พ.',
+      'มี.ค.',
+      'เม.ย.',
+      'พ.ค.',
+      'มิ.ย.',
+      'ก.ค.',
+      'ส.ค.',
+      'ก.ย.',
+      'ต.ค.',
+      'พ.ย.',
+      'ธ.ค.',
+    ];
+    return '${local.day} ${monthLabels[local.month - 1]} ${local.year}';
+  }
+}
+
+class _SelectedProjectChip extends StatelessWidget {
+  const _SelectedProjectChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE1F2E9),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFB8DDC9)),
+      ),
+      child: const Text(
+        'เลือกอยู่',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11,
+          height: 1,
+          fontWeight: FontWeight.w800,
+          color: _buttonEndColor,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectTileMenu extends StatelessWidget {
+  const _ProjectTileMenu({
+    required this.isEnabled,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final bool isEnabled;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: PopupMenuButton<_ProjectTileAction>(
+        tooltip: 'ตัวเลือกโปรเจกต์',
+        enabled: isEnabled,
+        icon: const Icon(Icons.more_horiz_rounded),
+        color: const Color(0xFFF8FAFD),
+        surfaceTintColor: Colors.transparent,
+        iconColor: _mutedTextColor,
+        iconSize: 24,
+        padding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        onSelected: (action) {
+          switch (action) {
+            case _ProjectTileAction.edit:
+              onEdit();
+            case _ProjectTileAction.delete:
+              onDelete();
+          }
+        },
+        itemBuilder: (context) => const [
+          PopupMenuItem<_ProjectTileAction>(
+            value: _ProjectTileAction.edit,
+            child: _ProjectMenuItem(
+              icon: Icons.edit_outlined,
+              label: 'แก้ไข',
+              color: _mutedTextColor,
+            ),
+          ),
+          PopupMenuItem<_ProjectTileAction>(
+            value: _ProjectTileAction.delete,
+            child: _ProjectMenuItem(
+              icon: Icons.delete_outline_rounded,
+              label: 'ลบ',
+              color: _dangerColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _ProjectTileAction { edit, delete }
+
+class _ProjectMenuItem extends StatelessWidget {
+  const _ProjectMenuItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1069,7 +1203,7 @@ class _ProjectActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final foreground = isSecondary ? _labelTextColor : Colors.white;
     final accentColors = isDanger
-        ? const <Color>[Color(0xFFE9828C), Color(0xFFC4525C)]
+        ? const <Color>[Color(0xFFE9828C), _dangerColor]
         : const <Color>[_buttonStartColor, _buttonEndColor];
     final glowColor = isDanger ? const Color(0xFFECA1A8) : _buttonGlowColor;
 
@@ -1136,7 +1270,7 @@ class _ProjectErrorBanner extends StatelessWidget {
         children: [
           const Icon(
             Icons.error_outline_rounded,
-            color: Color(0xFFC4525C),
+            color: _dangerColor,
             size: 18,
           ),
           const SizedBox(width: 8),

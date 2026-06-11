@@ -1,6 +1,74 @@
 import 'package:flutter/material.dart';
 
-enum DashboardItemType { button, slider, gauge, toggle, valueLabel }
+enum DashboardItemType {
+  button,
+  slider,
+  gauge,
+  toggle,
+  valueLabel,
+  stepH,
+  stepV,
+}
+
+const Map<DashboardItemType, String> dashboardDefaultTitlePrefixes =
+    <DashboardItemType, String>{
+      DashboardItemType.button: 'ปุ่ม',
+      DashboardItemType.slider: 'สไลด์',
+      DashboardItemType.gauge: 'เกจ',
+      DashboardItemType.toggle: 'สวิตช์',
+      DashboardItemType.valueLabel: 'แสดงค่า',
+      DashboardItemType.stepH: 'ปรับค่า H',
+      DashboardItemType.stepV: 'ปรับค่า V',
+    };
+
+const Map<DashboardItemType, String> dashboardLegacyDefaultTitlePrefixes =
+    <DashboardItemType, String>{
+      DashboardItemType.button: 'NEW BUTTON',
+      DashboardItemType.slider: 'NEW SLIDER',
+      DashboardItemType.gauge: 'NEW GAUGE',
+      DashboardItemType.toggle: 'NEW TOGGLE',
+      DashboardItemType.valueLabel: 'NEW VALUE',
+      DashboardItemType.stepH: 'STEP H',
+      DashboardItemType.stepV: 'STEP V',
+    };
+
+String dashboardDefaultTitlePrefix(DashboardItemType type) {
+  return dashboardDefaultTitlePrefixes[type] ?? type.name;
+}
+
+String dashboardDefaultTitleForType(DashboardItemType type, [int index = 1]) {
+  return '${dashboardDefaultTitlePrefix(type)} $index';
+}
+
+bool dashboardIsDefaultTitleForType(DashboardItemType type, String title) {
+  final normalized = title.trim().toUpperCase();
+  if (normalized.isEmpty) {
+    return false;
+  }
+
+  final prefixes = <String>[
+    dashboardDefaultTitlePrefix(type),
+    dashboardLegacyDefaultTitlePrefixes[type] ?? '',
+  ].where((prefix) => prefix.isNotEmpty);
+
+  for (final prefix in prefixes) {
+    final normalizedPrefix = prefix.toUpperCase();
+    if (normalized == normalizedPrefix) {
+      return true;
+    }
+
+    if (!normalized.startsWith(normalizedPrefix)) {
+      continue;
+    }
+
+    final suffix = normalized.substring(normalizedPrefix.length).trimLeft();
+    if (suffix.isNotEmpty && int.tryParse(suffix) != null) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 class DashboardItemTitlePosition {
   const DashboardItemTitlePosition._();
@@ -81,11 +149,11 @@ class DashboardItem {
     this.enabled = false,
     bool? locked,
   }) : titlePosition = titlePosition ?? DashboardItemTitlePosition.auto,
-        bindingMode = bindingMode ?? 'read',
-        dataType = dataType ?? 'number',
-        stepValue = stepValue ?? 1,
-        sendBehavior = sendBehavior ?? 'on_release',
-        _locked = locked;
+       bindingMode = bindingMode ?? 'read',
+       dataType = dataType ?? 'number',
+       stepValue = stepValue ?? 1,
+       sendBehavior = sendBehavior ?? 'on_release',
+       _locked = locked;
 
   final String id;
   final DashboardItemType type;

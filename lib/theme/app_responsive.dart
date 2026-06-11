@@ -128,7 +128,7 @@ class AppResponsiveMetrics {
       iconTileRadius: isCompactHeight ? 8.0 : 10.0,
       infoRowVerticalPadding: isCompactHeight ? 6.0 : 10.0,
       menuRowVerticalPadding: isCompactHeight ? 6.0 : 10.0,
-      authCardRadius: widthClass == AppWidthClass.compact ? 28.0 : 32.0,
+      authCardRadius: widthClass == AppWidthClass.compact ? 24.0 : 26.0,
       authFieldGap: isCompactHeight
           ? (widthClass == AppWidthClass.compact ? 16.0 : 18.0)
           : (widthClass == AppWidthClass.compact ? 18.0 : 20.0),

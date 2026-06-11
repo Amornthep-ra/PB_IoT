@@ -19,6 +19,7 @@ class DashboardAddWidgetService {
   }) {
     final prototype = DashboardWidgetFactory.createItem(
       type: type,
+      existingItems: items,
       seed: seed,
       buttonMinW: buttonMinW,
       buttonMaxW: buttonMaxW,

@@ -42,13 +42,13 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
 
   Widget _buildGlassHeader() {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           decoration: AppGlassTheme.surfaceDecoration(
-            radius: 28,
+            radius: 24,
             borderAlpha: 0.58,
             colors: <Color>[
               const Color(0xFFFFFFFF).withValues(alpha: 0.82),
@@ -81,7 +81,7 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                     ),
                     padding: EdgeInsets.zero,
                     visualDensity: VisualDensity.compact,
-                    tooltip: 'Back',
+                    tooltip: 'กลับ',
                     icon: const Icon(
                       Icons.arrow_back_ios_new_rounded,
                       size: 12,
@@ -96,9 +96,9 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Settings',
+                      'ตั้งค่า',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 21,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.4,
                         color: _headlineColor,
@@ -167,13 +167,13 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     }
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('คัดลอก Token แล้ว')));
+    ).showSnackBar(const SnackBar(content: Text('คัดลอกโทเค็นแล้ว')));
   }
 
   String _maskedToken(String token) {
     final trimmedToken = token.trim();
     if (trimmedToken.isEmpty) {
-      return 'Not available';
+      return 'ไม่พร้อมใช้งาน';
     }
     if (trimmedToken.length <= 2) {
       return '••••';
@@ -183,6 +183,15 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     }
     return '${trimmedToken.substring(0, 4)}••••••••'
         '${trimmedToken.substring(trimmedToken.length - 4)}';
+  }
+
+  String _authTypeLabel(String authType) {
+    return switch (authType.trim().toLowerCase()) {
+      'token' => 'โทเค็น',
+      'cookie' => 'คุกกี้',
+      'session' => 'เซสชัน',
+      _ => authType,
+    };
   }
 
   Future<void> _initializeSessionState() async {
@@ -415,7 +424,7 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open Privacy Policy.')),
+        const SnackBar(content: Text('ไม่สามารถเปิดนโยบายความเป็นส่วนตัวได้')),
       );
     }
   }
@@ -427,7 +436,7 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     final profileAvatarId = _resolvedProfileAvatarId;
     final displayName = session?.displayName.trim();
     final userName = displayName == null || displayName.isEmpty
-        ? 'Farmer John'
+        ? 'ผู้ใช้งาน'
         : displayName;
     final sessionToken = session?.token.trim();
     final fallbackToken = session?.mqttDeviceId?.trim();
@@ -439,16 +448,16 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
     final hasToken = rawToken.isNotEmpty;
     final tokenText = hasToken
         ? (_isTokenVisible ? rawToken : _maskedToken(rawToken))
-        : 'Not available';
+        : 'ไม่พร้อมใช้งาน';
     final authType = session?.authType?.trim();
     final authTypeText = authType == null || authType.isEmpty
-        ? 'Unknown'
-        : authType;
+        ? 'ไม่ทราบ'
+        : _authTypeLabel(authType);
     final isOfflineMode = session?.isOfflineMode == true;
     final isAuthenticated = session?.authenticated == true;
     final sessionStatusText = isOfflineMode
-        ? 'Offline'
-        : (isAuthenticated ? 'Active' : 'Inactive');
+        ? 'ออฟไลน์'
+        : (isAuthenticated ? 'ใช้งานอยู่' : 'ไม่ได้ใช้งาน');
     final sessionStatusColor = isOfflineMode
         ? const Color(0xFFE0A11B)
         : (isAuthenticated ? const Color(0xFF59BE6E) : const Color(0xFF8A9099));
@@ -474,7 +483,7 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                     metrics.screenPadding,
                     metrics.topSpacing,
                     metrics.screenPadding,
-                    metrics.bottomSafeGap,
+                    metrics.bottomSafeGap + 96,
                   ),
                   children: [
                     _buildGlassHeader(),
@@ -487,35 +496,34 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                         onEditTap: _onEditProfileAvatarPressed,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Text(
                       userName,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: 19,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: -0.4,
                         color: _headlineColor,
                       ),
                     ),
                     SizedBox(height: metrics.sectionGap),
                     _SectionCard(
                       metrics: metrics,
-                      title: 'Session Details',
+                      title: 'รายละเอียดเซสชัน',
                       children: [
                         _InfoRow(
                           metrics: metrics,
                           icon: Icons.key_outlined,
-                          label: 'Auth Type',
+                          label: 'ประเภทการเข้าสู่ระบบ',
                           value: authTypeText,
                         ),
                         const _DividerRow(),
                         _InfoRow(
                           metrics: metrics,
                           icon: Icons.memory_rounded,
-                          label: 'Token',
+                          label: 'โทเค็น',
                           value: tokenText,
                           valueMonospace: hasToken,
                           trailing: hasToken
@@ -530,7 +538,7 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                         _InfoRow(
                           metrics: metrics,
                           icon: Icons.check_circle_outline_rounded,
-                          label: 'Session Status',
+                          label: 'สถานะเซสชัน',
                           value: sessionStatusText,
                           valueColor: sessionStatusColor,
                         ),
@@ -539,17 +547,17 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                     SizedBox(height: metrics.sectionGap),
                     _SectionCard(
                       metrics: metrics,
-                      title: 'Preferences',
+                      title: 'การตั้งค่า',
                       children: [
                         _MenuRow(
                           metrics: metrics,
                           icon: Icons.settings_outlined,
-                          label: 'General Settings',
+                          label: 'การตั้งค่าทั่วไป',
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'General settings will be available here soon.',
+                                  'การตั้งค่าทั่วไปจะพร้อมใช้งานเร็วๆ นี้',
                                 ),
                               ),
                             );
@@ -559,26 +567,26 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                         _MenuRow(
                           metrics: metrics,
                           icon: Icons.folder_open_rounded,
-                          label: 'Switch Project',
+                          label: 'เปลี่ยนโปรเจกต์',
                           onTap: _onSwitchProjectPressed,
                         ),
                         const _DividerRow(),
                         _MenuRow(
                           metrics: metrics,
                           icon: Icons.privacy_tip_outlined,
-                          label: 'Privacy Policy',
+                          label: 'นโยบายความเป็นส่วนตัว',
                           onTap: _onOpenPrivacyPolicy,
                         ),
                         const _DividerRow(),
                         _MenuRow(
                           metrics: metrics,
                           icon: Icons.help_outline_rounded,
-                          label: 'Help & Support',
+                          label: 'ช่วยเหลือและสนับสนุน',
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'Help & support is not available yet.',
+                                  'ศูนย์ช่วยเหลือยังไม่พร้อมใช้งาน',
                                 ),
                               ),
                             );
@@ -590,7 +598,7 @@ class _AccountSessionScreenState extends State<AccountSessionScreen> {
                     _DangerActionButton(
                       height: metrics.primaryButtonHeight,
                       isLoading: _isLoggingOut,
-                      label: 'Logout',
+                      label: 'ออกจากระบบ',
                       onPressed: _isLoggingOut ? null : _onLogoutPressed,
                     ),
                   ],
@@ -792,9 +800,20 @@ class _HeroProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatarInset = metrics.isCompactHeight ? 8.0 : 14.0;
+    final avatarSize = (metrics.heroAvatarSize - avatarInset).clamp(
+      112.0,
+      metrics.heroAvatarSize,
+    );
+    final iconSize = (metrics.heroAvatarIconSize - 10).clamp(
+      56.0,
+      metrics.heroAvatarIconSize,
+    );
+    const badgeSize = 34.0;
+
     return SizedBox(
-      width: metrics.heroAvatarSize,
-      height: metrics.heroAvatarSize,
+      width: avatarSize,
+      height: avatarSize,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -802,10 +821,10 @@ class _HeroProfileCard extends StatelessWidget {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: Container(
-                width: metrics.heroAvatarSize,
-                height: metrics.heroAvatarSize,
+                width: avatarSize,
+                height: avatarSize,
                 decoration: AppGlassTheme.surfaceDecoration(
-                  radius: metrics.heroAvatarSize / 2,
+                  radius: avatarSize / 2,
                   borderAlpha: 0.54,
                   colors: <Color>[
                     Colors.white.withValues(alpha: 0.76),
@@ -820,7 +839,7 @@ class _HeroProfileCard extends StatelessWidget {
                     if (profileAvatarId != null)
                       _ProfileAvatarPresetImage(avatarId: profileAvatarId!)
                     else
-                      _ProfileAvatarFallback(metrics: metrics),
+                      _ProfileAvatarFallback(iconSize: iconSize),
                     if (isUpdating)
                       Container(
                         color: Colors.black.withValues(alpha: 0.20),
@@ -842,8 +861,8 @@ class _HeroProfileCard extends StatelessWidget {
             ),
           ),
           Positioned(
-            right: -2,
-            bottom: -2,
+            right: -1,
+            bottom: -1,
             child: ClipOval(
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -851,12 +870,12 @@ class _HeroProfileCard extends StatelessWidget {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: onEditTap,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(badgeSize / 2),
                     child: Ink(
-                      width: 36,
-                      height: 36,
+                      width: badgeSize,
+                      height: badgeSize,
                       decoration: AppGlassTheme.accentDecoration(
-                        radius: 18,
+                        radius: badgeSize / 2,
                         colors: const <Color>[
                           Color(0xFF6BB38A),
                           Color(0xFF4E8D6B),
@@ -866,7 +885,7 @@ class _HeroProfileCard extends StatelessWidget {
                       ),
                       child: const Icon(
                         Icons.grid_view_rounded,
-                        size: 18,
+                        size: 17,
                         color: Colors.white,
                       ),
                     ),
@@ -882,15 +901,15 @@ class _HeroProfileCard extends StatelessWidget {
 }
 
 class _ProfileAvatarFallback extends StatelessWidget {
-  const _ProfileAvatarFallback({required this.metrics});
+  const _ProfileAvatarFallback({required this.iconSize});
 
-  final AppResponsiveMetrics metrics;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
     return Icon(
       Icons.person_outline_rounded,
-      size: metrics.heroAvatarIconSize,
+      size: iconSize,
       color: const Color(0xFF5A9676),
     );
   }
@@ -940,7 +959,7 @@ class _ProfileAvatarSourceSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Profile avatar',
+                          'รูปโปรไฟล์',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -949,7 +968,7 @@ class _ProfileAvatarSourceSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Choose a built-in avatar for this account.',
+                          'เลือกรูปโปรไฟล์สำเร็จรูปสำหรับบัญชีนี้',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
@@ -959,7 +978,7 @@ class _ProfileAvatarSourceSheet extends StatelessWidget {
                         const SizedBox(height: 14),
                         _SourceActionTile(
                           icon: Icons.grid_view_rounded,
-                          label: 'Choose avatar',
+                          label: 'เลือกรูปโปรไฟล์',
                           onTap: () =>
                               onActionSelected(_ProfileAvatarAction.avatar),
                         ),
@@ -967,7 +986,7 @@ class _ProfileAvatarSourceSheet extends StatelessWidget {
                           const SizedBox(height: 8),
                           _SourceActionTile(
                             icon: Icons.delete_outline_rounded,
-                            label: 'Remove avatar',
+                            label: 'ลบรูปโปรไฟล์',
                             iconColor: const Color(0xFFB24A46),
                             onTap: () =>
                                 onActionSelected(_ProfileAvatarAction.remove),
@@ -1097,7 +1116,7 @@ class _ProfileAvatarPickerSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Choose avatar',
+                      'เลือกรูปโปรไฟล์',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -1106,7 +1125,7 @@ class _ProfileAvatarPickerSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Pick a built-in avatar for this account.',
+                      'เลือกรูปโปรไฟล์สำเร็จรูปสำหรับบัญชีนี้',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -1371,13 +1390,13 @@ class _TokenActions extends StatelessWidget {
           icon: isVisible
               ? Icons.visibility_off_outlined
               : Icons.visibility_outlined,
-          tooltip: isVisible ? 'Hide token' : 'Show token',
+          tooltip: isVisible ? 'ซ่อนโทเค็น' : 'แสดงโทเค็น',
           onPressed: onToggleVisibility,
         ),
         const SizedBox(width: 2),
         _TokenIconButton(
           icon: Icons.copy_rounded,
-          tooltip: 'Copy token',
+          tooltip: 'คัดลอกโทเค็น',
           onPressed: onCopy,
         ),
       ],

@@ -9,10 +9,9 @@ typedef DashboardWidgetFactoryButtonRectResolver =
 class DashboardWidgetFactory {
   const DashboardWidgetFactory._();
 
-  static const String buttonDefaultTitle = 'NEW BUTTON';
-
   static DashboardItem createItem({
     required DashboardItemType type,
+    required List<DashboardItem> existingItems,
     required int seed,
     required int buttonMinW,
     required int buttonMaxW,
@@ -20,14 +19,14 @@ class DashboardWidgetFactory {
     required int buttonMaxH,
     DashboardWidgetFactoryButtonRectResolver? buttonRectResolver,
   }) {
+    final defaultTitle = _nextDefaultTitle(type, existingItems);
+
     switch (type) {
       case DashboardItemType.button:
-        const defaultTitle = buttonDefaultTitle;
         return DashboardItem(
           id: 'button-$seed',
           type: DashboardItemType.button,
           title: defaultTitle,
-          titleColor: const Color(0xFF15212B),
           rect:
               buttonRectResolver?.call(defaultTitle) ??
               const GridRect(x: 0, y: 0, w: 14, h: 8),
@@ -36,7 +35,7 @@ class DashboardWidgetFactory {
           minH: buttonMinH,
           maxH: buttonMaxH,
           accentColor: const Color(0xFF1F9443),
-          secondaryAccentColor: const Color(0xFFFF0000),
+          secondaryAccentColor: const Color(0xFFD94B4B),
           dataSource: 'device_channel',
           bindingMode: 'read_write',
           dataType: 'bool',
@@ -47,13 +46,13 @@ class DashboardWidgetFactory {
         return DashboardItem(
           id: 'slider-$seed',
           type: DashboardItemType.slider,
-          title: 'New Slider',
+          title: defaultTitle,
           titleColor: const Color(0xFF15212B),
-          rect: const GridRect(x: 0, y: 0, w: 14, h: 4),
-          minW: 10,
+          rect: const GridRect(x: 0, y: 0, w: 16, h: 5),
+          minW: 12,
           maxW: 28,
-          minH: 4,
-          maxH: 4,
+          minH: 5,
+          maxH: 5,
           accentColor: const Color(0xFF9BE7C4),
           value: 0,
           dataSource: 'device_channel',
@@ -66,12 +65,12 @@ class DashboardWidgetFactory {
         return DashboardItem(
           id: 'gauge-$seed',
           type: DashboardItemType.gauge,
-          title: 'New Gauge',
+          title: defaultTitle,
           titleColor: const Color(0xFF15212B),
-          rect: const GridRect(x: 0, y: 0, w: 10, h: 10),
-          minW: 8,
+          rect: const GridRect(x: 0, y: 0, w: 11, h: 11),
+          minW: 9,
           maxW: 14,
-          minH: 8,
+          minH: 9,
           maxH: 14,
           accentColor: const Color(0xFFEF7C39),
           value: 0,
@@ -83,15 +82,15 @@ class DashboardWidgetFactory {
         return DashboardItem(
           id: 'toggle-$seed',
           type: DashboardItemType.toggle,
-          title: 'New Toggle',
+          title: defaultTitle,
           titleColor: const Color(0xFF15212B),
-          rect: const GridRect(x: 0, y: 0, w: 14, h: 6),
-          minW: 6,
+          rect: const GridRect(x: 0, y: 0, w: 12, h: 5),
+          minW: 8,
           maxW: 18,
-          minH: 3,
+          minH: 4,
           maxH: 8,
           accentColor: const Color(0xFF5BD57D),
-          secondaryAccentColor: const Color(0xFFD93A3A),
+          secondaryAccentColor: const Color(0xFFD94B4B),
           dataSource: 'device_channel',
           bindingMode: 'read_write',
           dataType: 'bool',
@@ -103,12 +102,12 @@ class DashboardWidgetFactory {
         return DashboardItem(
           id: 'value-$seed',
           type: DashboardItemType.valueLabel,
-          title: 'New Value',
+          title: defaultTitle,
           titleColor: const Color(0xFF15212B),
-          rect: const GridRect(x: 0, y: 0, w: 14, h: 5),
-          minW: 7,
-          maxW: 14,
-          minH: 4,
+          rect: const GridRect(x: 0, y: 0, w: 14, h: 4),
+          minW: 8,
+          maxW: 24,
+          minH: 3,
           maxH: 6,
           accentColor: const Color(0xFF7FD7FF),
           value: 0,
@@ -116,6 +115,97 @@ class DashboardWidgetFactory {
           bindingMode: 'read',
           dataType: 'number',
         );
+      case DashboardItemType.stepH:
+        return DashboardItem(
+          id: 'step-h-$seed',
+          type: DashboardItemType.stepH,
+          title: defaultTitle,
+          titleColor: const Color(0xFF15212B),
+          rect: const GridRect(x: 0, y: 0, w: 15, h: 5),
+          minW: 10,
+          maxW: 24,
+          minH: 4,
+          maxH: 7,
+          accentColor: const Color(0xFF6CB8F6),
+          value: 0,
+          minValue: 0,
+          maxValue: 100,
+          dataSource: 'device_channel',
+          bindingMode: 'read_write',
+          dataType: 'number',
+          stepValue: 1,
+          sendBehavior: 'on_release',
+        );
+      case DashboardItemType.stepV:
+        return DashboardItem(
+          id: 'step-v-$seed',
+          type: DashboardItemType.stepV,
+          title: defaultTitle,
+          titleColor: const Color(0xFF15212B),
+          rect: const GridRect(x: 0, y: 0, w: 8, h: 10),
+          minW: 6,
+          maxW: 12,
+          minH: 8,
+          maxH: 16,
+          accentColor: const Color(0xFF6CB8F6),
+          value: 0,
+          minValue: 0,
+          maxValue: 100,
+          dataSource: 'device_channel',
+          bindingMode: 'read_write',
+          dataType: 'number',
+          stepValue: 1,
+          sendBehavior: 'on_release',
+        );
     }
+  }
+
+  static String _nextDefaultTitle(
+    DashboardItemType type,
+    List<DashboardItem> existingItems,
+  ) {
+    var maxIndex = 0;
+    for (final item in existingItems) {
+      if (item.type != type) {
+        continue;
+      }
+
+      final index = _defaultTitleIndex(type, item.title);
+      if (index != null && index > maxIndex) {
+        maxIndex = index;
+      }
+    }
+
+    return dashboardDefaultTitleForType(type, maxIndex + 1);
+  }
+
+  static int? _defaultTitleIndex(DashboardItemType type, String title) {
+    final normalized = title.trim().toUpperCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final prefixes = <String>[
+      dashboardDefaultTitlePrefix(type),
+      dashboardLegacyDefaultTitlePrefixes[type] ?? '',
+    ].where((prefix) => prefix.isNotEmpty);
+
+    for (final prefix in prefixes) {
+      final normalizedPrefix = prefix.toUpperCase();
+      if (normalized == normalizedPrefix) {
+        return 1;
+      }
+      if (!normalized.startsWith(normalizedPrefix)) {
+        continue;
+      }
+
+      final suffix = normalized.substring(normalizedPrefix.length).trimLeft();
+      final index = int.tryParse(suffix);
+      if (index != null && index > 0) {
+        return index;
+      }
+    }
+
+    return null;
   }
 }

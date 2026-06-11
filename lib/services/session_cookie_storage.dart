@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionCookieStorage {
@@ -7,6 +8,7 @@ class SessionCookieStorage {
   static const String _rememberMeKey = 'remember_me';
   static const String _rememberedTokenKey = 'remembered_token';
   static const String _rememberedDisplayNameKey = 'remembered_display_name';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   static Future<void> saveFromSetCookieHeaders(
     List<String> setCookieHeaders,
@@ -37,8 +39,9 @@ class SessionCookieStorage {
   }) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setBool(_rememberMeKey, rememberMe);
-    await preferences.setString(_rememberedTokenKey, token);
     await preferences.setString(_rememberedDisplayNameKey, displayName);
+    await preferences.remove(_rememberedTokenKey);
+    await _secureStorage.write(key: _rememberedTokenKey, value: token);
   }
 
   static Future<RememberedLogin?> loadRememberedLogin() async {
@@ -49,7 +52,7 @@ class SessionCookieStorage {
       return null;
     }
 
-    final token = preferences.getString(_rememberedTokenKey) ?? '';
+    final token = await _loadRememberedToken(preferences);
     final displayName = preferences.getString(_rememberedDisplayNameKey) ?? '';
 
     return RememberedLogin(
@@ -64,6 +67,25 @@ class SessionCookieStorage {
     await preferences.remove(_rememberMeKey);
     await preferences.remove(_rememberedTokenKey);
     await preferences.remove(_rememberedDisplayNameKey);
+    await _secureStorage.delete(key: _rememberedTokenKey);
+  }
+
+  static Future<String> _loadRememberedToken(
+    SharedPreferences preferences,
+  ) async {
+    final secureToken = await _secureStorage.read(key: _rememberedTokenKey);
+    if (secureToken != null) {
+      return secureToken;
+    }
+
+    final legacyToken = preferences.getString(_rememberedTokenKey);
+    if (legacyToken == null) {
+      return '';
+    }
+
+    await _secureStorage.write(key: _rememberedTokenKey, value: legacyToken);
+    await preferences.remove(_rememberedTokenKey);
+    return legacyToken;
   }
 
   static String? _extractCookieHeader(List<String> setCookieHeaders) {

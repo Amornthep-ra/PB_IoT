@@ -126,24 +126,37 @@ class DashboardBuilderLayoutStorageService {
       return dashboardThemePresetByName(presetName);
     }
 
+    return await loadDashboardCustomThemePreset() ??
+        dashboardThemePresets.first;
+  }
+
+  Future<DashboardThemePreset?> loadDashboardCustomThemePreset() async {
     final preferences = _preferences ?? await SharedPreferences.getInstance();
     final raw = preferences.getString(_effectiveDashboardThemeCustomStorageKey);
     if (raw == null || raw.trim().isEmpty) {
-      return dashboardThemePresets.first;
+      return null;
     }
 
     final decoded = jsonDecode(raw);
     if (decoded is! Map<String, dynamic>) {
-      return dashboardThemePresets.first;
+      return null;
     }
 
     final canvasColor = _optionalColor(decoded['canvasColor']);
     final gridColor = _optionalColor(decoded['gridColor']);
-    if (canvasColor == null || gridColor == null) {
-      return dashboardThemePresets.first;
+    final pageStart = _optionalColor(decoded['pageStart']) ?? canvasColor;
+    final pageEnd = _optionalColor(decoded['pageEnd']) ?? canvasColor;
+
+    if (canvasColor == null ||
+        gridColor == null ||
+        pageStart == null ||
+        pageEnd == null) {
+      return null;
     }
 
     return dashboardCustomThemePreset(
+      pageStart: pageStart,
+      pageEnd: pageEnd,
       canvasColor: canvasColor,
       gridColor: gridColor,
     );
@@ -159,6 +172,8 @@ class DashboardBuilderLayoutStorageService {
     await preferences.setString(
       _effectiveDashboardThemeCustomStorageKey,
       jsonEncode(<String, int>{
+        'pageStart': preset.pageStart.toARGB32(),
+        'pageEnd': preset.pageEnd.toARGB32(),
         'canvasColor': preset.canvasColors.first.toARGB32(),
         'gridColor': preset.gridColor.toARGB32(),
       }),
@@ -493,7 +508,7 @@ class DashboardBuilderLayoutStorageService {
       minH: (json['minH'] as num?)?.toInt() ?? 1,
       maxH: (json['maxH'] as num?)?.toInt() ?? 1,
       accentColor: Color(accentValue),
-      titleColor: _optionalColor(json['titleColor']),
+      titleColor: _optionalTitleColor(json['titleColor']),
       titleFontSize: (json['titleFontSize'] as num?)?.toDouble(),
       titlePosition:
           json['titlePosition']?.toString() ?? DashboardItemTitlePosition.auto,
@@ -536,6 +551,20 @@ class DashboardBuilderLayoutStorageService {
       return null;
     }
     return Color(intValue);
+  }
+
+  Color? _optionalTitleColor(dynamic value) {
+    final color = _optionalColor(value);
+
+    if (color == null) {
+      return null;
+    }
+
+    if (color.toARGB32() == const Color(0xFF15212B).toARGB32()) {
+      return null;
+    }
+
+    return color;
   }
 
   String _normalizeDashboardTitle(String? value) {

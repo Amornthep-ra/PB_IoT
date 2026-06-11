@@ -41,6 +41,8 @@ class DashboardRuntimeValueStorage {
               value: storedValue.enabled ? 1.0 : 0.0,
             ),
             DashboardItemType.slider ||
+            DashboardItemType.stepH ||
+            DashboardItemType.stepV ||
             DashboardItemType.gauge ||
             DashboardItemType.valueLabel => item.copyWith(
               value: storedValue.value,
@@ -147,6 +149,8 @@ class DashboardRuntimeValueStorage {
       case DashboardItemType.button:
       case DashboardItemType.toggle:
       case DashboardItemType.slider:
+      case DashboardItemType.stepH:
+      case DashboardItemType.stepV:
         final bindingMode = item.bindingMode.trim().toLowerCase();
         return bindingMode == 'write' || bindingMode == 'read_write';
       case DashboardItemType.gauge:

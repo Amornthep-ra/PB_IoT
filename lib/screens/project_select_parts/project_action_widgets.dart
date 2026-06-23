@@ -148,6 +148,7 @@ class _ProjectMenuItem extends StatelessWidget {
 
 class _ProjectActionButton extends StatelessWidget {
   const _ProjectActionButton({
+    super.key,
     required this.label,
     required this.onPressed,
     this.isSecondary = false,

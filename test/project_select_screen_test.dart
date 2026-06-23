@@ -288,6 +288,20 @@ void main() {
     await tester.tap(find.text('แก้ไข'));
     await tester.pumpAndSettle();
 
+    final dialogRect = tester.getRect(
+      find.byKey(const ValueKey('project_name_dialog_surface')),
+    );
+    final cancelButtonRect = tester.getRect(
+      find.byKey(const ValueKey('project_name_dialog_cancel_button')),
+    );
+    final submitButtonRect = tester.getRect(
+      find.byKey(const ValueKey('project_name_dialog_submit_button')),
+    );
+
+    expect(cancelButtonRect.bottom, lessThanOrEqualTo(dialogRect.bottom - 18));
+    expect(submitButtonRect.bottom, lessThanOrEqualTo(dialogRect.bottom - 18));
+    expect(cancelButtonRect.top, greaterThan(dialogRect.top));
+    expect(submitButtonRect.top, greaterThan(dialogRect.top));
     expect(find.text('แก้ไขโปรเจกต์'), findsOneWidget);
     expect(find.text('ไอคอนโปรเจกต์'), findsOneWidget);
     expect(find.text('ชื่อโปรเจกต์'), findsOneWidget);

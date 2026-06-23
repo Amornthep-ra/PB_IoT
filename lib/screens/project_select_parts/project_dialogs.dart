@@ -135,6 +135,22 @@ class _ProjectNameDialogState extends State<_ProjectNameDialog> {
 
   bool get _isEditing => widget.project != null;
 
+  double _iconPickerHeight(double availableHeight, bool isTablet) {
+    const reservedFormHeight = 224.0;
+    final preferredHeight = isTablet ? 320.0 : 260.0;
+    final remainingHeight = availableHeight - reservedFormHeight;
+    if (remainingHeight >= preferredHeight) {
+      return preferredHeight;
+    }
+    if (remainingHeight >= 96.0) {
+      return remainingHeight;
+    }
+    if (availableHeight <= reservedFormHeight) {
+      return 72.0;
+    }
+    return 96.0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -212,117 +228,136 @@ class _ProjectNameDialogState extends State<_ProjectNameDialog> {
                     ],
                     shadows: AppGlassTheme.shadowMd,
                   ),
-                  child: SingleChildScrollView(
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            _isEditing ? 'แก้ไขโปรเจกต์' : 'สร้างโปรเจกต์',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: _headlineColor,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'ไอคอนโปรเจกต์',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: _labelTextColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            alignment: isTablet
-                                ? WrapAlignment.start
-                                : WrapAlignment.center,
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final iconKey in _projectIconKeys)
-                                _ProjectIconChoice(
-                                  icon: _projectIconData(iconKey),
-                                  colors: _projectIconColors(iconKey),
-                                  isSelected: iconKey == _selectedIconKey,
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedIconKey = iconKey;
-                                    });
-                                  },
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'ชื่อโปรเจกต์',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: _labelTextColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _controller,
-                            autofocus: true,
-                            textInputAction: TextInputAction.done,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: _headlineColor,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'ตัวอย่าง: PB IoT',
-                              hintStyle: const TextStyle(
-                                color: _mutedTextColor,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white.withValues(alpha: 0.72),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 14,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final iconPickerHeight = _iconPickerHeight(
+                        constraints.maxHeight,
+                        isTablet,
+                      );
+
+                      return Form(
+                        key: _formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _isEditing ? 'แก้ไขโปรเจกต์' : 'สร้างโปรเจกต์',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: _headlineColor,
                               ),
                             ),
-                            validator: (value) {
-                              final trimmed = value?.trim() ?? '';
-                              if (trimmed.isEmpty) {
-                                return 'กรุณาใส่ชื่อโปรเจกต์';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _submit(),
-                          ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _ProjectActionButton(
-                                  label: 'ยกเลิก',
-                                  isSecondary: true,
-                                  onPressed: () => Navigator.of(context).pop(),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'ไอคอนโปรเจกต์',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _labelTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: iconPickerHeight,
+                              child: SingleChildScrollView(
+                                child: Wrap(
+                                  alignment: isTablet
+                                      ? WrapAlignment.start
+                                      : WrapAlignment.center,
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final iconKey in _projectIconKeys)
+                                      _ProjectIconChoice(
+                                        icon: _projectIconData(iconKey),
+                                        colors: _projectIconColors(iconKey),
+                                        isSelected: iconKey == _selectedIconKey,
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedIconKey = iconKey;
+                                          });
+                                        },
+                                      ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _ProjectActionButton(
-                                  label: _isEditing ? 'บันทึก' : 'สร้าง',
-                                  onPressed: _submit,
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'ชื่อโปรเจกต์',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _labelTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _controller,
+                              autofocus: true,
+                              textInputAction: TextInputAction.done,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: _headlineColor,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'ตัวอย่าง: PB IoT',
+                                hintStyle: const TextStyle(
+                                  color: _mutedTextColor,
+                                ),
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.72),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 14,
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                              validator: (value) {
+                                final trimmed = value?.trim() ?? '';
+                                if (trimmed.isEmpty) {
+                                  return 'กรุณาใส่ชื่อโปรเจกต์';
+                                }
+                                return null;
+                              },
+                              onFieldSubmitted: (_) => _submit(),
+                            ),
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ProjectActionButton(
+                                    key: const ValueKey(
+                                      'project_name_dialog_cancel_button',
+                                    ),
+                                    label: 'ยกเลิก',
+                                    isSecondary: true,
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _ProjectActionButton(
+                                    key: const ValueKey(
+                                      'project_name_dialog_submit_button',
+                                    ),
+                                    label: _isEditing ? 'บันทึก' : 'สร้าง',
+                                    onPressed: _submit,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),

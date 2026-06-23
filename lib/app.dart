@@ -14,6 +14,7 @@ import 'services/profile_avatar_preset_storage.dart';
 import 'services/session_cookie_storage.dart';
 import 'services/session_snapshot_storage.dart';
 import 'services/session_state.dart';
+import 'theme/app_responsive.dart';
 
 class PbIotApp extends StatelessWidget {
   const PbIotApp({super.key});
@@ -148,11 +149,27 @@ class _StartupSessionGateState extends State<_StartupSessionGate> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF10162B),
-      body: SizedBox.expand(
-        child: Image.asset(
-          'assets/icons/logo/Princebot_IoT_splash.png',
-          fit: BoxFit.cover,
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet = AppResponsiveLayout.isTabletWidth(
+            constraints.maxWidth,
+          );
+          if (isTablet) {
+            return SizedBox.expand(
+              child: Image.asset(
+                'assets/icons/logo/Princebot_IoT_splash_tablet.png',
+                fit: BoxFit.cover,
+              ),
+            );
+          }
+
+          return SizedBox.expand(
+            child: Image.asset(
+              'assets/icons/logo/Princebot_IoT_splash.png',
+              fit: BoxFit.cover,
+            ),
+          );
+        },
       ),
     );
   }

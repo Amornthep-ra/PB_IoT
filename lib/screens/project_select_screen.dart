@@ -6,6 +6,13 @@ import 'package:flutter/material.dart';
 import '../features/projects/models/project_model.dart';
 import '../features/projects/services/project_storage_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_responsive.dart';
+
+part 'project_select_parts/empty_project_state.dart';
+part 'project_select_parts/project_dialogs.dart';
+part 'project_select_parts/project_tile_widgets.dart';
+part 'project_select_parts/project_action_widgets.dart';
+part 'project_select_parts/project_background.dart';
 
 const _backgroundColor = Color(0xFFF2F5FA);
 const _headlineColor = Color(0xFF20303A);
@@ -26,6 +33,32 @@ const _projectIconKeys = <String>[
   'flower',
   'thermostat',
   'automation',
+  'home',
+  'building',
+  'factory',
+  'warehouse',
+  'energy',
+  'power',
+  'lighting',
+  'climate',
+  'cooling',
+  'fire',
+  'network',
+  'router',
+  'security',
+  'camera',
+  'lab',
+  'biotech',
+  'storage',
+  'battery',
+  'robot',
+  'tools',
+  'garden',
+  'compost',
+  'aquarium',
+  'weather',
+  'analytics',
+  'map',
 ];
 
 IconData _projectIconData(String iconKey) {
@@ -39,6 +72,32 @@ IconData _projectIconData(String iconKey) {
     'flower' => Icons.local_florist_rounded,
     'thermostat' => Icons.thermostat_rounded,
     'automation' => Icons.memory_rounded,
+    'home' => Icons.home_rounded,
+    'building' => Icons.apartment_rounded,
+    'factory' => Icons.factory_rounded,
+    'warehouse' => Icons.warehouse_rounded,
+    'energy' => Icons.bolt_rounded,
+    'power' => Icons.power_rounded,
+    'lighting' => Icons.lightbulb_rounded,
+    'climate' => Icons.air_rounded,
+    'cooling' => Icons.ac_unit_rounded,
+    'fire' => Icons.local_fire_department_rounded,
+    'network' => Icons.hub_rounded,
+    'router' => Icons.router_rounded,
+    'security' => Icons.security_rounded,
+    'camera' => Icons.videocam_rounded,
+    'lab' => Icons.science_rounded,
+    'biotech' => Icons.biotech_rounded,
+    'storage' => Icons.inventory_2_rounded,
+    'battery' => Icons.battery_charging_full_rounded,
+    'robot' => Icons.smart_toy_rounded,
+    'tools' => Icons.construction_rounded,
+    'garden' => Icons.grass_rounded,
+    'compost' => Icons.compost_rounded,
+    'aquarium' => Icons.water_rounded,
+    'weather' => Icons.cloud_rounded,
+    'analytics' => Icons.analytics_rounded,
+    'map' => Icons.map_rounded,
     _ => Icons.eco_rounded,
   };
 }
@@ -54,18 +113,37 @@ List<Color> _projectIconColors(String iconKey) {
     'flower' => const <Color>[Color(0xFFF1A8C8), Color(0xFFD95F99)],
     'thermostat' => const <Color>[Color(0xFFF29B8F), Color(0xFFD95D4F)],
     'automation' => const <Color>[Color(0xFF9CB7E8), Color(0xFF5278C6)],
+    'home' => const <Color>[Color(0xFF9DD8C1), Color(0xFF4B9C7A)],
+    'building' => const <Color>[Color(0xFFAEBBCA), Color(0xFF667487)],
+    'factory' => const <Color>[Color(0xFFB8C0CC), Color(0xFF5F6B7A)],
+    'warehouse' => const <Color>[Color(0xFFD1B38D), Color(0xFF9A6B3E)],
+    'energy' => const <Color>[Color(0xFFFFD96D), Color(0xFFE0A01C)],
+    'power' => const <Color>[Color(0xFFF6A8A8), Color(0xFFD75353)],
+    'lighting' => const <Color>[Color(0xFFFFE08A), Color(0xFFE6B647)],
+    'climate' => const <Color>[Color(0xFFA7D8F0), Color(0xFF4D9AC2)],
+    'cooling' => const <Color>[Color(0xFFA9E4F5), Color(0xFF48A7C2)],
+    'fire' => const <Color>[Color(0xFFFFA37D), Color(0xFFE05F35)],
+    'network' => const <Color>[Color(0xFF93C7F2), Color(0xFF427FC1)],
+    'router' => const <Color>[Color(0xFF9DD3E8), Color(0xFF4A91A8)],
+    'security' => const <Color>[Color(0xFFB1B9F0), Color(0xFF6671C7)],
+    'camera' => const <Color>[Color(0xFFB5A8DE), Color(0xFF7A62BF)],
+    'lab' => const <Color>[Color(0xFFA5D8D0), Color(0xFF4A9A91)],
+    'biotech' => const <Color>[Color(0xFFB2D99B), Color(0xFF68A84A)],
+    'storage' => const <Color>[Color(0xFFD2C5B4), Color(0xFF8F7861)],
+    'battery' => const <Color>[Color(0xFFA9DCA6), Color(0xFF4F9B4B)],
+    'robot' => const <Color>[Color(0xFFC0B2E8), Color(0xFF7B63C7)],
+    'tools' => const <Color>[Color(0xFFC9CED6), Color(0xFF6E7784)],
+    'garden' => const <Color>[Color(0xFF9CD796), Color(0xFF57A54F)],
+    'compost' => const <Color>[Color(0xFFC2B47C), Color(0xFF85763B)],
+    'aquarium' => const <Color>[Color(0xFF79D1D4), Color(0xFF299CA0)],
+    'weather' => const <Color>[Color(0xFFB4C7E7), Color(0xFF5F80B4)],
+    'analytics' => const <Color>[Color(0xFF98C5F0), Color(0xFF4E7FC0)],
+    'map' => const <Color>[Color(0xFFA5D4B0), Color(0xFF589263)],
     _ => const <Color>[_buttonStartColor, _buttonEndColor],
   };
 }
 
 Color _projectIconGlowColor(String iconKey) => _projectIconColors(iconKey).last;
-
-class _ProjectDialogResult {
-  const _ProjectDialogResult({required this.name, required this.iconKey});
-
-  final String name;
-  final String iconKey;
-}
 
 class ProjectSelectScreen extends StatefulWidget {
   const ProjectSelectScreen({super.key});
@@ -298,113 +376,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
   Future<bool?> _showDeleteProjectDialog(ProjectModel project) {
     return showDialog<bool>(
       context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-                decoration: AppGlassTheme.surfaceDecoration(
-                  radius: 22,
-                  borderAlpha: 0.60,
-                  colors: <Color>[
-                    const Color(0xFFFFFFFF).withValues(alpha: 0.78),
-                    const Color(0xFFFFF4F5).withValues(alpha: 0.54),
-                  ],
-                  shadows: AppGlassTheme.shadowMd,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            color: const Color(0xFFFFE2E5),
-                            border: Border.all(color: const Color(0xFFF5B7BE)),
-                          ),
-                          child: const Icon(
-                            Icons.delete_outline_rounded,
-                            color: _dangerColor,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'ลบโปรเจกต์',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: _headlineColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'ลบ "${project.name}"',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        height: 1.32,
-                        fontWeight: FontWeight.w700,
-                        color: _headlineColor,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'เมื่อลบแล้วจะไม่สามารถเรียกคืนข้อมูลได้',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.35,
-                        fontWeight: FontWeight.w500,
-                        color: _mutedTextColor,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ProjectActionButton(
-                            label: 'ยกเลิก',
-                            isSecondary: true,
-                            onPressed: () => Navigator.of(context).pop(false),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _ProjectActionButton(
-                            label: 'ลบ',
-                            isDanger: true,
-                            onPressed: () => Navigator.of(context).pop(true),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (context) => _DeleteProjectDialog(project: project),
     );
   }
 
@@ -420,6 +392,11 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    final isTablet = AppResponsiveLayout.isTabletWidth(mediaQuery.size.width);
+    final topPadding = isTablet
+        ? (mediaQuery.size.height * 0.06).clamp(56.0, 80.0)
+        : 18.0;
+    final showCreateAction = _projects.isNotEmpty && !_isLoading;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -429,13 +406,18 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
           SafeArea(
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 640),
+                constraints: const BoxConstraints(
+                  maxWidth: AppResponsiveLayout.tabletContentMaxWidth,
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+                  padding: EdgeInsets.fromLTRB(18, topPadding, 18, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildHeader(mediaQuery),
+                      _buildHeader(
+                        mediaQuery,
+                        showCreateAction: isTablet && showCreateAction,
+                      ),
                       const SizedBox(height: 18),
                       Expanded(child: _buildBody()),
                     ],
@@ -446,7 +428,7 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
           ),
         ],
       ),
-      floatingActionButton: _projects.isEmpty || _isLoading
+      floatingActionButton: isTablet || !showCreateAction
           ? null
           : FloatingActionButton.extended(
               onPressed: _isBusy ? null : _createProject,
@@ -458,7 +440,10 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
     );
   }
 
-  Widget _buildHeader(MediaQueryData mediaQuery) {
+  Widget _buildHeader(
+    MediaQueryData mediaQuery, {
+    required bool showCreateAction,
+  }) {
     final isCompactWidth = mediaQuery.size.width < 390;
     final headerVerticalPadding = isCompactWidth ? 16.0 : 18.0;
     final headerIconSize = isCompactWidth ? 44.0 : 46.0;
@@ -530,6 +515,12 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
                   ],
                 ),
               ),
+              if (showCreateAction) ...[
+                const SizedBox(width: 14),
+                _ProjectHeaderCreateButton(
+                  onPressed: _isBusy ? null : _createProject,
+                ),
+              ],
             ],
           ),
         ),
@@ -590,745 +581,4 @@ class _ProjectSelectScreenState extends State<ProjectSelectScreen> {
       ],
     );
   }
-}
-
-class _EmptyProjectState extends StatelessWidget {
-  const _EmptyProjectState({
-    required this.errorText,
-    required this.isBusy,
-    required this.onCreateProject,
-  });
-
-  final String? errorText;
-  final bool isBusy;
-  final VoidCallback onCreateProject;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-          decoration: AppGlassTheme.surfaceDecoration(
-            radius: 24,
-            borderAlpha: 0.62,
-            colors: <Color>[
-              const Color(0xFFFFFFFF).withValues(alpha: 0.74),
-              const Color(0xFFF4FBF7).withValues(alpha: 0.46),
-            ],
-            shadows: AppGlassTheme.shadowMd,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Icon(
-                Icons.add_business_rounded,
-                color: _buttonEndColor,
-                size: 54,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'สร้างโปรเจกต์แรกของคุณ',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: _headlineColor,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'แยกแดชบอร์ดของแต่ละพื้นที่ทำงานให้เป็นระเบียบ',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
-                  color: _mutedTextColor,
-                ),
-              ),
-              if (errorText != null) ...[
-                const SizedBox(height: 16),
-                _ProjectErrorBanner(message: errorText!),
-              ],
-              const SizedBox(height: 22),
-              _ProjectActionButton(
-                label: isBusy ? 'กำลังสร้าง...' : 'สร้างโปรเจกต์',
-                onPressed: isBusy ? null : onCreateProject,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectNameDialog extends StatefulWidget {
-  const _ProjectNameDialog({this.project});
-
-  final ProjectModel? project;
-
-  @override
-  State<_ProjectNameDialog> createState() => _ProjectNameDialogState();
-}
-
-class _ProjectNameDialogState extends State<_ProjectNameDialog> {
-  final TextEditingController _controller = TextEditingController();
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late String _selectedIconKey;
-
-  bool get _isEditing => widget.project != null;
-
-  @override
-  void initState() {
-    super.initState();
-    final project = widget.project;
-    _controller.text = project?.name ?? '';
-    _selectedIconKey = project?.iconKey ?? ProjectModel.defaultIconKey;
-    if (!_projectIconKeys.contains(_selectedIconKey)) {
-      _selectedIconKey = ProjectModel.defaultIconKey;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (_formKey.currentState?.validate() != true) {
-      return;
-    }
-    Navigator.of(context).pop(
-      _ProjectDialogResult(
-        name: _controller.text.trim(),
-        iconKey: _selectedIconKey,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final keyboardInset = mediaQuery.viewInsets.bottom;
-    final maxDialogHeight = (mediaQuery.size.height - keyboardInset - 72).clamp(
-      220.0,
-      mediaQuery.size.height * (keyboardInset > 0 ? 0.64 : 0.82),
-    );
-
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: keyboardInset),
-      child: MediaQuery.removeViewInsets(
-        context: context,
-        removeBottom: true,
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxDialogHeight),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-                  decoration: AppGlassTheme.surfaceDecoration(
-                    radius: 22,
-                    borderAlpha: 0.60,
-                    colors: <Color>[
-                      const Color(0xFFFFFFFF).withValues(alpha: 0.78),
-                      const Color(0xFFF4FBF7).withValues(alpha: 0.52),
-                    ],
-                    shadows: AppGlassTheme.shadowMd,
-                  ),
-                  child: SingleChildScrollView(
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            _isEditing ? 'แก้ไขโปรเจกต์' : 'สร้างโปรเจกต์',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: _headlineColor,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'ไอคอนโปรเจกต์',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: _labelTextColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final iconKey in _projectIconKeys)
-                                _ProjectIconChoice(
-                                  icon: _projectIconData(iconKey),
-                                  colors: _projectIconColors(iconKey),
-                                  isSelected: iconKey == _selectedIconKey,
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedIconKey = iconKey;
-                                    });
-                                  },
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'ชื่อโปรเจกต์',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: _labelTextColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _controller,
-                            autofocus: true,
-                            textInputAction: TextInputAction.done,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: _headlineColor,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'ตัวอย่าง: PB IoT',
-                              hintStyle: const TextStyle(
-                                color: _mutedTextColor,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white.withValues(alpha: 0.72),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 14,
-                              ),
-                            ),
-                            validator: (value) {
-                              final trimmed = value?.trim() ?? '';
-                              if (trimmed.isEmpty) {
-                                return 'กรุณาใส่ชื่อโปรเจกต์';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _submit(),
-                          ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _ProjectActionButton(
-                                  label: 'ยกเลิก',
-                                  isSecondary: true,
-                                  onPressed: () => Navigator.of(context).pop(),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _ProjectActionButton(
-                                  label: _isEditing ? 'บันทึก' : 'สร้าง',
-                                  onPressed: _submit,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectIconChoice extends StatelessWidget {
-  const _ProjectIconChoice({
-    required this.icon,
-    required this.colors,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final List<Color> colors;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 46,
-      height: 46,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(15),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            decoration: isSelected
-                ? AppGlassTheme.accentDecoration(
-                    radius: 15,
-                    colors: colors,
-                    borderColor: Colors.white,
-                    glowColor: colors.last,
-                  )
-                : AppGlassTheme.surfaceDecoration(
-                    radius: 15,
-                    borderAlpha: 0.72,
-                    colors: <Color>[
-                      const Color(0xFFFFFFFF).withValues(alpha: 0.70),
-                      const Color(0xFFF6FBFF).withValues(alpha: 0.42),
-                    ],
-                    shadows: const <BoxShadow>[],
-                  ),
-            child: Icon(
-              icon,
-              color: isSelected ? Colors.white : colors.last,
-              size: 22,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectTile extends StatelessWidget {
-  const _ProjectTile({
-    required this.project,
-    required this.isSelected,
-    required this.isBusy,
-    required this.onTap,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final ProjectModel project;
-  final bool isSelected;
-  final bool isBusy;
-  final VoidCallback onTap;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: isBusy ? null : onTap,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-              decoration: AppGlassTheme.surfaceDecoration(
-                radius: 20,
-                borderAlpha: isSelected ? 0.92 : 0.58,
-                colors: isSelected
-                    ? <Color>[
-                        const Color(0xFFEAF7F1).withValues(alpha: 0.84),
-                        const Color(0xFFFFFFFF).withValues(alpha: 0.68),
-                      ]
-                    : <Color>[
-                        const Color(0xFFFFFFFF).withValues(alpha: 0.70),
-                        const Color(0xFFF6FBFF).withValues(alpha: 0.42),
-                      ],
-                shadows: AppGlassTheme.shadowSm,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: _projectIconColors(project.iconKey),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _projectIconGlowColor(
-                            project.iconKey,
-                          ).withValues(alpha: 0.18),
-                          blurRadius: 12,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _projectIconData(project.iconKey),
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          project.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: _headlineColor,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'แก้ไขล่าสุด ${_formatProjectDate(project.updatedAt)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _mutedTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (isSelected)
-                    const _SelectedProjectChip()
-                  else
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: _mutedTextColor,
-                      size: 26,
-                    ),
-                  const SizedBox(width: 2),
-                  _ProjectTileMenu(
-                    isEnabled: !isBusy,
-                    onEdit: onEdit,
-                    onDelete: onDelete,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  static String _formatProjectDate(DateTime value) {
-    final local = value.toLocal();
-    const monthLabels = <String>[
-      'ม.ค.',
-      'ก.พ.',
-      'มี.ค.',
-      'เม.ย.',
-      'พ.ค.',
-      'มิ.ย.',
-      'ก.ค.',
-      'ส.ค.',
-      'ก.ย.',
-      'ต.ค.',
-      'พ.ย.',
-      'ธ.ค.',
-    ];
-    return '${local.day} ${monthLabels[local.month - 1]} ${local.year}';
-  }
-}
-
-class _SelectedProjectChip extends StatelessWidget {
-  const _SelectedProjectChip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE1F2E9),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFB8DDC9)),
-      ),
-      child: const Text(
-        'เลือกอยู่',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 11,
-          height: 1,
-          fontWeight: FontWeight.w800,
-          color: _buttonEndColor,
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectTileMenu extends StatelessWidget {
-  const _ProjectTileMenu({
-    required this.isEnabled,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final bool isEnabled;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: PopupMenuButton<_ProjectTileAction>(
-        tooltip: 'ตัวเลือกโปรเจกต์',
-        enabled: isEnabled,
-        icon: const Icon(Icons.more_horiz_rounded),
-        color: const Color(0xFFF8FAFD),
-        surfaceTintColor: Colors.transparent,
-        iconColor: _mutedTextColor,
-        iconSize: 24,
-        padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        onSelected: (action) {
-          switch (action) {
-            case _ProjectTileAction.edit:
-              onEdit();
-            case _ProjectTileAction.delete:
-              onDelete();
-          }
-        },
-        itemBuilder: (context) => const [
-          PopupMenuItem<_ProjectTileAction>(
-            value: _ProjectTileAction.edit,
-            child: _ProjectMenuItem(
-              icon: Icons.edit_outlined,
-              label: 'แก้ไข',
-              color: _mutedTextColor,
-            ),
-          ),
-          PopupMenuItem<_ProjectTileAction>(
-            value: _ProjectTileAction.delete,
-            child: _ProjectMenuItem(
-              icon: Icons.delete_outline_rounded,
-              label: 'ลบ',
-              color: _dangerColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-enum _ProjectTileAction { edit, delete }
-
-class _ProjectMenuItem extends StatelessWidget {
-  const _ProjectMenuItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ProjectActionButton extends StatelessWidget {
-  const _ProjectActionButton({
-    required this.label,
-    required this.onPressed,
-    this.isSecondary = false,
-    this.isDanger = false,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool isSecondary;
-  final bool isDanger;
-
-  @override
-  Widget build(BuildContext context) {
-    final foreground = isSecondary ? _labelTextColor : Colors.white;
-    final accentColors = isDanger
-        ? const <Color>[Color(0xFFE9828C), _dangerColor]
-        : const <Color>[_buttonStartColor, _buttonEndColor];
-    final glowColor = isDanger ? const Color(0xFFECA1A8) : _buttonGlowColor;
-
-    return SizedBox(
-      height: 48,
-      child: DecoratedBox(
-        decoration: isSecondary
-            ? AppGlassTheme.surfaceDecoration(
-                radius: 16,
-                borderAlpha: 0.76,
-                colors: <Color>[
-                  const Color(0xFFFFFFFF).withValues(alpha: 0.64),
-                  const Color(0xFFF6FBFF).withValues(alpha: 0.42),
-                ],
-                shadows: const <BoxShadow>[],
-              )
-            : AppGlassTheme.accentDecoration(
-                radius: 16,
-                colors: accentColors,
-                borderColor: Colors.white,
-                glowColor: glowColor,
-              ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(16),
-            child: Center(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: onPressed == null
-                      ? foreground.withValues(alpha: 0.54)
-                      : foreground,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectErrorBanner extends StatelessWidget {
-  const _ProjectErrorBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFEEF0),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF5B7BE)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: _dangerColor,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF9E3F48),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProjectBackground extends StatelessWidget {
-  const _ProjectBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Color(0xFFF2F5FA),
-            Color(0xFFEAF7F1),
-            Color(0xFFF7FBFF),
-          ],
-        ),
-      ),
-      child: CustomPaint(painter: _ProjectBackgroundPainter()),
-    );
-  }
-}
-
-class _ProjectBackgroundPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.34)
-      ..strokeWidth = 1;
-
-    const spacing = 32.0;
-    for (var x = -spacing; x < size.width + spacing; x += spacing) {
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x + size.height, size.height),
-        linePaint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

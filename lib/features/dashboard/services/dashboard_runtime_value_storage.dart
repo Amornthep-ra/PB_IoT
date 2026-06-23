@@ -44,8 +44,11 @@ class DashboardRuntimeValueStorage {
             DashboardItemType.stepH ||
             DashboardItemType.stepV ||
             DashboardItemType.gauge ||
-            DashboardItemType.valueLabel => item.copyWith(
-              value: storedValue.value,
+            DashboardItemType.valueLabel ||
+            DashboardItemType.trend => item.copyWith(value: storedValue.value),
+            DashboardItemType.led => item.copyWith(
+              enabled: storedValue.enabled,
+              value: storedValue.enabled ? 1.0 : 0.0,
             ),
           };
         })
@@ -155,6 +158,8 @@ class DashboardRuntimeValueStorage {
         return bindingMode == 'write' || bindingMode == 'read_write';
       case DashboardItemType.gauge:
       case DashboardItemType.valueLabel:
+      case DashboardItemType.trend:
+      case DashboardItemType.led:
         final bindingKey = item.dataKey?.trim();
         return bindingKey != null && bindingKey.isNotEmpty;
     }

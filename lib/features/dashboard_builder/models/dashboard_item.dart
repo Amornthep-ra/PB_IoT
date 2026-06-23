@@ -8,6 +8,8 @@ enum DashboardItemType {
   valueLabel,
   stepH,
   stepV,
+  trend,
+  led,
 }
 
 const Map<DashboardItemType, String> dashboardDefaultTitlePrefixes =
@@ -19,6 +21,8 @@ const Map<DashboardItemType, String> dashboardDefaultTitlePrefixes =
       DashboardItemType.valueLabel: 'แสดงค่า',
       DashboardItemType.stepH: 'ปรับค่า H',
       DashboardItemType.stepV: 'ปรับค่า V',
+      DashboardItemType.trend: 'กราฟแนวโน้ม',
+      DashboardItemType.led: 'ไฟสถานะ',
     };
 
 const Map<DashboardItemType, String> dashboardLegacyDefaultTitlePrefixes =
@@ -30,6 +34,8 @@ const Map<DashboardItemType, String> dashboardLegacyDefaultTitlePrefixes =
       DashboardItemType.valueLabel: 'NEW VALUE',
       DashboardItemType.stepH: 'STEP H',
       DashboardItemType.stepV: 'STEP V',
+      DashboardItemType.trend: 'NEW TREND',
+      DashboardItemType.led: 'NEW LED',
     };
 
 String dashboardDefaultTitlePrefix(DashboardItemType type) {

@@ -11,13 +11,21 @@ import 'dashboard_value_formatter.dart';
 class SmartSliderVisualSpec {
   const SmartSliderVisualSpec._();
 
+  static const double compactValueFontSize = 14.0;
   static const double valueFontSize = 16.0;
-  static const double trackHeight = 10.0;
-  static const double thumbSize = 24.0;
+  static const double roomyValueFontSize = 17.0;
+  static const double unboundValueFontBoost = 0.5;
+
+  static const double compactTrackHeight = 6.0;
+  static const double trackHeight = 9.0;
+  static const double roomyTrackHeight = 10.0;
+
+  static const double thumbSize = 22.0;
+
   static const double estimatedValueHeight = 18.0;
-  static const double labelTrackGap = 8.0;
-  static const double compactLabelTrackGap = 4.0;
-  static const double trackTouchHeight = 40.0;
+  static const double labelTrackGap = 2.0;
+  static const double compactLabelTrackGap = 1.0;
+  static const double trackTouchHeight = 28.0;
   static const double compactTrackTouchHeight = thumbSize;
   static const double desiredShellHeight =
       estimatedValueHeight + labelTrackGap + trackTouchHeight;
@@ -119,10 +127,35 @@ class _SmartSliderControlState extends State<SmartSliderControl> {
     );
   }
 
+  double _resolvedValueFontSize(BoxConstraints constraints) {
+    if (constraints.maxHeight < 52 || constraints.maxWidth < 120) {
+      return SmartSliderVisualSpec.compactValueFontSize;
+    }
+
+    if (constraints.maxHeight >= 84 && constraints.maxWidth >= 180) {
+      return SmartSliderVisualSpec.roomyValueFontSize;
+    }
+
+    return SmartSliderVisualSpec.valueFontSize;
+  }
+
+  double _resolvedTrackHeight(BoxConstraints constraints) {
+    if (constraints.maxHeight < 52 || constraints.maxWidth < 120) {
+      return SmartSliderVisualSpec.compactTrackHeight;
+    }
+
+    if (constraints.maxHeight >= 84 && constraints.maxWidth >= 180) {
+      return SmartSliderVisualSpec.roomyTrackHeight;
+    }
+
+    return SmartSliderVisualSpec.trackHeight;
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayValue = _transientValue ?? widget.item.value;
     final hasBoundDataKey = _hasBoundDataKey(widget.item);
+    final isMutedState = !hasBoundDataKey || !widget.enableInteraction;
     final displayText = formatDashboardDisplayValue(
       widget.item.copyWith(value: displayValue),
     );
@@ -135,9 +168,10 @@ class _SmartSliderControlState extends State<SmartSliderControl> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalInset = constraints.maxWidth < 180 ? 4.0 : 6.0;
-        final estimatedValueWidth =
-            displayText.length * SmartSliderVisualSpec.valueFontSize * 0.72;
+        final horizontalInset = constraints.maxWidth < 180 ? 6.0 : 8.0;
+        final valueFontSize = _resolvedValueFontSize(constraints);
+        final trackHeight = _resolvedTrackHeight(constraints);
+        final estimatedValueWidth = displayText.length * valueFontSize * 0.72;
         final regularHeightForValue =
             SmartSliderVisualSpec.estimatedValueHeight +
             SmartSliderVisualSpec.labelTrackGap +
@@ -181,13 +215,14 @@ class _SmartSliderControlState extends State<SmartSliderControl> {
             normalized: normalized,
             accentColor: widget.item.accentColor,
             horizontalInset: horizontalInset,
-            trackHeight: SmartSliderVisualSpec.trackHeight,
+            trackHeight: trackHeight,
             thumbSize: SmartSliderVisualSpec.thumbSize,
             trackGradientColors: widget.trackGradientColors,
             trackBorderColor: widget.trackBorderColor,
             trackShadowColor: widget.trackShadowColor,
             touchHeight: resolvedTrackTouchHeight,
             enableInteraction: widget.enableInteraction,
+            muted: isMutedState,
             onChanged: _handleValueChanged,
             onChangeEnd: _handleValueCommit,
           ),
@@ -197,26 +232,30 @@ class _SmartSliderControlState extends State<SmartSliderControl> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (canShowValue)
-              SizedBox(
-                height: SmartSliderVisualSpec.estimatedValueHeight,
-                child: Align(
-                  alignment: Alignment.center,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      displayText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: hasBoundDataKey
-                            ? SmartSliderVisualSpec.valueFontSize
-                            : SmartSliderVisualSpec.valueFontSize + 1,
-                        fontWeight: hasBoundDataKey
-                            ? FontWeight.w700
-                            : FontWeight.w800,
-                        color: _resolvedValueTextColor(
-                          hasBoundDataKey: hasBoundDataKey,
+              Transform.translate(
+                offset: const Offset(0, 1),
+                child: SizedBox(
+                  height: SmartSliderVisualSpec.estimatedValueHeight,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        displayText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: hasBoundDataKey
+                              ? valueFontSize
+                              : valueFontSize +
+                                    SmartSliderVisualSpec.unboundValueFontBoost,
+                          fontWeight: hasBoundDataKey
+                              ? FontWeight.w700
+                              : FontWeight.w800,
+                          color: _resolvedValueTextColor(
+                            hasBoundDataKey: hasBoundDataKey,
+                          ),
                         ),
                       ),
                     ),
@@ -260,6 +299,7 @@ class _SliderTrack extends StatefulWidget {
     this.trackShadowColor,
     required this.touchHeight,
     required this.enableInteraction,
+    required this.muted,
     this.onChanged,
     this.onChangeEnd,
   });
@@ -277,6 +317,7 @@ class _SliderTrack extends StatefulWidget {
   final Color? trackShadowColor;
   final double touchHeight;
   final bool enableInteraction;
+  final bool muted;
   final ValueChanged<double>? onChanged;
   final ValueChanged<double>? onChangeEnd;
 
@@ -330,6 +371,37 @@ class _SliderTrackState extends State<_SliderTrack> {
           final fillWidth = math
               .max(widget.trackHeight, thumbLeft + (widget.thumbSize * 0.5))
               .toDouble();
+          final trackBaseColors = widget.muted
+              ? const [Color(0xFFEAF0F6), Color(0xFFD2DDE8)]
+              : widget.trackGradientColors ??
+                    const [Color(0xFFF3F8FD), Color(0xFFC7D4E2)];
+          final trackBorderColor = widget.muted
+              ? const Color(0xFFC9D3DF)
+              : widget.trackBorderColor ?? const Color(0xFFB8C7D6);
+          final trackShadowColor = widget.muted
+              ? const Color(0x14000000)
+              : widget.trackShadowColor ?? const Color(0x18000000);
+          final fillStart = widget.muted
+              ? const Color(0xFFBFD8E8)
+              : Color.lerp(widget.accentColor, Colors.white, 0.03)!;
+          final fillEnd = widget.muted
+              ? const Color(0xFFAFC6D8)
+              : Color.lerp(widget.accentColor, Colors.black, 0.20)!;
+          final thumbStart = widget.muted
+              ? const Color(0xFFE2E8EF)
+              : Color.lerp(widget.accentColor, Colors.white, 0.14)!;
+          final thumbEnd = widget.muted
+              ? const Color(0xFFCAD4DF)
+              : Color.lerp(widget.accentColor, Colors.black, 0.08)!;
+          final thumbBorderColor = widget.muted
+              ? const Color(0xCCF4F7FA)
+              : const Color(0xE8FFFFFF);
+          final thumbGlowColor = widget.muted
+              ? const Color(0x14000000)
+              : widget.accentColor.withValues(alpha: 0.26);
+          final fillGlowColor = widget.muted
+              ? const Color(0x0A000000)
+              : widget.accentColor.withValues(alpha: 0.24);
 
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -378,26 +450,14 @@ class _SliderTrackState extends State<_SliderTrack> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors:
-                            widget.trackGradientColors ??
-                            const [
-                              DashboardRuntimeTheme.surfaceColor,
-                              Color(0xFFE7EDF4),
-                            ],
+                        colors: trackBaseColors,
                       ),
-                      border: Border.all(
-                        color:
-                            widget.trackBorderColor ??
-                            DashboardRuntimeTheme.surfaceBorderColor,
-                        width: 1,
-                      ),
+                      border: Border.all(color: trackBorderColor, width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color:
-                              widget.trackShadowColor ??
-                              DashboardRuntimeTheme.shadowLightColor,
-                          blurRadius: 6,
-                          offset: Offset(-2, -2),
+                          color: trackShadowColor,
+                          blurRadius: widget.muted ? 3 : 5,
+                          offset: const Offset(0, 1),
                         ),
                       ],
                     ),
@@ -413,15 +473,12 @@ class _SliderTrackState extends State<_SliderTrack> {
                       gradient: LinearGradient(
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
-                        colors: [
-                          Color.lerp(widget.accentColor, Colors.white, 0.18)!,
-                          Color.lerp(widget.accentColor, Colors.black, 0.05)!,
-                        ],
+                        colors: [fillStart, fillEnd],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: widget.accentColor.withValues(alpha: 0.26),
-                          blurRadius: 8,
+                          color: fillGlowColor,
+                          blurRadius: widget.muted ? 4 : 7,
                           spreadRadius: -1,
                         ),
                       ],
@@ -438,25 +495,21 @@ class _SliderTrackState extends State<_SliderTrack> {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          Color.lerp(widget.accentColor, Colors.white, 0.28)!,
-                          widget.accentColor,
-                        ],
+                        colors: [thumbStart, thumbEnd],
                       ),
-                      border: Border.all(
-                        color: const Color(0xBFF7FBF7),
-                        width: 1,
-                      ),
+                      border: Border.all(color: thumbBorderColor, width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: widget.accentColor.withValues(alpha: 0.24),
-                          blurRadius: 10,
-                          spreadRadius: 0.2,
+                          color: thumbGlowColor,
+                          blurRadius: widget.muted ? 4 : 8,
+                          spreadRadius: widget.muted ? 0 : 0.1,
                         ),
-                        const BoxShadow(
-                          color: Color(0x33000000),
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
+                        BoxShadow(
+                          color: widget.muted
+                              ? const Color(0x0D000000)
+                              : const Color(0x29000000),
+                          blurRadius: widget.muted ? 3 : 5,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),

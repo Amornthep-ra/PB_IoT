@@ -1,6 +1,43 @@
 import 'package:flutter/material.dart';
 
-enum AppWidthClass { compact, regular, large }
+enum AppWidthClass { compact, regular, large, tablet }
+
+class AppResponsiveLayout {
+  const AppResponsiveLayout._();
+
+  static const double tabletBreakpoint = 600;
+  static const double tabletContentMaxWidth = 640;
+  static const double tabletDashboardCanvasMinWidth = 560;
+  static const double tabletDashboardCanvasMaxWidth = 760;
+  static const double tabletDashboardCanvasWidthFactor = 0.82;
+
+  static bool isTabletWidth(double width) => width >= tabletBreakpoint;
+
+  static double constrainedContentWidth(double availableWidth) {
+    if (!isTabletWidth(availableWidth)) {
+      return availableWidth;
+    }
+
+    return availableWidth.clamp(0.0, tabletContentMaxWidth);
+  }
+
+  static double dashboardCanvasWidth(double availableWidth) {
+    if (!isTabletWidth(availableWidth)) {
+      return availableWidth;
+    }
+
+    final adaptiveWidth = availableWidth * tabletDashboardCanvasWidthFactor;
+
+    return adaptiveWidth.clamp(
+      tabletDashboardCanvasMinWidth,
+      tabletDashboardCanvasMaxWidth,
+    );
+  }
+
+  static double dashboardShellWidth(double availableWidth) {
+    return dashboardCanvasWidth(availableWidth);
+  }
+}
 
 class AppResponsiveMetrics {
   const AppResponsiveMetrics({
@@ -78,13 +115,15 @@ class AppResponsiveMetrics {
         ? AppWidthClass.compact
         : width < 430
         ? AppWidthClass.regular
-        : AppWidthClass.large;
+        : width < AppResponsiveLayout.tabletBreakpoint
+        ? AppWidthClass.large
+        : AppWidthClass.tablet;
     final isCompactHeight = height < 840;
 
     final screenPadding = switch (widthClass) {
       AppWidthClass.compact => 18.0,
       AppWidthClass.regular => 24.0,
-      AppWidthClass.large => 28.0,
+      AppWidthClass.large || AppWidthClass.tablet => 28.0,
     };
 
     final topSpacing = isCompactHeight
@@ -135,7 +174,9 @@ class AppResponsiveMetrics {
       authHeroSize: isCompactHeight
           ? (widthClass == AppWidthClass.compact ? 124.0 : 136.0)
           : (widthClass == AppWidthClass.compact ? 142.0 : 158.0),
-      authTopSpacing: isCompactHeight
+      authTopSpacing: widthClass == AppWidthClass.tablet
+          ? (height * 0.11).clamp(96.0, 140.0)
+          : isCompactHeight
           ? (height * 0.05).clamp(18.0, 30.0)
           : (height * 0.095).clamp(28.0, 72.0),
       authKeyboardTopSpacing: (height * 0.02).clamp(10.0, 18.0),

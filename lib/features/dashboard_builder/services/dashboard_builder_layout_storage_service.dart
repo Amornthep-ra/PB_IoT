@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../projects/services/project_state.dart';
 import '../models/dashboard_item.dart';
-import '../models/dashboard_theme_preset.dart';
 
 class DashboardBuilderHistoryEntry {
   const DashboardBuilderHistoryEntry({
@@ -48,18 +47,12 @@ class DashboardBuilderLayoutStorageService {
     SharedPreferences? preferences,
     this.storageKey = _defaultStorageKey,
     this.dashboardTitleStorageKey = _dashboardTitleStorageKey,
-    this.dashboardThemePresetStorageKey = _dashboardThemePresetStorageKey,
-    this.dashboardThemeCustomStorageKey = _dashboardThemeCustomStorageKey,
     this.dashboardHistoryStorageKey = _dashboardHistoryStorageKey,
     this.dashboardDraftStorageKey = _dashboardDraftStorageKey,
   }) : _preferences = preferences;
 
   static const String _defaultStorageKey = 'dashboard_builder_layout_v1';
   static const String _dashboardTitleStorageKey = 'dashboard_builder_title_v1';
-  static const String _dashboardThemePresetStorageKey =
-      'dashboard_builder_theme_preset_v1';
-  static const String _dashboardThemeCustomStorageKey =
-      'dashboard_builder_theme_custom_v1';
   static const String _dashboardHistoryStorageKey =
       'dashboard_builder_history_v1';
   static const String _dashboardDraftStorageKey = 'dashboard_builder_draft_v1';
@@ -68,18 +61,12 @@ class DashboardBuilderLayoutStorageService {
   final SharedPreferences? _preferences;
   final String storageKey;
   final String dashboardTitleStorageKey;
-  final String dashboardThemePresetStorageKey;
-  final String dashboardThemeCustomStorageKey;
   final String dashboardHistoryStorageKey;
   final String dashboardDraftStorageKey;
 
   String get _effectiveStorageKey => _projectScopedKey(storageKey);
   String get _effectiveDashboardTitleStorageKey =>
       _projectScopedKey(dashboardTitleStorageKey);
-  String get _effectiveDashboardThemePresetStorageKey =>
-      _projectScopedKey(dashboardThemePresetStorageKey);
-  String get _effectiveDashboardThemeCustomStorageKey =>
-      _projectScopedKey(dashboardThemeCustomStorageKey);
   String get _effectiveDashboardHistoryStorageKey =>
       _projectScopedKey(dashboardHistoryStorageKey);
   String get _effectiveDashboardDraftStorageKey =>
@@ -97,86 +84,6 @@ class DashboardBuilderLayoutStorageService {
     await preferences.setString(
       _effectiveDashboardTitleStorageKey,
       _normalizeDashboardTitle(title),
-    );
-  }
-
-  Future<String?> loadDashboardThemePresetName() async {
-    final preferences = _preferences ?? await SharedPreferences.getInstance();
-    final value = preferences.getString(
-      _effectiveDashboardThemePresetStorageKey,
-    );
-    final trimmed = value?.trim();
-    if (trimmed == null || trimmed.isEmpty) {
-      return null;
-    }
-    return trimmed;
-  }
-
-  Future<void> saveDashboardThemePresetName(String presetName) async {
-    final preferences = _preferences ?? await SharedPreferences.getInstance();
-    await preferences.setString(
-      _effectiveDashboardThemePresetStorageKey,
-      presetName.trim(),
-    );
-  }
-
-  Future<DashboardThemePreset> loadDashboardThemePreset() async {
-    final presetName = await loadDashboardThemePresetName();
-    if (presetName != customDashboardThemeName) {
-      return dashboardThemePresetByName(presetName);
-    }
-
-    return await loadDashboardCustomThemePreset() ??
-        dashboardThemePresets.first;
-  }
-
-  Future<DashboardThemePreset?> loadDashboardCustomThemePreset() async {
-    final preferences = _preferences ?? await SharedPreferences.getInstance();
-    final raw = preferences.getString(_effectiveDashboardThemeCustomStorageKey);
-    if (raw == null || raw.trim().isEmpty) {
-      return null;
-    }
-
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map<String, dynamic>) {
-      return null;
-    }
-
-    final canvasColor = _optionalColor(decoded['canvasColor']);
-    final gridColor = _optionalColor(decoded['gridColor']);
-    final pageStart = _optionalColor(decoded['pageStart']) ?? canvasColor;
-    final pageEnd = _optionalColor(decoded['pageEnd']) ?? canvasColor;
-
-    if (canvasColor == null ||
-        gridColor == null ||
-        pageStart == null ||
-        pageEnd == null) {
-      return null;
-    }
-
-    return dashboardCustomThemePreset(
-      pageStart: pageStart,
-      pageEnd: pageEnd,
-      canvasColor: canvasColor,
-      gridColor: gridColor,
-    );
-  }
-
-  Future<void> saveDashboardThemePreset(DashboardThemePreset preset) async {
-    await saveDashboardThemePresetName(preset.name);
-    if (preset.name != customDashboardThemeName) {
-      return;
-    }
-
-    final preferences = _preferences ?? await SharedPreferences.getInstance();
-    await preferences.setString(
-      _effectiveDashboardThemeCustomStorageKey,
-      jsonEncode(<String, int>{
-        'pageStart': preset.pageStart.toARGB32(),
-        'pageEnd': preset.pageEnd.toARGB32(),
-        'canvasColor': preset.canvasColors.first.toARGB32(),
-        'gridColor': preset.gridColor.toARGB32(),
-      }),
     );
   }
 
@@ -352,7 +259,9 @@ class DashboardBuilderLayoutStorageService {
       'value': item.value,
       'minValue': item.minValue,
       'maxValue': item.maxValue,
-      'series': item.series,
+      'series': item.type == DashboardItemType.trend
+          ? const <double>[]
+          : item.series,
       'unit': item.unit,
       'dataSource': item.dataSource,
       'dataKey': item.dataKey,
@@ -528,10 +437,12 @@ class DashboardBuilderLayoutStorageService {
       value: (json['value'] as num?)?.toDouble() ?? 0,
       minValue: (json['minValue'] as num?)?.toDouble() ?? 0,
       maxValue: (json['maxValue'] as num?)?.toDouble() ?? 100,
-      series: ((json['series'] as List<dynamic>?) ?? const <dynamic>[])
-          .whereType<num>()
-          .map((v) => v.toDouble())
-          .toList(),
+      series: type == DashboardItemType.trend
+          ? const <double>[]
+          : ((json['series'] as List<dynamic>?) ?? const <dynamic>[])
+                .whereType<num>()
+                .map((v) => v.toDouble())
+                .toList(),
       unit: json['unit']?.toString(),
       dataSource: json['dataSource']?.toString(),
       dataKey: json['dataKey']?.toString(),

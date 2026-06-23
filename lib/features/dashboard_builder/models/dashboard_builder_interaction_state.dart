@@ -22,6 +22,7 @@ class DashboardBuilderInteractionState {
   String? movingItemId;
   String? resizingItemId;
   bool previewInvalid = false;
+  bool previewChanged = false;
   DashboardBuilderResizeHandlePosition? activeResizeHandle;
 
   String? get activeGestureItemId => movingItemId ?? resizingItemId;
@@ -35,6 +36,7 @@ class DashboardBuilderInteractionState {
     movingItemId = null;
     resizingItemId = null;
     previewInvalid = false;
+    previewChanged = false;
     activeResizeHandle = null;
   }
 
@@ -52,6 +54,7 @@ class DashboardBuilderInteractionState {
     previewRect = rect;
     previewItems = items;
     previewInvalid = false;
+    previewChanged = false;
     activeResizeHandle = null;
   }
 
@@ -70,6 +73,22 @@ class DashboardBuilderInteractionState {
     previewRect = rect;
     previewItems = items;
     previewInvalid = false;
+    previewChanged = false;
     activeResizeHandle = handle;
+  }
+
+  void syncPreviewChanged(GridRect? effectiveRect) {
+    previewChanged = !_gridRectsEqual(effectiveRect, gestureStartRect);
+  }
+
+  bool _gridRectsEqual(GridRect? left, GridRect? right) {
+    if (left == null || right == null) {
+      return left == right;
+    }
+
+    return left.x == right.x &&
+        left.y == right.y &&
+        left.w == right.w &&
+        left.h == right.h;
   }
 }

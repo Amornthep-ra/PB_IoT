@@ -45,9 +45,9 @@ class _AddWidgetGridMetrics {
     return const _AddWidgetGridMetrics(
       sizeClass: _AddWidgetSheetSizeClass.compact,
       crossAxisCount: 3,
-      spacing: 10,
-      runSpacing: 12,
-      childAspectRatio: 0.9,
+      spacing: 9,
+      runSpacing: 10,
+      childAspectRatio: 0.98,
     );
   }
 }
@@ -70,6 +70,8 @@ class AddWidgetSheet extends StatelessWidget {
     DashboardItemType.stepV,
     DashboardItemType.gauge,
     DashboardItemType.valueLabel,
+    DashboardItemType.trend,
+    DashboardItemType.led,
   ];
 
   String _label(DashboardItemType type) {
@@ -88,6 +90,10 @@ class AddWidgetSheet extends StatelessWidget {
         return 'สวิตช์';
       case DashboardItemType.valueLabel:
         return 'แสดงค่า';
+      case DashboardItemType.trend:
+        return 'กราฟ';
+      case DashboardItemType.led:
+        return 'ไฟสถานะ';
     }
   }
 
@@ -107,6 +113,10 @@ class AddWidgetSheet extends StatelessWidget {
         return Icons.toggle_on_rounded;
       case DashboardItemType.valueLabel:
         return Icons.pin_outlined;
+      case DashboardItemType.trend:
+        return Icons.show_chart_rounded;
+      case DashboardItemType.led:
+        return Icons.lightbulb_outline_rounded;
     }
   }
 
@@ -125,6 +135,10 @@ class AddWidgetSheet extends StatelessWidget {
         return const Color(0xFF99D1AF);
       case DashboardItemType.valueLabel:
         return const Color(0xFFAEC7E6);
+      case DashboardItemType.trend:
+        return const Color(0xFFA9D4F8);
+      case DashboardItemType.led:
+        return const Color(0xFFA7DDB8);
     }
   }
 
@@ -154,8 +168,9 @@ class AddWidgetSheet extends StatelessWidget {
 
   Widget _buildMascotGuideCard() {
     return Container(
+      key: const ValueKey<String>('add_widget_guide_card'),
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
         color: _cardBackgroundColor(themePreset.isDark ? 0.86 : 0.72),
         borderRadius: BorderRadius.circular(22),
@@ -177,14 +192,14 @@ class AddWidgetSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            width: 78,
-            height: 78,
+            width: 58,
+            height: 58,
             child: Image.asset(
               'assets/icons/mascot/mascot_add_widget.png',
               fit: BoxFit.contain,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,17 +210,17 @@ class AddWidgetSheet extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w800,
                     color: themePreset.headlineColor,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Text(
-                  'ปุ่ม ใช้สั่งงานอุปกรณ์\nสวิตช์ ใช้เปิดหรือปิดสถานะ\nสไลด์ ใช้ปรับค่าที่ต้องการ\nเกจ ใช้ดูค่าจากเซนเซอร์\nแสดงค่า ใช้แสดงค่าตัวเลขหรือข้อความ',
+                  'ปุ่ม ใช้สั่งงานอุปกรณ์\nสวิตช์ ใช้เปิดหรือปิดสถานะ\nสไลด์ ใช้ปรับค่าที่ต้องการ\nเกจ / แสดงค่า ใช้ดูข้อมูล',
                   style: TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
+                    fontSize: 11,
+                    height: 1.18,
                     color: themePreset.mutedTextColor,
                     fontWeight: FontWeight.w600,
                   ),
@@ -222,8 +237,26 @@ class AddWidgetSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final shortestSide = mediaQuery.size.shortestSide;
+    final isTablet = shortestSide >= 600;
+    final gridMetrics = _AddWidgetGridMetrics.resolve(
+      mediaQuery.size.width,
+      shortestSide,
+    );
+    final isCompactPhone =
+        gridMetrics.sizeClass == _AddWidgetSheetSizeClass.compact;
+    final handleTitleGap = isCompactPhone ? 12.0 : (isTablet ? 14.0 : 16.0);
+    final titleGuideGap = isCompactPhone ? 10.0 : (isTablet ? 12.0 : 14.0);
+    final guideGridGap = isCompactPhone ? 12.0 : (isTablet ? 14.0 : 16.0);
+    final sheetPadding = EdgeInsets.fromLTRB(
+      16,
+      isCompactPhone ? 10 : 14,
+      16,
+      isCompactPhone ? 18 : 22,
+    );
+    final titleFontSize = isCompactPhone ? 21.0 : 22.0;
 
     return Material(
+      key: const ValueKey<String>('add_widget_sheet_surface'),
       color: themePreset.cardColor,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
       child: DecoratedBox(
@@ -249,18 +282,18 @@ class AddWidgetSheet extends StatelessWidget {
               : const [
                   BoxShadow(
                     color: DashboardRuntimeTheme.shadowLightColor,
-                    blurRadius: 14,
-                    offset: Offset(-8, -8),
+                    blurRadius: 9,
+                    offset: Offset(-5, -5),
                   ),
                   BoxShadow(
                     color: DashboardRuntimeTheme.shadowDarkColor,
-                    blurRadius: 22,
-                    offset: Offset(0, -8),
+                    blurRadius: 14,
+                    offset: Offset(0, -5),
                   ),
                   BoxShadow(
-                    color: Color(0x14677E92),
-                    blurRadius: 28,
-                    offset: Offset(0, -10),
+                    color: Color(0x0F677E92),
+                    blurRadius: 18,
+                    offset: Offset(0, -6),
                   ),
                 ],
         ),
@@ -268,7 +301,7 @@ class AddWidgetSheet extends StatelessWidget {
           top: false,
           child: SingleChildScrollView(
             controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+            padding: sheetPadding,
             physics: const ClampingScrollPhysics(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -283,54 +316,47 @@ class AddWidgetSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: handleTitleGap),
                 Text(
                   'เพิ่มวิดเจ็ต',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: titleFontSize,
                     fontWeight: FontWeight.w800,
                     color: themePreset.headlineColor,
-                    letterSpacing: -0.4,
+                    letterSpacing: -0.3,
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: titleGuideGap),
                 _buildMascotGuideCard(),
-                const SizedBox(height: 18),
+                SizedBox(height: guideGridGap),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final gridMetrics = _AddWidgetGridMetrics.resolve(
+                    final effectiveGridMetrics = _AddWidgetGridMetrics.resolve(
                       constraints.maxWidth,
                       shortestSide,
                     );
                     final totalSpacing =
-                        gridMetrics.spacing * (gridMetrics.crossAxisCount - 1);
+                        effectiveGridMetrics.spacing *
+                        (effectiveGridMetrics.crossAxisCount - 1);
                     final optionWidth =
                         ((constraints.maxWidth - totalSpacing) /
-                                gridMetrics.crossAxisCount)
+                                effectiveGridMetrics.crossAxisCount)
                             .clamp(80.0, 112.0)
                             .toDouble();
                     final iconBoxSize = (optionWidth * 0.5)
-                        .clamp(42.0, 54.0)
+                        .clamp(40.0, 52.0)
                         .toDouble();
                     final optionHeight =
-                        (optionWidth / gridMetrics.childAspectRatio)
-                            .clamp(92.0, 116.0)
+                        (optionWidth / effectiveGridMetrics.childAspectRatio)
+                            .clamp(88.0, 112.0)
                             .toDouble();
-
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _orderedTypes.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: gridMetrics.crossAxisCount,
-                        crossAxisSpacing: gridMetrics.spacing,
-                        mainAxisSpacing: gridMetrics.runSpacing,
-                        childAspectRatio: gridMetrics.childAspectRatio,
-                      ),
-                      itemBuilder: (context, index) {
-                        final type = _orderedTypes[index];
-                        return _AddWidgetOption(
+                    final optionCards = [
+                      for (final type in _orderedTypes)
+                        _AddWidgetOption(
+                          key: ValueKey<String>(
+                            'add_widget_option_${type.name}',
+                          ),
                           themePreset: themePreset,
                           label: _label(type),
                           icon: _icon(type),
@@ -339,7 +365,51 @@ class AddWidgetSheet extends StatelessWidget {
                           height: optionHeight,
                           iconBoxSize: iconBoxSize,
                           onPressed: () => Navigator.of(context).pop(type),
-                        );
+                        ),
+                    ];
+
+                    if (effectiveGridMetrics.sizeClass !=
+                        _AddWidgetSheetSizeClass.compact) {
+                      final gridWidth =
+                          (optionWidth * effectiveGridMetrics.crossAxisCount) +
+                          (effectiveGridMetrics.spacing *
+                              (effectiveGridMetrics.crossAxisCount - 1));
+                      return Align(
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          key: const ValueKey<String>('add_widget_option_grid'),
+                          width: gridWidth,
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            runAlignment: WrapAlignment.center,
+                            spacing: effectiveGridMetrics.spacing,
+                            runSpacing: effectiveGridMetrics.runSpacing,
+                            children: [
+                              for (final option in optionCards)
+                                SizedBox(
+                                  width: optionWidth,
+                                  height: optionHeight,
+                                  child: option,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return GridView.builder(
+                      key: const ValueKey<String>('add_widget_option_grid'),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _orderedTypes.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: effectiveGridMetrics.crossAxisCount,
+                        crossAxisSpacing: effectiveGridMetrics.spacing,
+                        mainAxisSpacing: effectiveGridMetrics.runSpacing,
+                        childAspectRatio: effectiveGridMetrics.childAspectRatio,
+                      ),
+                      itemBuilder: (context, index) {
+                        return optionCards[index];
                       },
                     );
                   },
@@ -355,6 +425,7 @@ class AddWidgetSheet extends StatelessWidget {
 
 class _AddWidgetOption extends StatelessWidget {
   const _AddWidgetOption({
+    super.key,
     required this.themePreset,
     required this.label,
     required this.icon,
@@ -376,6 +447,14 @@ class _AddWidgetOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = Color.lerp(glowColor, themePreset.bodyColor, 0.28)!;
+    final iconTileStart = themePreset.isDark
+        ? themePreset.surfaceColor.withValues(alpha: 0.96)
+        : Colors.white.withValues(alpha: 0.94);
+    final iconTileEnd = themePreset.isDark
+        ? themePreset.cardColor.withValues(alpha: 0.92)
+        : glowColor.withValues(alpha: 0.08);
+
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(22),
@@ -389,7 +468,7 @@ class _AddWidgetOption extends StatelessWidget {
             10,
             10,
             10,
-            (height * 0.09).clamp(8.0, 10.0).toDouble(),
+            (height * 0.075).clamp(6.0, 8.0).toDouble(),
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
@@ -399,13 +478,15 @@ class _AddWidgetOption extends StatelessWidget {
               colors: [
                 themePreset.isDark
                     ? themePreset.surfaceColor
-                    : const Color(0xFFF7FAFE),
-                themePreset.cardColor,
+                    : Colors.white.withValues(alpha: 0.92),
+                themePreset.isDark
+                    ? themePreset.cardColor
+                    : glowColor.withValues(alpha: 0.05),
               ],
             ),
             border: Border.all(
               color: themePreset.borderColor.withValues(
-                alpha: themePreset.isDark ? 0.82 : 0.85,
+                alpha: themePreset.isDark ? 0.78 : 0.70,
               ),
               width: 1,
             ),
@@ -413,21 +494,21 @@ class _AddWidgetOption extends StatelessWidget {
               if (!themePreset.isDark)
                 const BoxShadow(
                   color: DashboardRuntimeTheme.shadowLightColor,
-                  blurRadius: 10,
-                  offset: Offset(-5, -5),
+                  blurRadius: 8,
+                  offset: Offset(-4, -4),
                 ),
               BoxShadow(
-                color: glowColor.withValues(alpha: 0.16),
-                blurRadius: 18,
-                spreadRadius: 0.4,
-                offset: const Offset(0, 8),
+                color: glowColor.withValues(alpha: 0.13),
+                blurRadius: 16,
+                spreadRadius: 0.2,
+                offset: const Offset(0, 7),
               ),
               BoxShadow(
                 color: themePreset.isDark
                     ? const Color(0x40111827)
                     : DashboardRuntimeTheme.shadowDarkColor,
-                blurRadius: 16,
-                offset: const Offset(6, 8),
+                blurRadius: 13,
+                offset: const Offset(5, 7),
               ),
             ],
           ),
@@ -440,46 +521,64 @@ class _AddWidgetOption extends StatelessWidget {
                     width: iconBoxSize,
                     height: iconBoxSize,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          themePreset.surfaceColor,
-                          themePreset.cardColor,
-                        ],
+                        colors: [iconTileStart, iconTileEnd],
                       ),
                       border: Border.all(
-                        color: themePreset.borderColor.withValues(
-                          alpha: themePreset.isDark ? 0.82 : 0.72,
+                        color: glowColor.withValues(
+                          alpha: themePreset.isDark ? 0.38 : 0.20,
                         ),
-                        width: 0.9,
+                        width: 1,
                       ),
                       boxShadow: [
                         if (!themePreset.isDark)
                           const BoxShadow(
                             color: DashboardRuntimeTheme.shadowLightColor,
-                            blurRadius: 8,
+                            blurRadius: 7,
                             offset: Offset(-3, -3),
                           ),
                         BoxShadow(
-                          color: glowColor.withValues(alpha: 0.16),
+                          color: glowColor.withValues(alpha: 0.20),
                           blurRadius: 14,
-                          spreadRadius: 0.2,
+                          spreadRadius: 0.4,
                         ),
                         BoxShadow(
                           color: themePreset.isDark
                               ? const Color(0x33111827)
                               : DashboardRuntimeTheme.shadowDarkColor,
-                          blurRadius: 10,
-                          offset: const Offset(4, 6),
+                          blurRadius: 9,
+                          offset: const Offset(4, 5),
                         ),
                       ],
                     ),
-                    child: Icon(
-                      icon,
-                      color: Color.lerp(glowColor, themePreset.bodyColor, 0.38),
-                      size: (iconBoxSize * 0.52).clamp(22.0, 28.0).toDouble(),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Positioned(
+                          top: iconBoxSize * 0.16,
+                          left: iconBoxSize * 0.18,
+                          child: Container(
+                            width: iconBoxSize * 0.22,
+                            height: iconBoxSize * 0.08,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(
+                                alpha: themePreset.isDark ? 0.10 : 0.70,
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          icon,
+                          color: accentColor,
+                          size: (iconBoxSize * 0.52)
+                              .clamp(22.0, 28.0)
+                              .toDouble(),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -495,7 +594,20 @@ class _AddWidgetOption extends StatelessWidget {
                     fontSize: (width * 0.145).clamp(12.5, 15.0).toDouble(),
                     fontWeight: FontWeight.w700,
                     color: themePreset.headlineColor,
-                    letterSpacing: -0.1,
+                    letterSpacing: -0.05,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Center(
+                child: Container(
+                  width: (width * 0.18).clamp(18.0, 28.0).toDouble(),
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: glowColor.withValues(
+                      alpha: themePreset.isDark ? 0.34 : 0.22,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
               ),

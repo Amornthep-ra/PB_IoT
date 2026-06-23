@@ -16,11 +16,24 @@
                     <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <imageView opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleAspectFill" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="YRO-k0-Ey4">
+                            <imageView opaque="NO" alpha="0.34" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleAspectFill" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="XAc-bg-01">
+                            </imageView>
+                            <view opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="XAc-dim-01">
+                                <color key="backgroundColor" red="0.06274509803921569" green="0.08627450980392157" blue="0.16862745098039217" alpha="0.6" colorSpace="custom" customColorSpace="sRGB"/>
+                            </view>
+                            <imageView opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleAspectFit" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="YRO-k0-Ey4">
                             </imageView>
                         </subviews>
                         <color key="backgroundColor" red="0.06274509803921569" green="0.08627450980392157" blue="0.16862745098039217" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
+                            <constraint firstItem="XAc-bg-01" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="XAc-bg-leading"/>
+                            <constraint firstItem="XAc-bg-01" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="XAc-bg-top"/>
+                            <constraint firstItem="XAc-bg-01" firstAttribute="trailing" secondItem="Ze5-6b-2t3" secondAttribute="trailing" id="XAc-bg-trailing"/>
+                            <constraint firstItem="XAc-bg-01" firstAttribute="bottom" secondItem="Ze5-6b-2t3" secondAttribute="bottom" id="XAc-bg-bottom"/>
+                            <constraint firstItem="XAc-dim-01" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="XAc-dim-leading"/>
+                            <constraint firstItem="XAc-dim-01" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="XAc-dim-top"/>
+                            <constraint firstItem="XAc-dim-01" firstAttribute="trailing" secondItem="Ze5-6b-2t3" secondAttribute="trailing" id="XAc-dim-trailing"/>
+                            <constraint firstItem="XAc-dim-01" firstAttribute="bottom" secondItem="Ze5-6b-2t3" secondAttribute="bottom" id="XAc-dim-bottom"/>
                             <constraint firstItem="YRO-k0-Ey4" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="0F1-KJ-Vnr"/>
                             <constraint firstItem="YRO-k0-Ey4" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="6c7-Id-zLy"/>
                             <constraint firstItem="YRO-k0-Ey4" firstAttribute="trailing" secondItem="Ze5-6b-2t3" secondAttribute="trailing" id="A9R-Bg-MbE"/>

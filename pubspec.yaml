@@ -1,7 +1,7 @@
 name: pb_iot
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.0.1+5
+version: 1.0.3+8
 
 environment:
   sdk: ^3.11.1
@@ -30,6 +30,7 @@ flutter:
     - assets/icons/logo/Princebot_IoT_V2C.png
     - assets/icons/logo/Princebot_IoT_Login.png
     - assets/icons/logo/Princebot_IoT_splash.png
+    - assets/icons/logo/Princebot_IoT_splash_tablet.png
     - assets/icons/dashboard_builder/
     - assets/icons/mascot/
     - assets/icons/profile/

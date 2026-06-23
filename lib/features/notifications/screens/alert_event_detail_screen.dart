@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/app_responsive.dart';
 import '../models/alert_event_model.dart';
 import '../models/alert_rule_model.dart';
 
@@ -27,156 +28,185 @@ class AlertEventDetailScreen extends StatelessWidget {
         title: const Text('Alert Details'),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _DetailCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: palette.color.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            palette.icon,
-                            color: palette.color,
-                            size: 26,
-                          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isTablet = AppResponsiveLayout.isTabletWidth(
+              constraints.maxWidth,
+            );
+            final horizontalPadding = isTablet ? 0.0 : 20.0;
+            final shellWidth = AppResponsiveLayout.dashboardShellWidth(
+              constraints.maxWidth,
+            );
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                12,
+                horizontalPadding,
+                24,
+              ),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  key: const ValueKey<String>(
+                    'alert_event_detail_content_shell',
+                  ),
+                  width: shellWidth,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _DetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 52,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    color: palette.color.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    palette.icon,
+                                    color: palette.color,
+                                    size: 26,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        displayTitle,
+                                        style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF20303A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _formatTimestamp(event.createdAt),
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF7A8794),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _DetailChip(
+                                  label: event.widgetTitle,
+                                  color: const Color(0xFF4E9070),
+                                ),
+                                if (dataKey != null)
+                                  _DetailChip(
+                                    label: dataKey,
+                                    color: const Color(0xFF4C8BC8),
+                                  ),
+                                _DetailChip(
+                                  label: _severityLabel(event.severity),
+                                  color: palette.color,
+                                ),
+                                _DetailChip(
+                                  label: event.isRead ? 'Read' : 'Unread',
+                                  color: event.isRead
+                                      ? const Color(0xFF97A3AF)
+                                      : const Color(0xFFE28A3B),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                displayTitle,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
+                      ),
+                      const SizedBox(height: 16),
+                      _DetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Message',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF4E9070),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SelectableText(
+                              event.message,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                height: 1.55,
+                                color: Color(0xFF20303A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _DetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Details',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF4E9070),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _InfoRow(label: 'Rule ID', value: event.ruleId),
+                            _InfoRow(label: 'Widget ID', value: event.widgetId),
+                            _InfoRow(
+                              label: 'Triggered At',
+                              value: _formatFullTimestamp(event.createdAt),
+                            ),
+                            if (event.payload.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Payload',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
                                   color: Color(0xFF20303A),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _formatTimestamp(event.createdAt),
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF7A8794),
+                              const SizedBox(height: 8),
+                              ...event.payload.entries.map(
+                                (entry) => _InfoRow(
+                                  label: entry.key,
+                                  value: entry.value?.toString() ?? '-',
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _DetailChip(
-                          label: event.widgetTitle,
-                          color: const Color(0xFF4E9070),
-                        ),
-                        if (dataKey != null)
-                          _DetailChip(
-                            label: dataKey,
-                            color: const Color(0xFF4C8BC8),
-                          ),
-                        _DetailChip(
-                          label: _severityLabel(event.severity),
-                          color: palette.color,
-                        ),
-                        _DetailChip(
-                          label: event.isRead ? 'Read' : 'Unread',
-                          color: event.isRead
-                              ? const Color(0xFF97A3AF)
-                              : const Color(0xFFE28A3B),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              _DetailCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Message',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF4E9070),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SelectableText(
-                      event.message,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        height: 1.55,
-                        color: Color(0xFF20303A),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              _DetailCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Details',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF4E9070),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _InfoRow(label: 'Rule ID', value: event.ruleId),
-                    _InfoRow(label: 'Widget ID', value: event.widgetId),
-                    _InfoRow(
-                      label: 'Triggered At',
-                      value: _formatFullTimestamp(event.createdAt),
-                    ),
-                    if (event.payload.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Payload',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF20303A),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ...event.payload.entries.map(
-                        (entry) => _InfoRow(
-                          label: entry.key,
-                          value: entry.value?.toString() ?? '-',
+                          ],
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

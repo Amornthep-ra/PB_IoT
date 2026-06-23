@@ -6,12 +6,17 @@ String formatDashboardDisplayValue(DashboardItem item) {
           item.type == DashboardItemType.stepH ||
           item.type == DashboardItemType.stepV ||
           item.type == DashboardItemType.gauge ||
-          item.type == DashboardItemType.valueLabel) &&
+          item.type == DashboardItemType.valueLabel ||
+          item.type == DashboardItemType.trend) &&
       (key == null || key.isEmpty)) {
     return '--';
   }
 
-  final valueText = _formatCompactNumber(item.value);
+  if (item.type == DashboardItemType.led && (key == null || key.isEmpty)) {
+    return '--';
+  }
+
+  final valueText = _formatFullNumber(item.value);
   final unitText = item.unit?.trim() ?? '';
   if (unitText.isEmpty) {
     return valueText;
@@ -22,23 +27,8 @@ String formatDashboardDisplayValue(DashboardItem item) {
       : '$valueText$unitText';
 }
 
-String _formatCompactNumber(double value) {
-  final absValue = value.abs();
-  if (absValue >= 1000000) {
-    return '${_formatScaledNumber(value / 1000000)}M';
-  }
-  if (absValue >= 1000) {
-    return '${_formatScaledNumber(value / 1000)}K';
-  }
-
+String _formatFullNumber(double value) {
   return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
-}
-
-String _formatScaledNumber(double value) {
-  final absValue = value.abs();
-  final decimals = absValue >= 100 ? 0 : 1;
-  final text = value.toStringAsFixed(decimals);
-  return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
 }
 
 bool _unitNeedsSpace(String unit) {
